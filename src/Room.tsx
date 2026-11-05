@@ -1,12 +1,27 @@
-import { Canvas, useFrame } from "@react-three/fiber";
-import type { MutableRefObject } from "react";
+import { Canvas, useFrame, useLoader } from "@react-three/fiber";
+import { Suspense, useEffect, useMemo, type MutableRefObject } from "react";
+import { MeshBasicMaterial, type Mesh, type MeshStandardMaterial } from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import roomUrl from "./assets/room.glb?url";
 import { tourAt } from "./tour";
 
-// Greybox: simple shapes at rough station positions. Lazy-loaded, so three.js stays out of
-// the first screen.
-const stations: [number, number, number][] = [
-  [0, 0.5, 0], [-3, 0.5, -4], [3, 0.5, -8], [-3, 0.5, -12], [3, 0.5, -16], [-3, 0.5, -20], [0, 0.5, -24],
-];
+// The baked room (tools/room/build.py): one mesh whose lighting is already in its texture, so
+// it is drawn unlit. Lazy-loaded, so three.js and the model stay out of the first screen.
+function BakedRoom({ onLoaded }: { onLoaded: () => void }) {
+  const gltf = useLoader(GLTFLoader, roomUrl);
+  const scene = useMemo(() => {
+    const s = gltf.scene.clone();
+    s.traverse((o) => {
+      const m = o as Mesh;
+      if (!m.isMesh) return;
+      const old = m.material as MeshStandardMaterial;
+      m.material = new MeshBasicMaterial({ map: old.map, toneMapped: false });
+    });
+    return s;
+  }, [gltf]);
+  useEffect(onLoaded, [onLoaded]);
+  return <primitive object={scene} />;
+}
 
 // Moves the camera along the tour. Eases toward the scroll position and adds slight mouse
 // parallax, unless the visitor prefers reduced motion: then it snaps and holds still.
@@ -30,21 +45,11 @@ export default function Room({ onReady, progress, reduced }: {
     <Canvas
       style={{ position: "fixed", inset: 0 }}
       camera={{ position: [0, 2, 6], fov: 55 }}
-      onCreated={onReady}
     >
       <CameraRig progress={progress} reduced={reduced} />
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[3, 6, 4]} />
-      <mesh rotation-x={-Math.PI / 2} position={[0, 0, -12]}>
-        <planeGeometry args={[14, 40]} />
-        <meshStandardMaterial color="#1a2226" />
-      </mesh>
-      {stations.map((p, i) => (
-        <mesh key={i} position={p}>
-          <boxGeometry args={[1.6, 1, 1]} />
-          <meshStandardMaterial color={i === 0 ? "#ffb347" : "#3a7d55"} />
-        </mesh>
-      ))}
+      <Suspense fallback={null}>
+        <BakedRoom onLoaded={onReady} />
+      </Suspense>
     </Canvas>
   );
 }
