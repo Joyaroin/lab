@@ -1,6 +1,7 @@
+import type { FailureReason } from "./capability";
 import { identity, links } from "./content";
 
-export function SignalLost({ reason }: { reason: string }) {
+export function SignalLost({ reason }: { reason: FailureReason }) {
   return (
     <main role="alert" aria-labelledby="sl-title" style={{ padding: "12vh 8vw" }}>
       <p id="sl-title" style={{ margin: 0, letterSpacing: "0.2em" }}>SIGNAL LOST</p>

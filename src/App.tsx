@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { BootScreen } from "./BootScreen";
 import { SignalLost } from "./SignalLost";
-import { browserWebGL, checkCapability } from "./capability";
+import { browserWebGL, checkCapability, type FailureReason } from "./capability";
 import { Tour, prefersReducedMotion } from "./Tour";
 import { useGap } from "./useGap";
 import { meterLink } from "./nixie";
@@ -29,7 +29,7 @@ export const STALL_LIMIT_MS = 30_000;
 
 export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
   const [capability] = useState(() => checkCapability(browserWebGL));
-  const [failed, setFailed] = useState<string | null>(null);
+  const [failed, setFailed] = useState<FailureReason | null>(null);
   const [codeLoaded, setCodeLoaded] = useState(false);
   const [sceneReady, setSceneReady] = useState(false);
   const gap = useGap();

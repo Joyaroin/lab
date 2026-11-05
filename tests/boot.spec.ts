@@ -381,7 +381,7 @@ test("a hang on the room model file, with no bytes at all, reaches signal lost",
   await signalLost(page, "load-timed-out");
 });
 
-for (const [name, size] of Object.entries({ desktop: { width: 1280, height: 800 }, phone: { width: 390, height: 780 } })) {
+for (const [name, size] of Object.entries(sizes)) {
   test(`Contact's email link is on screen without scrolling (${name})`, async ({ page }) => {
     await page.setViewportSize(size);
     await page.emulateMedia({ reducedMotion: "reduce" });

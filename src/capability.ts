@@ -1,5 +1,6 @@
 // Decides whether the room can start. `getContext` is injected so the check is testable;
 // the browser version is `browserWebGL`.
+export type FailureReason = "no-webgl" | "context-failed" | "scene-load-failed" | "load-timed-out" | "scene-error";
 export type Capability = { ok: true } | { ok: false; reason: "no-webgl" | "context-failed" };
 
 export function checkCapability(getContext: () => unknown): Capability {

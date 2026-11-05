@@ -87,7 +87,7 @@ test("the power-on draws frame after frame, then stops", async ({ page }) => {
   expect(await frames(page)).toBe(settled);
 });
 // Measured on this VM: 4 frames without the power-on, 17 with it. CI's slower rendering still
-// manages the power-on's 1.4 s in about 7, so 5 separates the two.
+// is expected to manage the power-on's 1.4 s in about 7 (an estimate, not measured on the runner), so 5 should separate the two.
 const POWER_ON_MIN_FRAMES = 5;
 
 // The CRT cursors blink for a few seconds, then hold lit. The blink is a draw a second.
