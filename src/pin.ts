@@ -1,7 +1,7 @@
 // Where a station's HTML panel goes in the window, given where its CRT projects to.
 // The panel is centred on the CRT but kept fully inside the window and clear of the HUD (top)
 // and the meter (bottom), so every panel is readable at every station and window size.
-export const TOP_CLEAR = 96, BOTTOM_CLEAR = 150, SIDE = 8;
+export const TOP_CLEAR = 128, BOTTOM_CLEAR = 150, SIDE = 8;
 
 export type Fit = { left: number; top: number; width: number; maxHeight: number };
 

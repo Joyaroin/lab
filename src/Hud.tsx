@@ -1,11 +1,12 @@
 import type { CSSProperties } from "react";
-import { links, stations } from "./content";
+import { identity, links, stations } from "./content";
 
 // Always-on corner overlay: résumé, contact and station links. Fixed, so it is reachable
 // at every point in the tour.
 export function Hud({ current, onJump }: { current: number; onJump: (station: number) => void }) {
   return (
     <nav aria-label="HUD" style={hud}>
+      <div style={{ color: "#ffb347" }}>{identity.availability}</div>
       <div style={row}>
         {links.map((l) => <a key={l.label} href={l.href} style={link}>{l.label}</a>)}
       </div>
