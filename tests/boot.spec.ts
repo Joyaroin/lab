@@ -417,6 +417,7 @@ test("the HUD's Résumé link points at the PDF", async ({ page, request }) => {
 const bigSizes = { "1280x800": { width: 1280, height: 800 }, "1920x1080": { width: 1920, height: 1080 } };
 for (const [name, size] of Object.entries(bigSizes)) {
   test(`at every station the text sits on the glass with no card and no phosphor behind it (${name})`, async ({ page }) => {
+    test.setTimeout(90_000); // six stops, each with a full-panel screenshot, on software WebGL
     await page.setViewportSize(size);
     await page.emulateMedia({ reducedMotion: "reduce" });
     await startTour(page);
@@ -454,6 +455,12 @@ for (const [name, size] of Object.entries(bigSizes)) {
       const fonts = await panel.evaluate((e) => ({ panel: parseFloat(getComputedStyle(e).fontSize), h2: parseFloat(getComputedStyle(e.querySelector("h2")!).fontSize) }));
       expect(fonts.h2, id).toBeGreaterThan(fonts.panel);
       expect(fonts.panel, `${id} type at ${name}`).toBeGreaterThanOrEqual(name === "1920x1080" ? 24 : 16);
+      // The "more" cue (shown where the text overflows) fades the cut-off line and scales with the type.
+      if (await panel.getAttribute("data-more") === "true") {
+        const cue = await panel.evaluate((e) => { const m = e.querySelector(".crt-more")!; return { bg: getComputedStyle(m).backgroundImage, font: parseFloat(getComputedStyle(m.querySelector("span")!).fontSize), panel: parseFloat(getComputedStyle(e).fontSize) }; });
+        expect(cue.bg, `${id}: the more cue fades the text under it`).toContain("linear-gradient");
+        expect(cue.font / cue.panel, `${id}: the more cue scales with the type`).toBeCloseTo(0.8, 1);
+      }
       await page.screenshot({ path: `test-results/glass-${id}-${name}.png` });
     }
   });
