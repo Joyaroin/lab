@@ -169,12 +169,26 @@ for (const [name, size] of Object.entries(sizes)) {
   });
 }
 
-test("each station's panel appears when the tour reaches it", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await startTour(page);
-  for (const id of ["work", "mediasafe", "home-lab", "order-tracker", "wc2026-predictor", "contact"]) {
-    await page.getByRole("navigation", { name: "HUD" }).locator(`a[href="#${id}"]`).click();
-    await expect(page.locator(`[data-screen="${id}"]`)).toBeVisible();
-    await page.screenshot({ path: `test-results/screen-${id}.png` });
-  }
-});
+// Every panel must be fully inside the window at every station, at both sizes.
+const stationIds = ["work", "mediasafe", "home-lab", "order-tracker", "wc2026-predictor", "contact"];
+for (const [name, size] of Object.entries(sizes)) {
+  test(`each station's panel appears, fully inside the window (${name})`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await startTour(page);
+    for (const id of stationIds) {
+      await page.getByRole("navigation", { name: "HUD" }).locator(`a[href="#${id}"]`).click();
+      const panel = page.locator(`[data-screen="${id}"]`);
+      await expect(panel).toBeVisible();
+      await expect(panel).toHaveCSS("opacity", "1");
+      for (const other of stationIds.filter((o) => o !== id)) await expect(page.locator(`[data-screen="${other}"]`)).toBeHidden();
+      await page.waitForTimeout(300); // let the pin settle
+      const box = (await panel.boundingBox())!;
+      expect(box.x, `${id} left`).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width, `${id} right`).toBeLessThanOrEqual(size.width);
+      expect(box.y, `${id} top`).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height, `${id} bottom`).toBeLessThanOrEqual(size.height);
+      await page.screenshot({ path: `test-results/screen-${id}-${name}.png` });
+    }
+  });
+}

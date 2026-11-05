@@ -1,5 +1,7 @@
 # CI runs these.
-.PHONY: setup frontend backend integration browser
+.PHONY: room setup frontend backend integration browser
+room:
+	blender -b -P tools/room/build.py -- --out src/assets/room.glb
 setup:
 	git config core.hooksPath .githooks
 frontend:
