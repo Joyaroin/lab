@@ -1,4 +1,8 @@
 import { test, expect } from "@playwright/test";
+import { createServer, type Server, type ServerResponse } from "node:http";
+import { readFileSync } from "node:fs";
+import type { AddressInfo } from "node:net";
+
 
 const signalLost = (page: import("@playwright/test").Page) =>
   expect(page.getByRole("alert")).toContainText("SIGNAL LOST");
@@ -267,12 +271,86 @@ test("a load that hangs with no error reaches signal lost, and the links work fr
   await page.route("**/assets/Room-*.js", () => {});
   await page.goto("/");
   await expect(page.getByLabel("Boot log")).toBeVisible();
-  await page.clock.fastForward("00:45"); // a slow phone link must not trip it this early
+  await page.clock.fastForward("00:20"); // a slow phone link must not trip it this early
   await expect(page.getByLabel("Boot log")).toBeVisible();
-  await page.clock.fastForward("02:00");
+  await page.clock.fastForward("01:00");
   await signalLost(page);
   for (const name of ["Résumé", "LinkedIn", "GitHub"])
     await expect(page.getByRole("link", { name })).toBeInViewport();
+});
+
+// --- stall detection (ticket 34) ---
+// Serves the room model from a local server whose chunks the test releases one at a time, and
+// points the page's request for it there. The page clock is separate from the real one, so the
+// test decides how much page time passes between chunks.
+async function slowModel(page: import("@playwright/test").Page) {
+  const glb = readFileSync("src/assets/room.glb");
+  let res: ServerResponse | undefined;
+  let sent = 0;
+  const server: Server = createServer((_req, r) => {
+    res = r;
+    r.writeHead(200, {
+      "content-type": "model/gltf-binary", "content-length": glb.length,
+      "access-control-allow-origin": "*",
+    });
+    r.flushHeaders();
+  });
+  await new Promise<void>((ok) => server.listen(0, "127.0.0.1", ok));
+  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  await page.route("**/*.glb", (route) => route.continue({ url: `${origin}/room.glb` }));
+  const chunk = async (bytes: number) => {
+    await expect.poll(() => res !== undefined).toBe(true); // the page has asked for the model
+    const part = glb.subarray(sent, Math.min(sent + bytes, glb.length));
+    sent += part.length;
+    await new Promise<void>((ok) => res!.write(part, () => ok()));
+    await page.waitForTimeout(150); // real time for the page to receive it
+  };
+  return {
+    chunk,
+    rest: () => chunk(glb.length - sent).then(() => res!.end()),
+    size: glb.length,
+    close: () => { res?.destroy(); server.close(); },
+  };
+}
+
+test("a slow load that keeps making progress past the old 120 s limit does not reach signal lost", async ({ page }) => {
+  await page.clock.install();
+  const model = await slowModel(page);
+  try {
+    await page.goto("/");
+    const piece = Math.floor(model.size / 10);
+    for (let i = 0; i < 7; i++) { // 7 x 20 s = 140 s of page time, a chunk arriving in each
+      await model.chunk(piece);
+      await page.clock.fastForward("00:20");
+    }
+    await expect(page.getByRole("alert")).toBeHidden();
+    await expect(page.getByLabel("Boot log")).toBeVisible();
+    await model.rest();
+    await expect(page.locator("canvas")).toBeVisible();
+    await expect(page.getByLabel("Boot log")).toBeHidden();
+  } finally { model.close(); }
+});
+
+test("a hang on the room model file, after some of it arrived, reaches signal lost", async ({ page }) => {
+  await page.clock.install();
+  const model = await slowModel(page);
+  try {
+    await page.goto("/");
+    await model.chunk(Math.floor(model.size / 10));
+    await page.clock.fastForward("00:20");
+    await expect(page.getByLabel("Boot log")).toBeVisible();
+    await page.clock.fastForward("01:00"); // no more bytes
+    await signalLost(page);
+  } finally { model.close(); }
+});
+
+test("a hang on the room model file, with no bytes at all, reaches signal lost", async ({ page }) => {
+  await page.clock.install();
+  await page.route("**/*.glb", () => {}); // accepted, never answered
+  await page.goto("/");
+  await expect(page.getByLabel("Boot log")).toBeVisible();
+  await page.clock.fastForward("01:00");
+  await signalLost(page);
 });
 
 for (const [name, size] of Object.entries({ desktop: { width: 1280, height: 800 }, phone: { width: 390, height: 780 } })) {

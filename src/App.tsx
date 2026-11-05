@@ -1,10 +1,11 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { BootScreen } from "./BootScreen";
 import { SignalLost } from "./SignalLost";
 import { browserWebGL, checkCapability } from "./capability";
 import { Tour, prefersReducedMotion } from "./Tour";
 import { useGap } from "./useGap";
 import { meterLink } from "./nixie";
+import { watchForStall } from "./stall";
 import { Component, type ReactNode } from "react";
 
 const loadRoom = () => import("./Room");
@@ -17,11 +18,14 @@ class SceneBoundary extends Component<{ onFail: (e: unknown) => void; children: 
 }
 
 const BOOT_FADE_MS = 700;
-// A load that hangs without an error ends at signal lost after this long. The room is about
-// 2.3 MB over the wire, which takes about 92 s at 200 kbit/s, slower than 3G. The clock runs from
-// page load and doesn't reset on progress, so it allows for slower links than that. It favours
-// not cutting off a slow phone over speed.
-export const LOAD_TIMEOUT_MS = 120_000;
+// A load ends at signal lost when it has made no progress for this long. Progress is the room
+// code arriving, and then each chunk of the room model (see Room's onProgress). The limit is
+// set by the one step that reports nothing while it runs: the room code (about 256 KB gzip),
+// which takes about 10 s at 200 kbit/s, slower than 3G. 30 s is three times that, and also
+// covers a mobile signal dropping out briefly and the model being decoded after its last byte.
+// There is no upper bound on total time: the room is a fixed 2.3 MB, so a link that keeps
+// delivering bytes does finish, and cutting it off would only punish slow visitors.
+export const STALL_LIMIT_MS = 30_000;
 
 export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
   const [capability] = useState(() => checkCapability(browserWebGL));
@@ -44,16 +48,19 @@ export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
     return () => clearTimeout(id);
   }, [sceneReady, meter, reduced]);
 
+  const stall = useRef<ReturnType<typeof watchForStall>>(undefined);
   useEffect(() => {
     if (!capability.ok || sceneReady) return;
-    const id = setTimeout(() => setFailed("load-timed-out"), LOAD_TIMEOUT_MS);
-    return () => clearTimeout(id);
+    const watch = watchForStall(STALL_LIMIT_MS, () => setFailed("load-timed-out"));
+    stall.current = watch;
+    return () => { watch.stop(); stall.current = undefined; };
   }, [capability, sceneReady]);
+  const onLoadProgress = useCallback(() => stall.current?.progress(), []);
 
   useEffect(() => {
     if (!capability.ok) return;
-    load().then(() => setCodeLoaded(true), () => setFailed("scene-load-failed"));
-  }, [capability, load]);
+    load().then(() => { setCodeLoaded(true); onLoadProgress(); }, () => setFailed("scene-load-failed"));
+  }, [capability, load, onLoadProgress]);
 
   if (!capability.ok) return <SignalLost reason={capability.reason} />;
   if (failed) return <SignalLost reason={failed} />;
@@ -68,7 +75,7 @@ export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
       {!booted && <BootScreen steps={steps} fading={sceneReady} />}
       <SceneBoundary onFail={() => setFailed("scene-error")}>
         <Suspense fallback={null}>
-          {codeLoaded && <Room onReady={() => setSceneReady(true)} progress={progress} reduced={reduced} meter={meter} />}
+          {codeLoaded && <Room onReady={() => setSceneReady(true)} onProgress={onLoadProgress} progress={progress} reduced={reduced} meter={meter} />}
         </Suspense>
       </SceneBoundary>
       {sceneReady && <Tour gap={gap} progress={progress} meter={meter} />}

@@ -51,8 +51,8 @@ function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
 
 // The baked room (tools/room/build.py): one mesh whose lighting is already in its texture, so
 // it is drawn unlit. Lazy-loaded, so three.js and the model stay out of the first screen.
-function BakedRoom({ onLoaded }: { onLoaded: () => void }) {
-  const gltf = useLoader(GLTFLoader, roomUrl);
+function BakedRoom({ onLoaded, onProgress }: { onLoaded: () => void; onProgress: () => void }) {
+  const gltf = useLoader(GLTFLoader, roomUrl, undefined, onProgress);
   const scene = useMemo(() => {
     const s = gltf.scene.clone();
     s.traverse((o) => {
@@ -94,8 +94,8 @@ function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; 
   return null;
 }
 
-export default function Room({ onReady, progress, reduced, meter }: {
-  onReady: () => void; progress: MutableRefObject<number>; reduced: boolean; meter: MeterLink;
+export default function Room({ onReady, onProgress, progress, reduced, meter }: {
+  onReady: () => void; onProgress: () => void; progress: MutableRefObject<number>; reduced: boolean; meter: MeterLink;
 }) {
   return (
     // Drawn on demand, not 60 times a second: the baked room is costly to draw (texture
@@ -109,7 +109,7 @@ export default function Room({ onReady, progress, reduced, meter }: {
       <CameraRig progress={progress} reduced={reduced} />
       <ScreenPins progress={progress} />
       <Suspense fallback={null}>
-        <BakedRoom onLoaded={onReady} />
+        <BakedRoom onLoaded={onReady} onProgress={onProgress} />
         <DeskMeter link={meter} reduced={reduced} />
         <Phosphor reduced={reduced} />
         <Rain />
