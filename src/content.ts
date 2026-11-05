@@ -1,11 +1,14 @@
-// Identity for the boot screen. Station content comes in a later ticket.
+// Identity and links for the boot screen and signal lost. Station content comes later.
+// The name and title are also written into index.html so they show before any script runs:
+// keep the two in step (a test checks this).
 export const identity = {
   name: "Adham Sedik",
   title: "SWE & Platform",
 };
 
-export const bootLog = [
-  "[ ok ] lab firmware 0.1",
-  "[ ok ] meter: standby",
-  "[ .. ] room: not loaded yet",
+// TODO(Adham): résumé and LinkedIn URLs are placeholders. Real values need your review.
+export const links = [
+  { label: "Résumé", href: "/resume.pdf" },
+  { label: "LinkedIn", href: "https://www.linkedin.com/in/TODO-placeholder" },
+  { label: "GitHub", href: "https://github.com/Joyaroin" },
 ];
