@@ -6,6 +6,7 @@ import { ScreenPanels } from "./ScreenPanels";
 import { Meter } from "./Meter";
 import { formatReading, gapLabel, type Gap } from "./gap";
 import { pendingDeploys } from "./useGap";
+import { createShifts, DWELL_MS, type ShiftKind } from "./shift";
 import { progressFor, STATION_COUNT, tourAt } from "./tour";
 
 // Page height in screens: how much scrolling the tour takes. 9 screens is 8 of scrolling, about
@@ -23,14 +24,27 @@ const scrollProgress = () => {
 // `progress` is shared with the room's camera via a ref so frames don't re-render React.
 export function Tour({ gap, progress, meter }: { gap: Gap | null; progress: MutableRefObject<number>; meter: MeterLink }) {
   const [p, setP] = useState(scrollProgress);
+  const [shifts] = useState(() => createShifts(prefersReducedMotion()));
+  const [barShift, setBarShift] = useState<{ kind: ShiftKind; id: number } | null>(null);
 
   useEffect(() => {
-    const onScroll = () => { progress.current = scrollProgress(); setP(progress.current); };
+    let timer = 0, id = 0;
+    const check = () => {
+      const kind = shifts.observe(progress.current, performance.now());
+      if (!kind) return;
+      meter.shift = kind; meter.shiftAt = null; meter.redraw?.();
+      setBarShift({ kind, id: ++id });
+    };
+    const onScroll = () => {
+      progress.current = scrollProgress(); setP(progress.current);
+      check();
+      clearTimeout(timer); timer = window.setTimeout(check, DWELL_MS + 20); // the visitor may have stopped
+    };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
-    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); };
-  }, [progress]);
+    return () => { clearTimeout(timer); window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); };
+  }, [progress, shifts, meter]);
 
   const jump = useCallback((station: number) => {
     const max = document.documentElement.scrollHeight - window.innerHeight;
@@ -53,7 +67,7 @@ export function Tour({ gap, progress, meter }: { gap: Gap | null; progress: Muta
       <div style={{ position: "fixed", left: 0, right: 0, bottom: "1rem", zIndex: 10, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto" }}>
           <Meter reading={Math.round(t.reading)} label={t.station === 0 ? label : stationLabel(t.station)}
-            live={gap ? gap.live : true} pending={!gap} onClick={() => jump(next)} />
+            live={gap ? gap.live : true} pending={!gap} shift={barShift} onClick={() => jump(next)} />
         </div>
       </div>
     </>

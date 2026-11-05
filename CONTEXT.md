@@ -28,3 +28,7 @@ The language of this project: its terms, what each one means, and what it doesn'
 - **HUD**: the small always-on corner overlay with résumé, contact and station links.
 - **Phone stop**: a station's own camera stop, look point and text pin used on a portrait window instead of
   the pulled-back view, where that view would be mostly dark. Only MediaSafe and WC2026 have one.
+- **Shift**: the moment of arrival at a station, when the view tears and the meter scrambles and locks
+  onto the reading. It fires once the visitor has stayed inside a hold, not when scrolling past. Full on
+  a station's first visit, a short flick after. Never at the entrance, never with reduced motion. Visits
+  are kept in memory only, and nothing on screen shows where you have been.

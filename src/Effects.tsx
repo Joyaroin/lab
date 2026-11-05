@@ -2,7 +2,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { AdditiveBlending, CanvasTexture, CylinderGeometry, DoubleSide, SRGBColorSpace, Vector3, type Camera, type MeshBasicMaterial } from "three";
 import { crts, CRT_GLASS, DESK_METER, type Crt } from "./crts";
-import { powerOn, type MeterLink } from "./nixie";
+import { powerOn, shiftDigits, type MeterLink } from "./nixie";
 import { stations } from "./content";
 import { LIVING_FPS, LIVING_MS } from "./living";
 
@@ -117,6 +117,12 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
     if (link.on && link.onAt === null) link.onAt = clock.elapsedTime; // the boot screen just went
     const since = link.onAt === null ? 0 : clock.elapsedTime - link.onAt;
     const s = reduced && link.on ? powerOn(Infinity, link.digits) : powerOn(since, link.digits);
+    let shifting = false;
+    if (link.shift && !reduced && s.done) {
+      if (link.shiftAt === null) link.shiftAt = clock.elapsedTime;
+      const sh = shiftDigits(clock.elapsedTime - link.shiftAt, link.digits, link.shift);
+      if (sh.done) { link.shift = null; link.shiftAt = null; } else { s.digits = sh.digits; shifting = true; }
+    } else if (link.shift) { link.shift = null; link.shiftAt = null; } // reduced motion: plain reading
     const digits = s.digits.replace(".", "");
     tubes.forEach((tube, i) => {
       // an unlit tube shows no digit, so it needs no redraw as the random digits change
@@ -130,7 +136,7 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
     if (poolMat.current) poolMat.current.opacity = 0.4 * s.glow;
     if (dotMat.current) dotMat.current.opacity = s.glow;
     if (dotGlowMat.current) dotGlowMat.current.opacity = s.glow;
-    if (link.on && !s.done) invalidate(); // keep drawing until the power-on has settled
+    if (link.on && (!s.done || shifting)) invalidate(); // keep drawing until the power-on or shift has settled
 
     const bar = document.querySelector<HTMLElement>("[data-meter-bar]");
     if (bar) bar.dataset.deskMeter = meterInView(camera, size, ends) ? "in-view" : "out-of-view";
