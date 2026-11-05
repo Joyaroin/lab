@@ -112,32 +112,32 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
   });
 }
 
-// Ticket 72: with reduced motion, scrolling between stations moves the camera on a straight line,
-// not the arc. Halfway along leg 1 the arc is about 0.7 m higher, so the two frames must differ.
-// And the reduced frame there must differ from both stops, which it is only if the camera is
-// travelling rather than stuck, and then ends square on the next TV (its text fully in).
-test("with reduced motion, scrolling between stations takes a different path from the arc", async ({ browser }) => {
-  test.setTimeout(120_000);
-  const shootMid = async (reducedMotion: "reduce" | "no-preference") => {
-    const ctx = await browser.newContext({ reducedMotion, viewport: { width: 1280, height: 800 } });
+// Ticket 72: with reduced motion, travel between stations is a straight line, but the leg from the
+// entrance keeps its curve. Each test reads the camera from the canvas's data-camera at the two stops
+// of a leg and halfway between them, once it has stopped moving. Halfway along a straight line is
+// the average of the two stops; the arc sits well off that (about 2 m here).
+for (const [name, leg, straight] of [["between stations 1 and 2", 1, true], ["out of the entrance", 0, false]] as const) {
+  test(`reduced motion, ${name}: the camera ${straight ? "is on the straight line" : "keeps its curve"}`, async ({ browser }) => {
+    test.setTimeout(90_000);
+    const ctx = await browser.newContext({ reducedMotion: "reduce", viewport: { width: 1280, height: 800 } });
     const page = await ctx.newPage();
     await page.goto("/");
     await expect(page.getByLabel("Boot log")).toBeHidden();
-    const mid = (holdSpan(1)[1] + holdSpan(2)[0]) / 2;
-    const go = (f: number) => page.evaluate((f) => window.scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)), f);
-    await go(progressFor(1));
-    await expect(page.locator('[data-screen="work"]')).toHaveCSS("opacity", "1");
-    const atStop = await page.screenshot();
-    await go(mid);
-    await page.waitForTimeout(3_000); // the camera has arrived (reduced motion snaps; the arc eases)
-    const midShot = await page.screenshot();
-    await go(progressFor(2));
-    await expect(page.locator('[data-screen="mediasafe"]')).toHaveCSS("opacity", "1");
+    const read = () => page.locator("canvas").evaluate((c) => (c.dataset.camera ?? "").split(",").map(Number));
+    // scroll to progress `p` and wait for the camera to stop moving
+    const goTo = async (p: number) => {
+      await page.evaluate((f) => window.scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)), p);
+      let last = "";
+      await expect.poll(async () => { const now = JSON.stringify(await read()); const still = now === last; last = now; return still; }, { intervals: [300] }).toBe(true);
+      return read();
+    };
+    const [from, to] = [leg === 0 ? 0 : holdSpan(leg)[1], progressFor(leg + 1)];
+    const a = await goTo(from);
+    const b = await goTo(to);
+    const m = await goTo((from + (leg === 0 ? holdSpan(1)[0] : holdSpan(leg + 1)[0])) / 2);
+    const offLine = Math.hypot(...m.map((v, k) => v - (a[k] + b[k]) / 2));
+    if (straight) expect(offLine).toBeLessThan(0.01);
+    else expect(offLine).toBeGreaterThan(0.3);
     await ctx.close();
-    return { atStop, midShot };
-  };
-  const reduced = await shootMid("reduce");
-  const arc = await shootMid("no-preference");
-  expect(reduced.midShot.equals(arc.midShot)).toBe(false);
-  expect(reduced.midShot.equals(reduced.atStop)).toBe(false);
-});
+  });
+}
