@@ -6,9 +6,9 @@ export const identity = {
   title: "SWE & Platform",
 };
 
-// TODO(Adham): résumé and LinkedIn URLs are placeholders. Real values need your review.
+// The résumé PDF is added at launch (#12).
 export const links = [
   { label: "Résumé", href: "/resume.pdf" },
-  { label: "LinkedIn", href: "https://www.linkedin.com/in/TODO-placeholder" },
+  { label: "LinkedIn", href: "https://www.linkedin.com/in/adham-sedik" },
   { label: "GitHub", href: "https://github.com/Joyaroin" },
 ];
