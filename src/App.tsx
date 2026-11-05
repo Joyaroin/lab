@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { BootScreen } from "./BootScreen";
 import { SignalLost } from "./SignalLost";
 import { browserWebGL, checkCapability, type FailureReason } from "./capability";
-import { Tour, prefersReducedMotion } from "./Tour";
+import { Tour, prefersReducedMotion } from "./TourView";
 import { useGap } from "./useGap";
 import { meterLink } from "./nixie";
 import { watchForStall } from "./stall";
