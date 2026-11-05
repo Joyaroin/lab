@@ -122,7 +122,7 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
       if (link.shiftAt === null) link.shiftAt = clock.elapsedTime;
       const sh = shiftDigits(clock.elapsedTime - link.shiftAt, link.digits, link.shift);
       if (sh.done) { link.shift = null; link.shiftAt = null; } else { s.digits = sh.digits; shifting = true; }
-    } else if (link.shift) { link.shift = null; link.shiftAt = null; } // reduced motion: plain reading
+    } else if (link.shift) { link.shift = null; link.shiftAt = null; } // reduced motion, or the power-on is still running: drop the shift, show the plain reading
     const digits = s.digits.replace(".", "");
     tubes.forEach((tube, i) => {
       // an unlit tube shows no digit, so it needs no redraw as the random digits change
