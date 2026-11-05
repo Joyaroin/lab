@@ -1,7 +1,7 @@
-// Placeholder identity for the boot screen. Station content comes in a later ticket.
+// Identity for the boot screen. Station content comes in a later ticket.
 export const identity = {
   name: "Adham Sedik",
-  title: "Platform engineering co-op · DevOps",
+  title: "SWE & Platform",
 };
 
 export const bootLog = [
