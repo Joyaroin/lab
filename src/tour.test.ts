@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tourAt, progressFor, STATION_COUNT } from "./tour";
+import { tourAt, progressFor, holdSpan, panelStrength, STATION_COUNT } from "./tour";
 import { stations } from "./content";
 import { crts, panelPoint } from "./crts";
 
@@ -59,6 +59,84 @@ describe("tour", () => {
     const p1 = progressFor(1), p2 = progressFor(2);
     expect(tourAt(p1 + (p2 - p1) * 0.4, GAP).station).toBe(1);
     expect(tourAt(p1 + (p2 - p1) * 0.6, GAP).station).toBe(2);
+  });
+});
+
+describe("holds", () => {
+  const same = (a: number[], b: number[]) => { for (let k = 0; k < 3; k++) expect(a[k]).toBe(b[k]); };
+  const inside = (i: number, n = 25) => {
+    const [a, b] = holdSpan(i);
+    return Array.from({ length: n + 1 }, (_, k) => a + ((b - a) * k) / n);
+  };
+  for (const aspect of [16 / 9, 390 / 780]) {
+    it(`keep the camera, look and reading exactly on the stop at every scroll position in a hold (aspect ${aspect.toFixed(2)})`, () => {
+      for (let i = 1; i <= STATION_COUNT; i++) {
+        const stop = tourAt(progressFor(i), GAP, aspect);
+        for (const p of inside(i)) {
+          const t = tourAt(p, GAP, aspect);
+          same(t.camera, stop.camera);
+          same(t.look, stop.look);
+          expect(t.reading).toBe(readings[i - 1]);
+          expect(t.station).toBe(i);
+        }
+      }
+    });
+  }
+  it("sit on the exact stop camera on desktop", () => {
+    for (let i = 1; i <= STATION_COUNT; i++) same(tourAt(progressFor(i), GAP).camera, crts[i - 1].camera);
+  });
+  it("are in order, do not overlap, and leave travel between them", () => {
+    let prevEnd = 0;
+    for (let i = 1; i <= STATION_COUNT; i++) {
+      const [a, b] = holdSpan(i);
+      expect(a).toBeGreaterThan(prevEnd);
+      expect(b).toBeGreaterThan(a);
+      prevEnd = b;
+    }
+    expect(prevEnd).toBeCloseTo(1, 9);
+  });
+  it("end with the camera moving again, and travel back the way it came", () => {
+    const [, end] = holdSpan(1);
+    const before = tourAt(end, GAP), after = tourAt(end + 0.01, GAP);
+    expect(after.camera).not.toEqual(before.camera);
+    const [start] = holdSpan(2);
+    const back = tourAt(start - 0.01, GAP);
+    expect(back.camera).not.toEqual(tourAt(start, GAP).camera);
+  });
+  it("move the camera and roll the reading throughout travel, with no jumps leaving or entering a hold", () => {
+    for (let i = 1; i < STATION_COUNT; i++) {
+      const a = holdSpan(i)[1], b = holdSpan(i + 1)[0];
+      let prev = tourAt(a, GAP), longest = 0;
+      for (let k = 1; k <= 100; k++) {
+        const t = tourAt(a + ((b - a) * k) / 100, GAP);
+        longest = Math.max(longest, Math.hypot(...(t.camera.map((v, j) => v - prev.camera[j]) as [number, number, number])));
+        expect(t.reading).toBeGreaterThanOrEqual(prev.reading);
+        prev = t;
+      }
+      expect(longest).toBeLessThan(0.1);
+      expect(prev.reading).toBe(readings[i]);
+    }
+  });
+  it("land the meter and HUD jumps inside the hold, away from either edge", () => {
+    for (let i = 1; i <= STATION_COUNT; i++) {
+      const [a, b] = holdSpan(i), p = progressFor(i);
+      expect(p - a).toBeCloseTo(b - p, 9);
+      expect(p).toBeGreaterThan(a);
+    }
+    expect(progressFor(0)).toBe(0);
+  });
+  it("show the station's text at full strength for the whole hold, and fade it out in travel", () => {
+    for (let i = 1; i <= STATION_COUNT; i++) {
+      for (const p of inside(i)) expect(panelStrength(p, i)).toBe(1);
+      if (i < STATION_COUNT) expect(panelStrength((holdSpan(i)[1] + holdSpan(i + 1)[0]) / 2, i)).toBe(0);
+    }
+    expect(panelStrength(0, 1)).toBe(0);
+  });
+  it("take a comfortable page: travel is about as long as before, and the tour is not much longer", () => {
+    // Pages are 9 screens (8 of scrolling): each stretch of travel gets 8 * travel share.
+    const travelShare = holdSpan(2)[0] - holdSpan(1)[1];
+    expect(travelShare * 8).toBeGreaterThan(0.7);
+    expect(travelShare * 8).toBeLessThan(1.1);
   });
 });
 
@@ -181,13 +259,13 @@ describe("entrance framing", () => {
     expect(m.left).toBeGreaterThan(8);
     expect(m.right).toBeLessThan(390 - 8);
   });
-  it("pulls back to the wide view of the room halfway to the first station", () => {
-    const half = tourAt(progressFor(1) / 2, GAP);
+  it("pulls back to the wide view of the room halfway through the travel to the first station", () => {
+    const half = tourAt(holdSpan(1)[0] / 2, GAP);
     for (let k = 0; k < 3; k++) {
       expect(half.camera[k]).toBeCloseTo(ENTRANCE.reveal.camera[k], 6);
       expect(half.look[k]).toBeCloseTo(ENTRANCE.reveal.look[k], 6);
     }
-    const m = meterOnScreen(progressFor(1) / 2, 1280, 800);
+    const m = meterOnScreen(holdSpan(1)[0] / 2, 1280, 800);
     expect(m.right - m.left).toBeLessThan(1280 * 0.15); // the meter is now a small part of the room
   });
   it("moves smoothly from the meter to the first station, with no jumps", () => {

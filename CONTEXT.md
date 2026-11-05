@@ -10,6 +10,9 @@ The language of this project: its terms, what each one means, and what it doesn'
   entrance, which is where the gap shows and is not a station.
 - **World line**: a station's themed label, such as "World line 03". A label only: the copy beside it
   stays plain.
+- **Hold**: a stretch of scroll at a station where the camera stays exactly on the stop, between the
+  travel into it and the travel out. The reading stays fixed and the text is at full strength for all
+  of it. Clicking the meter or a HUD link lands in the middle of the hold. The entrance has none.
 - **Meter**: the nixie tube display at the centre of the site. It is our own design, and it is both
   navigation and a live readout.
 - **Reading**: the number the meter shows. Each station has a fixed reading; the entrance shows the gap.
