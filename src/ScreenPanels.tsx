@@ -39,6 +39,8 @@ export function markMore(el: HTMLElement) {
 }
 
 const css = `
+.crt-panel { padding: 0.9rem 1rem; border: 1px solid #2f7a4d; border-radius: 14px;
+  box-shadow: inset 0 0 28px rgba(0,0,0,0.75), 0 0 22px rgba(60,255,140,0.18); }
 .crt-panel { background:
   repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.22) 2px 3px),
   radial-gradient(ellipse at 50% 45%, #10391f, #04140b 70%, #010804);
@@ -48,17 +50,17 @@ const css = `
   background: linear-gradient(to bottom, rgba(4,20,11,0), rgba(4,20,11,0.97) 70%); }
 .crt-more span { font-size: 0.8rem; letter-spacing: 0.1em; color: #ffb347; text-shadow: 0 0 6px rgba(255,140,30,0.6); }
 .crt-panel[data-more="true"] .crt-more { display: flex; }
+.crt-panel[data-glass="true"] { background: repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.18) 2px 3px); border: 0; border-radius: 0; box-shadow: none; padding: 0.6em 1.2em; }
+.crt-panel[data-glass="true"] .crt-more { margin: 0 -1.2em -0.6em; bottom: -0.6em; background: none; }
 `;
 
 const panel: CSSProperties = {
   position: "fixed", top: 0, left: 0, zIndex: 5, boxSizing: "border-box", overflowY: "auto",
-  padding: "0.9rem 1rem", border: "1px solid #2f7a4d", borderRadius: 14,
-  boxShadow: "inset 0 0 28px rgba(0,0,0,0.75), 0 0 22px rgba(60,255,140,0.18)",
   color: "#b4ffd0", textShadow: "0 0 5px rgba(80,255,150,0.45)", fontSize: "1rem", lineHeight: 1.45,
   userSelect: "text", cursor: "auto", willChange: "transform",
 };
-const worldLine: CSSProperties = { margin: 0, fontSize: "0.75rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "#ffb347" };
-const heading: CSSProperties = { margin: "0.2rem 0 0.5rem", fontSize: "1.25rem" };
+const worldLine: CSSProperties = { margin: 0, fontSize: "0.75em", letterSpacing: "0.12em", textTransform: "uppercase", color: "#ffb347" };
+const heading: CSSProperties = { margin: "0.2rem 0 0.5rem", fontSize: "1.25em" };
 const para: CSSProperties = { margin: "0 0 0.6rem" };
 const linkRow: CSSProperties = { margin: "0 0 0.7rem", display: "flex", flexWrap: "wrap", gap: "0.3rem 1rem" };
 const link: CSSProperties = { color: "#7dffb0", textDecoration: "underline" };

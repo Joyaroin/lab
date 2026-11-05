@@ -412,3 +412,42 @@ test("the HUD's Résumé link points at the PDF", async ({ page, request }) => {
   expect(res.headers()["content-type"]).toContain("pdf");
   expect((await res.body()).subarray(0, 4).toString()).toBe("%PDF");
 });
+
+// --- ticket 49: the text is on the glass, not a card on it ---
+const bigSizes = { "1280x800": { width: 1280, height: 800 }, "1920x1080": { width: 1920, height: 1080 } };
+for (const [name, size] of Object.entries(bigSizes)) {
+  test(`at every station the text sits on the glass with no card and no phosphor text behind it (${name})`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await startTour(page);
+    let lastFont = 0;
+    for (const id of stationIds) {
+      await hud(page).locator(`a[href="#${id}"]`).click();
+      const panel = page.locator(`[data-screen="${id}"]`);
+      await expect(panel).toHaveCSS("opacity", "1");
+      await page.waitForTimeout(400); // let the pin settle
+      // No card: no border, no own background colour or shadow.
+      const style = await panel.evaluate((e) => { const s = getComputedStyle(e); return { border: s.borderTopWidth, radius: s.borderTopLeftRadius, bg: s.backgroundColor, shadow: s.boxShadow }; });
+      expect(style, id).toEqual({ border: "0px", radius: "0px", bg: "rgba(0, 0, 0, 0)", shadow: "none" });
+      // Nothing from the 3D phosphor layer behind the text: hide the text and the glass must be
+      // dark. The terminal lines are bright green (#7dffb0); a clear phosphor never passes ~90.
+      const box = (await panel.boundingBox())!;
+      await page.addStyleTag({ content: `[data-screen] * { visibility: hidden !important; }` });
+      const shot = await page.screenshot({ clip: { x: box.x + box.width * 0.1, y: box.y + box.height * 0.1, width: box.width * 0.8, height: box.height * 0.8 } });
+      await page.evaluate(() => document.querySelectorAll("style:last-of-type").forEach((s) => s.textContent?.includes("visibility: hidden !important") && s.remove()));
+      const brightest = await page.evaluate(async (src) => {
+        const img = new Image(); img.src = src; await img.decode();
+        const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
+        const x = c.getContext("2d")!; x.drawImage(img, 0, 0);
+        const d = x.getImageData(0, 0, c.width, c.height).data;
+        let m = 0; for (let k = 0; k < d.length; k += 4) m = Math.max(m, d[k + 1]);
+        return m;
+      }, "data:image/png;base64," + shot.toString("base64"));
+      expect(brightest, `${id}: phosphor text shows behind the text`).toBeLessThan(90);
+      lastFont = await panel.evaluate((e) => parseFloat(getComputedStyle(e.querySelector("h2")!).fontSize));
+      await page.screenshot({ path: `test-results/glass-${id}-${name}.png` });
+    }
+    // Type scales with the glass: bigger window, bigger type (checked against the other size below).
+    expect(lastFont).toBeGreaterThanOrEqual(name === "1920x1080" ? 28 : 18);
+  });
+}

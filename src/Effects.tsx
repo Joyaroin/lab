@@ -1,7 +1,8 @@
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
+import { createRef, useEffect, useMemo, useRef } from "react";
 import { AdditiveBlending, CanvasTexture, CylinderGeometry, DoubleSide, SRGBColorSpace, Vector3, type Camera, type MeshBasicMaterial } from "three";
-import { crts, CRT_GLASS, DESK_METER, type Crt } from "./crts";
+import { panelStrength } from "./tour";
+import { crts, CRT_GLASS, DESK_METER, isPortrait, type Crt } from "./crts";
 import { powerOn, type MeterLink } from "./nixie";
 import { stations } from "./content";
 import { LIVING_FPS, LIVING_MS } from "./living";
@@ -208,14 +209,26 @@ function phosphorFrame(crt: Crt) {
   return { position: [crt.screen[0] + Math.sin(a) * d, crt.screen[1], crt.screen[2] + Math.cos(a) * d] as const, yaw: a };
 }
 
-export function Phosphor({ reduced }: { reduced: boolean }) {
+export function Phosphor({ reduced, progress }: { reduced: boolean; progress: { current: number } }) {
   const invalidate = useThree((s) => s.invalidate);
   const screens = useMemo(() => crts.map((crt) => {
     const c = canvas(320, 250);
     const lines = [...(stations.find((s) => s.id === crt.id)?.terminal ?? []), "$ _"];
     drawPhosphor(c, lines, true);
-    return { crt, c, t: texture(c), lines };
+    // the same glass with no terminal text, shown while the station's own text is on it
+    const clear = canvas(320, 250);
+    drawPhosphor(clear, [], false);
+    return { crt, c, t: texture(c), lines, clear: texture(clear), mats: createRef<MeshBasicMaterial>() };
   }), []);
+  useFrame(({ size }) => {
+    const desktop = !isPortrait(size.width / size.height);
+    screens.forEach((s, k) => {
+      const m = s.mats.current;
+      if (!m) return;
+      const map = desktop && panelStrength(progress.current, k + 1) >= 0.05 ? s.clear : s.t;
+      if (m.map !== map) { m.map = map; m.needsUpdate = true; }
+    });
+  });
   useEffect(() => {
     if (reduced) return;
     let on = true;
@@ -249,12 +262,12 @@ export function Phosphor({ reduced }: { reduced: boolean }) {
   }, [screens, reduced, invalidate]);
   return (
     <>
-      {screens.map(({ crt, t }) => {
+      {screens.map(({ crt, t, mats }) => {
         const f = phosphorFrame(crt);
         return (
           <mesh key={crt.id} position={[...f.position]} rotation={[0, f.yaw, 0]} raycast={() => null}>
             <planeGeometry args={[CRT_GLASS.width - 0.012, CRT_GLASS.height - 0.012]} />
-            <meshBasicMaterial map={t} toneMapped={false} />
+            <meshBasicMaterial ref={mats} map={t} toneMapped={false} />
           </mesh>
         );
       })}

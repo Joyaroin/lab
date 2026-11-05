@@ -4,7 +4,7 @@ import { MeshBasicMaterial, Vector3, type Mesh, type MeshStandardMaterial } from
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import roomUrl from "./assets/room.glb?url";
 import { CAMERA_FOV, crts, ENTRANCE, glassCorners, glassEdge, isPortrait, panelPoint } from "./crts";
-import { fitPanel } from "./pin";
+import { fitPanel, glassFontSize } from "./pin";
 import { panelStrength, parallax, parallaxStrength, tourAt } from "./tour";
 import { DeskMeter, Phosphor, Rain } from "./Effects";
 import type { MeterLink } from "./nixie";
@@ -41,11 +41,15 @@ function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
         el.style.width = `${Math.max(...xs) - left}px`;
         el.style.height = `${Math.max(...ys) - top}px`;
         el.style.maxHeight = "none";
+        el.style.fontSize = `${glassFontSize(Math.max(...xs) - left)}px`;
+        el.dataset.glass = "true";
         el.style.transform = `translate(${left}px, ${top}px)`;
         markMore(el);
         return;
       }
       el.style.height = "";
+      el.style.fontSize = "";
+      delete el.dataset.glass;
       const [x, y, z] = crt.screen;
       c.set(x, y, z).project(camera);
       e.set(...glassEdge(crt)).project(camera);
@@ -127,7 +131,7 @@ export default function Room({ onReady, onProgress, progress, reduced, meter }: 
       <Suspense fallback={null}>
         <BakedRoom onLoaded={onReady} onProgress={onProgress} />
         <DeskMeter link={meter} reduced={reduced} />
-        <Phosphor reduced={reduced} />
+        <Phosphor reduced={reduced} progress={progress} />
         <Rain />
       </Suspense>
     </Canvas>
