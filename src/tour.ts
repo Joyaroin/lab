@@ -1,5 +1,5 @@
 import { stations } from "./content";
-import { crts, ENTRANCE_CAMERA } from "./crts";
+import { crts, ENTRANCE } from "./crts";
 
 type V3 = [number, number, number];
 
@@ -8,9 +8,9 @@ type V3 = [number, number, number];
 export const STATION_COUNT = stations.length;
 
 // Camera position at each stop, entrance first, then one per CRT (see crts.ts).
-const stops: V3[] = [ENTRANCE_CAMERA, ...crts.map((c) => c.camera)];
-// What the camera looks at from each stop: down the room at the entrance, then at the CRT.
-const looks: V3[] = [[0, 1, 0], ...crts.map((c) => c.screen)];
+const stops: V3[] = [ENTRANCE.camera, ...crts.map((c) => c.camera)];
+// What the camera looks at from each stop: into the room at the entrance, then at each CRT.
+const looks: V3[] = [ENTRANCE.look, ...crts.map((c) => c.look)];
 
 /** Camera position at stop `i` (0 is the entrance). */
 export const stopPosition = (i: number) => stops[Math.min(Math.max(i, 0), STATION_COUNT)];

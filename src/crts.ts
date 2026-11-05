@@ -1,28 +1,28 @@
-// The one list of CRTs in the baked room (tools/room/build.py), shared by the tour and the
-// screen panels. For each station: where its CRT screen is, and where the camera stops to face it.
-// When the room's CRTs or the camera stops move, change them here and nowhere else.
-// Positions are in site axes: x across, y up, -z down the tour.
-type V3 = [number, number, number];
-export type Crt = { id: string; screen: V3; camera: V3 };
+// The one list of CRTs in the baked room, shared by the tour and the screen panels. For each
+// station: where its CRT screen is, which way it faces, and where the camera stops to face it.
+// The numbers live in room-layout.json, which tools/room/build.py also reads to place the CRTs,
+// so the room and the tour can't drift apart. Change them there, then re-bake (`make room`).
+// Positions are in site axes: x across, y up, +z toward the room's door.
+import layout from "./room-layout.json";
 
-// Screen centres come from the build script's crt(x, z) calls: the screen sits 0.18 in front of
-// the CRT, 1.24 up. The glass is 0.46 wide by 0.36 high.
+type V3 = [number, number, number];
+export type Crt = { id: string; screen: V3; yaw: number; camera: V3; look: V3 };
+
+/** The glass on every CRT, in metres. */
 export const CRT_GLASS = { width: 0.46, height: 0.36 };
-const crt = (id: string, x: number, z: number): Crt => ({
-  id,
-  screen: [x, 1.24, z + 0.18],
-  camera: [x * 0.5, 1.5, z + 2.4], // in front of the CRT, nudged toward the room's centre
-});
+
+const v3 = (a: number[]): V3 => [a[0], a[1], a[2]];
 
 /** One entry per station, in tour order. Ids match the content module's station ids. */
-export const crts: Crt[] = [
-  crt("work", -3.4, -4.1),
-  crt("mediasafe", 3.3, -8.1),
-  crt("home-lab", -3.6, -13.3),
-  crt("order-tracker", 3.4, -16.1),
-  crt("wc2026-predictor", -2.6, -20.1),
-  crt("contact", -0.6, -24.1),
-];
+export const crts: Crt[] = layout.crts.map((c) => ({
+  id: c.id, screen: v3(c.screen), yaw: c.yaw, camera: v3(c.camera), look: v3(c.look),
+}));
 
-/** Camera position at the entrance, which is not a station. */
-export const ENTRANCE_CAMERA: V3 = [0, 2, 6];
+/** Where the camera stands at the entrance, which is not a station, and what it looks at. */
+export const ENTRANCE = { camera: v3(layout.entrance.camera), look: v3(layout.entrance.look) };
+
+/** The middle of the glass's right-hand edge, used to measure how wide the screen looks. */
+export function glassEdge(crt: Crt): V3 {
+  const a = (crt.yaw * Math.PI) / 180, h = CRT_GLASS.width / 2;
+  return [crt.screen[0] + Math.cos(a) * h, crt.screen[1], crt.screen[2] - Math.sin(a) * h];
+}

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { tourAt, progressFor, STATION_COUNT } from "./tour";
 import { stations } from "./content";
+import { crts } from "./crts";
 
 const GAP = 9;
 const readings = stations.map((s) => s.reading);
@@ -69,5 +70,18 @@ describe("station readings", () => {
   });
   it("are distinct, so each station is identifiable", () => {
     expect(new Set(readings).size).toBe(readings.length);
+  });
+});
+
+describe("camera stops", () => {
+  it("face one CRT per station, in tour order", () => {
+    expect(crts.map((c) => c.id)).toEqual(stations.map((s) => s.id));
+  });
+  it("look at each station's CRT from in front of its glass", () => {
+    for (const c of crts) {
+      const a = (c.yaw * Math.PI) / 180;
+      const toCamera = [c.camera[0] - c.screen[0], c.camera[2] - c.screen[2]];
+      expect(toCamera[0] * Math.sin(a) + toCamera[1] * Math.cos(a)).toBeGreaterThan(0.5);
+    }
   });
 });

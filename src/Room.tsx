@@ -3,9 +3,10 @@ import { Suspense, useEffect, useMemo, type MutableRefObject } from "react";
 import { MeshBasicMaterial, Vector3, type Mesh, type MeshStandardMaterial } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import roomUrl from "./assets/room.glb?url";
-import { CRT_GLASS, crts } from "./crts";
+import { crts, glassEdge } from "./crts";
 import { fitPanel } from "./pin";
 import { STATION_COUNT, tourAt } from "./tour";
+import { ENTRANCE } from "./crts";
 
 // Pins each station's HTML panel (a DOM element with data-screen="<id>") to its real CRT in the
 // baked room: every frame it projects the CRT (positions in crts.ts) into the window and places
@@ -26,9 +27,9 @@ function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
       if (strength < 0.05) return;
       const [x, y, z] = crt.screen;
       c.set(x, y, z).project(camera);
-      e.set(x + CRT_GLASS.width / 2, y, z).project(camera);
+      e.set(...glassEdge(crt)).project(camera);
       const px = (c.x * 0.5 + 0.5) * size.width, py = (-c.y * 0.5 + 0.5) * size.height;
-      const crtWidth = (e.x - c.x) * size.width;
+      const crtWidth = Math.hypot((e.x - c.x) * size.width, (e.y - c.y) * size.height);
       el.style.maxHeight = "none"; // measure the natural height, then fit
       const f = fitPanel(size, px, py, crtWidth, el.scrollHeight);
       el.style.width = `${f.width}px`;
@@ -78,7 +79,7 @@ export default function Room({ onReady, progress, reduced }: {
   return (
     <Canvas
       style={{ position: "fixed", inset: 0 }}
-      camera={{ position: [0, 2, 6], fov: 55 }}
+      camera={{ position: ENTRANCE.camera, fov: 55 }}
     >
       <CameraRig progress={progress} reduced={reduced} />
       <ScreenPins progress={progress} />
