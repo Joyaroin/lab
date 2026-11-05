@@ -1,0 +1,8 @@
+#!/bin/sh
+# Work reaches main through a PR. Turn this on once per clone with `make setup`.
+while read -r _ _ remote_ref _; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    echo "Refusing to push to main. Open a PR instead." >&2
+    exit 1
+  fi
+done

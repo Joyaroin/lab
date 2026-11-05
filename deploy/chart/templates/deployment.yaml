@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  # Zero pods until a version exists, so production stays empty until the first promote.
+  replicas: {{ if .Values.image.tag }}{{ .Values.replicas }}{{ else }}0{{ end }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: {{ required "nodeName is required" .Values.nodeName }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: "{{ .Values.image.registry }}/{{ .Release.Name }}:{{ .Values.image.tag | default "none" }}"
+          ports:
+            - containerPort: {{ .Values.port }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

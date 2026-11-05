@@ -1,0 +1,31 @@
+# Adham runs this to deploy to production. It points the production branch at one commit, so
+# production gets that commit's chart and image together, and nothing else can change it.
+# An older version is how you roll back.
+name: promote
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Commit to deploy. Leave empty for what's on staging.
+        required: false
+jobs:
+  production:
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+      - name: Move the production branch
+        run: |
+          version='${{ inputs.version }}'
+          if [ -z "$version" ]; then
+            version=$(sed -nE 's/^\s*tag: *"?([^"]*)"?.*/\1/p' deploy/values-staging.yaml)
+          fi
+          test -n "$version"
+          git checkout --detach "$version"
+          sed -i -E "s/^(\s*tag:).*/\1 \"$version\"/" deploy/values-production.yaml
+          git config user.name forgejo-ci
+          git config user.email ci@forgejo.local
+          git commit -am "Deploy $version to production"
+          git push --force origin HEAD:refs/heads/production

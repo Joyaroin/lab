@@ -1,0 +1,4 @@
+# Written by the release workflow on each merge.
+nodeName: hermit
+image:
+  tag: ""

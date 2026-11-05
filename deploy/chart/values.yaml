@@ -1,0 +1,12 @@
+replicas: 1
+port: 8080
+image:
+  registry: git.tailf69bc5.ts.net/projects
+  tag: ""
+nodeName: ""
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
