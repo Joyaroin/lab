@@ -8,8 +8,11 @@ import { stations } from "./content";
 // The late-night look, drawn over the baked room (Room.tsx) without making it redraw nonstop.
 // Everything here is a few small textured planes drawn once. The only things that move are the
 // meter's power-on (about a second and a half, then it stops) and the CRT cursors, which blink
-// at LIVING_FPS. Both are off when the visitor prefers reduced motion.
+// at LIVING_FPS for LIVING_MS after the page starts and after each scroll or pointer move, then
+// stop with the cursor lit. At rest the scene draws nothing. Both are off when the visitor
+// prefers reduced motion.
 export const LIVING_FPS = 1;
+export const LIVING_MS = 5000;
 
 const canvas = (w: number, h: number) => {
   const c = document.createElement("canvas");
@@ -224,14 +227,32 @@ export function Phosphor({ reduced }: { reduced: boolean }) {
   }), []);
   useEffect(() => {
     if (reduced) return;
-    let on = true;
-    const id = setInterval(() => {
-      if (document.hidden) return;
-      on = !on;
+    let on = true, until = performance.now() + LIVING_MS, id: ReturnType<typeof setInterval> | undefined;
+    const draw = () => {
       for (const s of screens) { drawPhosphor(s.c, s.lines, on); s.t.needsUpdate = true; }
       invalidate();
-    }, 1000 / LIVING_FPS);
-    return () => clearInterval(id);
+    };
+    const tick = () => {
+      if (document.hidden) return;
+      if (performance.now() >= until) { // time's up: leave the cursors lit and stop drawing
+        clearInterval(id); id = undefined;
+        if (!on) { on = true; draw(); }
+        return;
+      }
+      on = !on;
+      draw();
+    };
+    const wake = () => {
+      until = performance.now() + LIVING_MS;
+      if (id === undefined) id = setInterval(tick, 1000 / LIVING_FPS);
+    };
+    wake();
+    window.addEventListener("scroll", wake, { passive: true });
+    window.addEventListener("pointermove", wake, { passive: true });
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("scroll", wake); window.removeEventListener("pointermove", wake);
+    };
   }, [screens, reduced, invalidate]);
   return (
     <>
