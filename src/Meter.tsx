@@ -1,39 +1,42 @@
 import type { CSSProperties } from "react";
 import { formatReading } from "./gap";
 
-// The meter is a flat, self-contained display: it takes a reading and a label and
-// draws them. The tour places it. Clicking it calls `onClick` (the tour advances).
+// The meter's plain label, under the room. The meter itself is the nixie meter on the desk
+// (DeskMeter in Effects.tsx), which shows the live digits. Where the desk meter is out of frame,
+// too small, or under a station's text, the room marks this bar `data-desk-meter="out-of-view"`
+// and it shows a small copy of the digits, so the reading is always on screen exactly once.
+// Clicking it calls `onClick` (the tour advances), as clicking the desk meter does.
 // `live` is false only once the live call has failed; `pending` is while it's in flight.
 export function Meter({ reading, label, live, pending = false, onClick }: {
   reading: number; label: string; live: boolean; pending?: boolean; onClick?: () => void;
 }) {
   const digits = formatReading(reading);
   return (
-    <button type="button" onClick={onClick} style={button} aria-label={`Meter. ${label}. Click for the next station`}>
-      <span role="img" aria-label={`Reading ${digits}`} style={tubes}>
+    <button type="button" onClick={onClick} style={button} data-meter-bar data-desk-meter="out-of-view"
+      aria-label={`Meter. ${label}. Click for the next station`}>
+      <style>{css}</style>
+      <span role="img" aria-label={`Reading ${digits}`} className="meter-digits">
         {[...digits].map((ch, i) =>
-          ch === "." ? (
-            <span key={i} style={dot}>.</span>
-          ) : (
-            <span key={i} style={tube} data-testid="tube">{ch}</span>
-          ),
+          ch === "." ? <span key={i} className="meter-dot">.</span> : <span key={i} className="meter-tube" data-testid="tube">{ch}</span>,
         )}
       </span>
-      <span data-live={live} data-pending={pending} style={{ display: "block", marginTop: "0.5rem", opacity: live ? 1 : 0.7 }}>
+      <span data-live={live} data-pending={pending} style={{ display: "block", opacity: live ? 1 : 0.75 }}>
         {label}
       </span>
     </button>
   );
 }
 
+const css = `
+.meter-digits { display: inline-flex; align-items: flex-end; gap: 0.18rem; margin-bottom: 0.3rem; }
+[data-desk-meter="in-view"] .meter-digits { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); margin: 0; }
+.meter-tube { font-size: 1.35rem; padding: 0.05em 0.22em; color: #ffcf8a; background: radial-gradient(ellipse at 50% 55%, #3a1a06, #120803 75%);
+  border: 1px solid #4a2c10; border-radius: 0.45em 0.45em 0.2em 0.2em; text-shadow: 0 0 4px #ff8c1a, 0 0 12px #ff6a00; }
+.meter-dot { font-size: 1.35rem; color: #ffcf8a; text-shadow: 0 0 8px #ff8c1a; }
+`;
+
 const button: CSSProperties = {
-  all: "unset", cursor: "pointer", color: "#ffb347", textAlign: "center",
-  fontFamily: "ui-monospace, monospace", padding: "0.5rem 0.75rem", background: "rgba(5,8,10,0.55)", borderRadius: "0.5em",
+  all: "unset", cursor: "pointer", color: "#ffb347", textAlign: "center", fontSize: "0.9rem",
+  fontFamily: "ui-monospace, monospace", padding: "0.45rem 0.8rem", background: "rgba(5,8,10,0.72)", borderRadius: "0.5em",
+  textShadow: "0 0 6px rgba(255,140,30,0.45)",
 };
-const tubes: CSSProperties = { display: "flex", justifyContent: "center", alignItems: "flex-end", gap: "0.25rem" };
-const tube: CSSProperties = {
-  fontFamily: "monospace", fontSize: "clamp(1.4rem, 5vw, 2.8rem)", padding: "0.15em 0.3em",
-  background: "#1a0f05", border: "1px solid #5a3a14", borderRadius: "0.3em",
-  textShadow: "0 0 12px #ff8c1a",
-};
-const dot: CSSProperties = { fontSize: "clamp(1.4rem, 5vw, 2.8rem)", fontFamily: "monospace", textShadow: "0 0 12px #ff8c1a" };

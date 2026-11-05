@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState, type MutableRefObject } from "react";
+import type { MeterLink } from "./nixie";
+import { formatReading } from "./gap";
 import { stations } from "./content";
 import { Hud } from "./Hud";
 import { ScreenPanels } from "./ScreenPanels";
@@ -18,7 +20,7 @@ const scrollProgress = () => {
 
 // Scroll drives the tour. The page scrolls (a tall spacer); the room is fixed behind it.
 // `progress` is shared with the room's camera via a ref so frames don't re-render React.
-export function Tour({ gap, progress }: { gap: Gap | null; progress: MutableRefObject<number> }) {
+export function Tour({ gap, progress, meter }: { gap: Gap | null; progress: MutableRefObject<number>; meter: MeterLink }) {
   const [p, setP] = useState(scrollProgress);
 
   useEffect(() => {
@@ -38,13 +40,16 @@ export function Tour({ gap, progress }: { gap: Gap | null; progress: MutableRefO
   const t = tourAt(p, deploys);
   const label = gap ? gapLabel(gap) : "reading prod and staging…";
   const next = t.station >= STATION_COUNT ? 0 : t.station + 1;
+  const digits = formatReading(Math.round(t.reading));
+  meter.next = () => jump(next);
+  useEffect(() => { meter.digits = digits; meter.redraw?.(); }, [meter, digits]);
 
   return (
     <>
       <div aria-hidden style={{ height: `${SCROLL_SCREENS * 100}vh` }} />
       <ScreenPanels />
       <Hud current={t.station} onJump={jump} />
-      <div style={{ position: "fixed", left: 0, right: 0, bottom: "1.5rem", zIndex: 10, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+      <div style={{ position: "fixed", left: 0, right: 0, bottom: "1rem", zIndex: 10, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto" }}>
           <Meter reading={Math.round(t.reading)} label={t.station === 0 ? label : stationLabel(t.station)}
             live={gap ? gap.live : true} pending={!gap} onClick={() => jump(next)} />

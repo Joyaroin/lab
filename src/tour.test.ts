@@ -85,3 +85,22 @@ describe("camera stops", () => {
     }
   });
 });
+
+describe("portrait framing", () => {
+  const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  it("leaves landscape windows on the approved stops", () => {
+    for (let i = 0; i <= STATION_COUNT; i++)
+      expect(tourAt(progressFor(i), GAP, 16 / 9)).toEqual(tourAt(progressFor(i), GAP));
+  });
+  it("pulls back every station but the home lab, whose phone view is approved", () => {
+    for (const c of crts) expect(c.portrait > 1, c.id).toBe(c.id !== "home-lab");
+  });
+  it("stands further back on a portrait window, still looking at the same point", () => {
+    for (let i = 0; i <= STATION_COUNT; i++) {
+      const wide = tourAt(progressFor(i), GAP), tall = tourAt(progressFor(i), GAP, 390 / 780);
+      expect(tall.look).toEqual(wide.look);
+      const pull = i === 0 ? 1 : crts[i - 1].portrait;
+      expect(dist(tall.camera, tall.look)).toBeCloseTo(dist(wide.camera, wide.look) * pull, 6);
+    }
+  });
+});

@@ -7,6 +7,9 @@ import { crts, glassEdge } from "./crts";
 import { fitPanel } from "./pin";
 import { STATION_COUNT, tourAt } from "./tour";
 import { ENTRANCE } from "./crts";
+import { DeskMeter, Phosphor, Rain } from "./Effects";
+import type { MeterLink } from "./nixie";
+import { markMore } from "./ScreenPanels";
 
 // Pins each station's HTML panel (a DOM element with data-screen="<id>") to its real CRT in the
 // baked room: every frame it projects the CRT's panel point (room-layout.json, via crts.ts) into
@@ -40,6 +43,7 @@ function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
       const f = fitPanel(size, px, py, crtWidth, el.scrollHeight);
       el.style.maxHeight = `${f.maxHeight}px`;
       el.style.transform = `translate(${f.left}px, ${f.top}px)`;
+      markMore(el);
     });
   });
   return null;
@@ -75,8 +79,8 @@ function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; 
     window.addEventListener("pointermove", redraw, { passive: true });
     return () => { window.removeEventListener("scroll", redraw); window.removeEventListener("pointermove", redraw); };
   }, [invalidate]);
-  useFrame(({ camera, pointer }, dt) => {
-    const { camera: target, look } = tourAt(progress.current, 0);
+  useFrame(({ camera, pointer, size }, dt) => {
+    const { camera: target, look } = tourAt(progress.current, 0, size.width / size.height);
     // dt is large after an idle spell, so cap it: the first frame of a move still eases.
     const k = reduced ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 6);
     const px = reduced ? 0 : pointer.x * 0.3, py = reduced ? 0 : pointer.y * 0.15;
@@ -90,8 +94,8 @@ function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; 
   return null;
 }
 
-export default function Room({ onReady, progress, reduced }: {
-  onReady: () => void; progress: MutableRefObject<number>; reduced: boolean;
+export default function Room({ onReady, progress, reduced, meter }: {
+  onReady: () => void; progress: MutableRefObject<number>; reduced: boolean; meter: MeterLink;
 }) {
   return (
     // Drawn on demand, not 60 times a second: the baked room is costly to draw (texture
@@ -106,6 +110,9 @@ export default function Room({ onReady, progress, reduced }: {
       <ScreenPins progress={progress} />
       <Suspense fallback={null}>
         <BakedRoom onLoaded={onReady} />
+        <DeskMeter link={meter} reduced={reduced} />
+        <Phosphor reduced={reduced} />
+        <Rain />
       </Suspense>
     </Canvas>
   );
