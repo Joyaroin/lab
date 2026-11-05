@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tourAt, progressFor, holdSpan, panelStrength, STATION_COUNT } from "./tour";
+import { tourAt, progressFor, holdSpan, panelStrength, PANEL_SHOWN, STATION_COUNT } from "./tour";
 import { stations } from "./content";
 import { crts, panelPoint } from "./crts";
 import { squareStop } from "./stop";
@@ -361,8 +361,18 @@ describe("parallax near a stop", () => {
       expect(s - prev).toBeLessThan(0.1);
       prev = s;
     }
-    expect(parallaxStrength(end + 0.01)).toBeGreaterThan(0);
-    expect(parallaxStrength(end + 0.01)).toBeLessThan(1);
+    expect(parallaxStrength(end + 0.03)).toBeGreaterThan(0);
+    expect(parallaxStrength(end + 0.03)).toBeLessThan(1);
+  });
+  it("starts only once the text has faded away, so flat text never sits over tilting glass", () => {
+    for (let i = 1; i < STATION_COUNT; i++) {
+      const [, end] = holdSpan(i), [start] = holdSpan(i + 1);
+      for (let k = 0; k <= 400; k++) {
+        const p = end + ((start - end) * k) / 400; // leaving station i, and arriving at i + 1
+        const leaving = panelStrength(p, i) >= PANEL_SHOWN, arriving = panelStrength(p, i + 1) >= PANEL_SHOWN;
+        if (leaving || arriving) expect(parallaxStrength(p), `p=${p}`).toBe(0);
+      }
+    }
   });
 });
 

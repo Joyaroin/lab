@@ -8,6 +8,7 @@ import { fitPanel, glassFontSize } from "./pin";
 import { PANEL_SHOWN, panelStrength, parallax, textOnGlass, parallaxStrength, tourAt } from "./tour";
 import { DeskMeter, Phosphor, Rain } from "./Effects";
 import type { MeterLink } from "./nixie";
+import type { TextGate } from "./shift";
 import { markMore } from "./ScreenPanels";
 
 // Pins each station's HTML panel (a DOM element with data-screen="<id>") to its real CRT in the
@@ -15,7 +16,7 @@ import { markMore } from "./ScreenPanels";
 // the window and places the panel there (on a phone, the station's phone pin if it has one), as
 // wide as the CRT looks, kept inside the window by fitPanel. The text stays real HTML, so it is
 // sharp at any size, selectable, and its links work. Only the current station's panel is shown.
-function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
+function ScreenPins({ progress, gate }: { progress: MutableRefObject<number>; gate: TextGate }) {
   const c = useMemo(() => new Vector3(), []);
   const e = useMemo(() => new Vector3(), []);
   const p = useMemo(() => new Vector3(), []);
@@ -24,10 +25,16 @@ function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
     crts.forEach((crt, k) => {
       const el = document.querySelector<HTMLElement>(`[data-screen="${crt.id}"]`);
       if (!el) return;
-      const strength = panelStrength(progress.current, k + 1); // full for the whole hold
-      el.style.opacity = String(strength);
+      // Full for the whole hold. Held back (but still in the page, for readers, selection and search)
+      // from arrival until the shift ends, then it resolves out of the effect.
+      const strength = panelStrength(progress.current, k + 1);
+      const out = gate.ready(k + 1, progress.current, performance.now());
+      if (out && el.dataset.gated === "true") el.dataset.gated = "resolving";
+      else if (!out && strength >= PANEL_SHOWN) el.dataset.gated = "true";
+      else if (!out) delete el.dataset.gated;
+      el.style.opacity = String(out ? strength : 0);
       el.style.visibility = strength < PANEL_SHOWN ? "hidden" : "visible";
-      el.style.pointerEvents = strength > 0.6 ? "auto" : "none";
+      el.style.pointerEvents = out && strength > 0.6 ? "auto" : "none";
       if (strength < PANEL_SHOWN) return;
       if (textOnGlass(progress.current, k + 1, size.width / size.height)) {
         // Desktop: the camera is square to the glass, so the text is laid exactly over it.
@@ -121,8 +128,8 @@ function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; 
   return null;
 }
 
-export default function Room({ onReady, onProgress, progress, reduced, meter }: {
-  onReady: () => void; onProgress: () => void; progress: MutableRefObject<number>; reduced: boolean; meter: MeterLink;
+export default function Room({ onReady, onProgress, progress, reduced, meter, gate }: {
+  onReady: () => void; onProgress: () => void; progress: MutableRefObject<number>; reduced: boolean; meter: MeterLink; gate: TextGate;
 }) {
   return (
     // Drawn on demand, not 60 times a second: the baked room is costly to draw (texture
@@ -134,7 +141,7 @@ export default function Room({ onReady, onProgress, progress, reduced, meter }: 
       camera={{ position: ENTRANCE.camera, fov: CAMERA_FOV }}
     >
       <CameraRig progress={progress} reduced={reduced} />
-      <ScreenPins progress={progress} />
+      <ScreenPins progress={progress} gate={gate} />
       <Suspense fallback={null}>
         <BakedRoom onLoaded={onReady} onProgress={onProgress} />
         <DeskMeter link={meter} reduced={reduced} />

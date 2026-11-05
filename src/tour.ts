@@ -1,7 +1,11 @@
 import { stations } from "./content";
 import { ARCS, crts, ENTRANCE, isPortrait } from "./crts";
 import { squareStop } from "./stop";
-import { holdSpan, progressFor, STATION_COUNT, TOTAL, TRAVEL, PER_STATION } from "./hold";
+import { holdSpan, panelStrength, PANEL_SHOWN, progressFor, STATION_COUNT, TOTAL, TRAVEL, PER_STATION, TEXT_FADE } from "./hold";
+export { panelStrength, PANEL_SHOWN, TEXT_FADE };
+
+/** Where the mouse parallax begins and reaches full, in travel away from a stop (a share of one stretch). */
+export const PARALLAX_FROM = 0.2, PARALLAX_FULL = 0.45;
 export { holdSpan, progressFor, STATION_COUNT };
 
 type V3 = [number, number, number];
@@ -33,22 +37,11 @@ export const stopPosition = (i: number) => stops[Math.min(Math.max(i, 0), STATIO
 
 export type TourState = { station: number; camera: V3; look: V3; reading: number };
 
-/** How strongly station `i`'s text panel shows at scroll progress `progress`: full for the whole
- *  hold, then fading out over the first third of travel away. */
-export function panelStrength(progress: number, i: number): number {
-  const [a, b] = holdSpan(i);
-  const p = Math.min(Math.max(Number.isFinite(progress) ? progress : 0, 0), 1);
-  const away = p < a ? a - p : p > b ? p - b : 0; // scroll distance outside the hold
-  return Math.min(1, Math.max(0, 1.1 - (away * TOTAL) / TRAVEL * 3));
-}
-
 /** True while station `i`'s text is laid over its glass (desktop, panel showing). The pin and the
  *  phosphor swap both use this, so they cannot drift apart. */
 export function textOnGlass(progress: number, i: number, aspect: number): boolean {
   return !isPortrait(aspect) && panelStrength(progress, i) >= PANEL_SHOWN;
 }
-/** Below this strength a panel is hidden. */
-export const PANEL_SHOWN = 0.05;
 
 /** A quadratic curve from `a` to `b` that passes through `mid` halfway along. */
 const curveThrough = (mid: V3) => (a: V3, b: V3, f: number): V3 =>
@@ -59,9 +52,9 @@ const curveThrough = (mid: V3) => (a: V3, b: V3, f: number): V3 =>
 
 const line = (a: V3, b: V3, f: number): V3 => [0, 1, 2].map((k) => a[k] + (b[k] - a[k]) * f) as V3;
 
-/** How much mouse parallax applies at scroll progress `progress`: none for the whole hold, so the
- *  glass stays square behind the flat text, rising to full over the first third of travel away
- *  from the stop, and full through the rest of travel. */
+/** How much mouse parallax applies at scroll progress `progress`: none for the whole hold and until
+ *  the text has faded (`PARALLAX_FROM`), so the glass stays square behind the flat text, then rising
+ *  to full by `PARALLAX_FULL` of the way through travel, and full through the rest. */
 export function parallaxStrength(progress: number): number {
   const p = Math.min(Math.max(Number.isFinite(progress) ? progress : 0, 0), 1);
   let away = Infinity;
@@ -69,7 +62,7 @@ export function parallaxStrength(progress: number): number {
     const [a, b] = holdSpan(i);
     away = Math.min(away, p < a ? a - p : p > b ? p - b : 0);
   }
-  return Math.min(1, (away * TOTAL) / (TRAVEL / 3));
+  return Math.min(1, Math.max(0, ((away * TOTAL) / TRAVEL - PARALLAX_FROM) / (PARALLAX_FULL - PARALLAX_FROM)));
 }
 
 /** `aspect` is the window's width over height; below 1 (portrait) the portrait stops are used.

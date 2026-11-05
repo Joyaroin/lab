@@ -53,6 +53,15 @@ const css = `
   background: linear-gradient(to bottom, rgba(4,20,11,0), rgba(4,20,11,0.97) 70%); }
 .crt-more span { font-size: 0.8em; letter-spacing: 0.1em; color: #ffb347; text-shadow: 0 0 6px rgba(255,140,30,0.6); }
 .crt-panel[data-more="true"] .crt-more { visibility: visible; }
+/* The text resolves out of the shift: it comes in from a red and cyan split that closes up, in a few
+   steps like a signal locking, not a smooth fade. Until then the panel is held at opacity 0 by the
+   room (still in the page). Reduced motion never gets the attribute, so its text just appears. */
+.crt-panel[data-gated="resolving"] { animation: crt-resolve 0.22s steps(5, end); }
+@keyframes crt-resolve {
+  0% { opacity: 0; text-shadow: -4px 0 rgba(255,60,60,0.9), 4px 0 rgba(60,255,255,0.9); }
+  60% { opacity: 0.8; text-shadow: -2px 0 rgba(255,60,60,0.7), 2px 0 rgba(60,255,255,0.7); }
+  100% { opacity: 1; text-shadow: 0 0 5px rgba(80,255,150,0.45); }
+}
 .crt-panel[data-glass="true"] { background: repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.18) 2px 3px); border: 0; border-radius: 0; box-shadow: none; padding: 0.6em 1.2em; }
 .crt-panel[data-glass="true"] .crt-more { margin: -2.6em -1.2em 0; bottom: -0.6em; height: 2.6em;
   background: linear-gradient(to bottom, rgba(2,10,5,0), rgba(2,10,5,0.95) 70%); }
