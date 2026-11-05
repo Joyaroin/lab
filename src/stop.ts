@@ -1,0 +1,42 @@
+import { CAMERA_FOV, CRT_GLASS, type Crt } from "./crts";
+import { BOTTOM_CLEAR, SIDE, TOP_CLEAR } from "./pin";
+
+type V3 = [number, number, number];
+type Win = { width: number; height: number };
+
+const TAN = Math.tan((CAMERA_FOV * Math.PI) / 360);
+
+/** The band of the window the glass fills: below the HUD, above the meter, inside the sides. */
+function band(win: Win) {
+  const free = Math.max(120, win.height - TOP_CLEAR - BOTTOM_CLEAR);
+  return { free, wide: Math.max(120, win.width - 2 * SIDE), centreY: TOP_CLEAR + free / 2 };
+}
+
+/** How far the camera stands from the glass so it fills the band, whichever of height and width
+ *  runs out first. One rule for every station: 0.53 m at 1280x800. */
+export function stopDistance(win: Win): number {
+  const { free, wide } = band(win);
+  const px = win.height / (2 * TAN); // pixels per metre at one metre
+  return Math.max((CRT_GLASS.height * px) / free, (CRT_GLASS.width * px) / wide);
+}
+
+/** The desktop stop for a CRT: straight in front of the glass, level with it, at `stopDistance`.
+ *  The look point sits a little below the glass centre so the glass centres in the band between
+ *  the HUD and the meter rather than in the whole window. */
+export function squareStop(crt: Crt, win: Win): { camera: V3; look: V3 } {
+  const d = stopDistance(win), a = (crt.yaw * Math.PI) / 180;
+  const metresPerPx = (2 * d * TAN) / win.height;
+  const y = crt.screen[1] + (band(win).centreY - win.height / 2) * metresPerPx;
+  return {
+    camera: [crt.screen[0] + Math.sin(a) * d, y, crt.screen[2] + Math.cos(a) * d],
+    look: [crt.screen[0], y, crt.screen[2]],
+  };
+}
+
+/** Where the glass lands in the window from its square stop, in pixels. The station's text is
+ *  pinned to exactly this rectangle. */
+export function glassRect(crt: Crt, win: Win) {
+  const d = stopDistance(win), pxPerM = win.height / (2 * d * TAN);
+  const width = CRT_GLASS.width * pxPerM, height = CRT_GLASS.height * pxPerM;
+  return { left: win.width / 2 - width / 2, top: band(win).centreY - height / 2, width, height };
+}
