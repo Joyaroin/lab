@@ -25,15 +25,24 @@ export function countGap(commits: Commit[]): { deploys: number; complete: boolea
   return { deploys, complete: false };
 }
 
-export async function readGap(fetchFn: typeof fetch, saved: SavedGap): Promise<Gap> {
+export const GAP_TIMEOUT_MS = 5000;
+
+export async function readGap(fetchFn: typeof fetch, saved: SavedGap, timeoutMs = GAP_TIMEOUT_MS): Promise<Gap> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetchFn(GAP_URL, { headers: { Accept: "application/vnd.github+json" } });
+    const res = await fetchFn(GAP_URL, {
+      headers: { Accept: "application/vnd.github+json" },
+      signal: controller.signal,
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`); // includes 403/429 rate limits
     const body: unknown = await res.json();
     if (!Array.isArray(body)) throw new Error("unexpected response");
     return { ...countGap(body as Commit[]), live: true };
   } catch {
     return { deploys: saved.deploys, live: false, complete: true };
+  } finally {
+    clearTimeout(timer);
   }
 }
 

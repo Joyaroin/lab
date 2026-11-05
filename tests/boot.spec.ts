@@ -129,3 +129,52 @@ test("reduced motion: jumps are instant; otherwise they glide", async ({ page })
   expect(await scrollFraction(page2)).toBeLessThan(0.99);
   await expect.poll(() => scrollFraction(page2)).toBeCloseTo(1, 2);
 });
+
+// --- text on the CRT screens ---
+const sizes = { desktop: { width: 1280, height: 800 }, phone: { width: 390, height: 780 } };
+
+for (const [name, size] of Object.entries(sizes)) {
+  test(`station text is readable, selectable and links work (${name})`, async ({ page, context }) => {
+    await page.setViewportSize(size);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await startTour(page);
+    await page.getByRole("navigation", { name: "HUD" }).getByRole("link", { name: "Contact" }).click();
+
+    const panel = page.locator('[data-screen="contact"]');
+    await expect(panel).toBeVisible();
+    await expect(panel).toHaveCSS("opacity", "1");
+    // Other stations' text is not showing.
+    await expect(page.locator('[data-screen="work"]')).toBeHidden();
+
+    // Readable: real text at 14px or more, fully inside the window.
+    const fontSize = await panel.locator("p").nth(1).evaluate((e) => parseFloat(getComputedStyle(e).fontSize));
+    expect(fontSize).toBeGreaterThanOrEqual(14);
+    const box = (await panel.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(size.width);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(size.height);
+    await page.screenshot({ path: `test-results/screen-contact-${name}.png` });
+
+    // Selectable: selecting a paragraph yields its text.
+    const para = panel.getByText("Reach me through the links below.");
+    await para.selectText();
+    expect(await page.evaluate(() => getSelection()!.toString())).toContain("Reach me through the links below.");
+
+    // Links work: the link opens its address.
+    await context.route("https://github.com/**", (r) => r.fulfill({ body: "ok", contentType: "text/html" }));
+    const popup = page.waitForEvent("popup");
+    await panel.getByRole("link", { name: "GitHub" }).click();
+    expect((await popup).url()).toBe("https://github.com/Joyaroin");
+  });
+}
+
+test("each station's panel appears when the tour reaches it", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await startTour(page);
+  for (const id of ["work", "mediasafe", "home-lab", "order-tracker", "wc2026-predictor", "contact"]) {
+    await page.getByRole("navigation", { name: "HUD" }).locator(`a[href="#${id}"]`).click();
+    await expect(page.locator(`[data-screen="${id}"]`)).toBeVisible();
+    await page.screenshot({ path: `test-results/screen-${id}.png` });
+  }
+});

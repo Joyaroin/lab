@@ -9,6 +9,9 @@ const stops: [number, number, number][] = [
   [0, 2, 6], [-1.5, 2, 2], [1.5, 2, -2], [-1.5, 2, -6], [1.5, 2, -10], [-1.5, 2, -14], [0, 2, -18],
 ];
 
+/** Camera position at stop `i` (0 is the entrance). */
+export const stopPosition = (i: number) => stops[Math.min(Math.max(i, 0), STATION_COUNT)];
+
 export type TourState = { station: number; camera: [number, number, number]; reading: number };
 
 /** Scroll progress (0..1) at which the camera sits on stop `i`. */

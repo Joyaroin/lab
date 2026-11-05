@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { countGap, readGap, formatReading, gapLabel } from "./gap";
 
 const c = (message: string) => ({ commit: { message } });
@@ -70,5 +70,17 @@ describe("display", () => {
     expect(gapLabel({ deploys: 100, live: true, complete: false })).toBe(
       "prod is at least 100 deploys behind staging",
     );
+  });
+});
+
+describe("readGap timeout", () => {
+  it("falls back to the saved value when the call hangs", async () => {
+    vi.useFakeTimers();
+    const hung: typeof fetch = (_url, init) =>
+      new Promise((_res, rej) => init?.signal?.addEventListener("abort", () => rej(new DOMException("aborted", "AbortError"))));
+    const pending = readGap(hung, saved, 3000);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(await pending).toEqual({ deploys: 4, live: false, complete: true });
+    vi.useRealTimers();
   });
 });

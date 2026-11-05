@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type MutableRefObject } from "react";
 import { stations } from "./content";
 import { Hud } from "./Hud";
+import { ScreenPanels } from "./ScreenPanels";
 import { Meter } from "./Meter";
 import { gapLabel, type Gap } from "./gap";
 import { pendingDeploys } from "./useGap";
@@ -41,6 +42,7 @@ export function Tour({ gap, progress }: { gap: Gap | null; progress: MutableRefO
   return (
     <>
       <div aria-hidden style={{ height: `${SCROLL_SCREENS * 100}vh` }} />
+      <ScreenPanels />
       <Hud current={t.station} onJump={jump} />
       <div style={{ position: "fixed", left: 0, right: 0, bottom: "1.5rem", zIndex: 10, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto" }}>
