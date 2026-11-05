@@ -92,15 +92,46 @@ describe("portrait framing", () => {
     for (let i = 0; i <= STATION_COUNT; i++)
       expect(tourAt(progressFor(i), GAP, 16 / 9)).toEqual(tourAt(progressFor(i), GAP));
   });
-  it("pulls back every station but the home lab, whose phone view is approved", () => {
-    for (const c of crts) expect(c.portrait > 1, c.id).toBe(c.id !== "home-lab");
+  it("pulls back every station but the home lab, whose phone view is approved, and those with a phone stop", () => {
+    for (const c of crts) expect(c.portrait > 1, c.id).toBe(c.id !== "home-lab" && !c.phone);
   });
   it("stands further back on a portrait window, still looking at the same point", () => {
     for (let i = 0; i <= STATION_COUNT; i++) {
+      if (i > 0 && crts[i - 1].phone) continue; // reframed on phones instead, below
       const wide = tourAt(progressFor(i), GAP), tall = tourAt(progressFor(i), GAP, 390 / 780);
-      expect(tall.look).toEqual(wide.look);
+      for (let k = 0; k < 3; k++) expect(tall.look[k]).toBeCloseTo(wide.look[k], 9);
       const pull = i === 0 ? ENTRANCE.portrait : crts[i - 1].portrait;
       expect(dist(tall.camera, tall.look)).toBeCloseTo(dist(wide.camera, wide.look) * pull, 6);
+    }
+  });
+});
+
+// --- phone stops: MediaSafe and WC2026 are reframed on phones so lit parts of the room show (ticket 36) ---
+describe("phone stops", () => {
+  const reframed = ["mediasafe", "wc2026-predictor"];
+  it("reframe MediaSafe and WC2026 Predictor, and only those", () => {
+    expect(crts.filter((c) => c.phone).map((c) => c.id)).toEqual(reframed);
+  });
+  it("are used on a portrait window, camera and look point both", () => {
+    for (const id of reframed) {
+      const i = crts.findIndex((c) => c.id === id) + 1, phone = crts[i - 1].phone!;
+      const tall = tourAt(progressFor(i), GAP, 390 / 780);
+      expect(tall.camera).toEqual(phone.camera);
+      expect(tall.look).toEqual(phone.look);
+    }
+  });
+  it("leave the desktop stop alone", () => {
+    for (const id of reframed) {
+      const i = crts.findIndex((c) => c.id === id) + 1, c = crts[i - 1];
+      const wide = tourAt(progressFor(i), GAP, 1280 / 800);
+      expect(wide.camera).toEqual(c.camera);
+      expect(wide.look).toEqual(c.look);
+    }
+  });
+  it("still see the station's CRT from in front of its glass", () => {
+    for (const c of crts.filter((c) => c.phone)) {
+      const a = (c.yaw * Math.PI) / 180, cam = c.phone!.camera;
+      expect((cam[0] - c.screen[0]) * Math.sin(a) + (cam[2] - c.screen[2]) * Math.cos(a), c.id).toBeGreaterThan(0.5);
     }
   });
 });

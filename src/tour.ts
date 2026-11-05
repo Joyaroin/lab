@@ -14,11 +14,17 @@ const stops: V3[] = [ENTRANCE.camera, ...crts.map((c) => c.camera)];
 const looks: V3[] = [ENTRANCE.look, ...crts.map((c) => c.look)];
 // On a portrait window the camera stands further back along the same line, so a phone sees the
 // station's desk, not only one CRT. The factor per stop is in room-layout.json (1 if unset).
+// A station with its own phone stop uses that instead (MediaSafe and WC2026, whose pulled-back
+// view was mostly dark).
 const pulls: number[] = [ENTRANCE.portrait, ...crts.map((c) => c.portrait)];
+const phones = [undefined, ...crts.map((c) => c.phone)];
 const portraitStops: V3[] = stops.map((c, i) => {
+  const phone = phones[i];
+  if (phone) return phone.camera;
   const l = looks[i], k = pulls[i];
   return [l[0] + (c[0] - l[0]) * k, l[1] + (c[1] - l[1]) * k, l[2] + (c[2] - l[2]) * k];
 });
+const portraitLooks: V3[] = looks.map((l, i) => phones[i]?.look ?? l);
 
 /** Camera position at stop `i` (0 is the entrance). */
 export const stopPosition = (i: number) => stops[Math.min(Math.max(i, 0), STATION_COUNT)];
@@ -45,7 +51,8 @@ export function tourAt(progress: number, gap: number, aspect = 16 / 9): TourStat
   const readingAt = (s: number) => (s === 0 ? gap : stations[s - 1].reading);
   const lerp = (a: number, b: number) => a + (b - a) * f;
   const path = aspect < 1 ? portraitStops : stops;
-  const a = path[i], b = path[i + 1], la = looks[i], lb = looks[i + 1];
+  const aims = aspect < 1 ? portraitLooks : looks;
+  const a = path[i], b = path[i + 1], la = aims[i], lb = aims[i + 1];
   // Leaving the entrance, the camera pulls back from the meter through the wide view of the room
   // (ENTRANCE.reveal) on one smooth curve; between stations it goes straight.
   const move = i === 0 ? curveThrough(ENTRANCE.reveal.camera) : straight;

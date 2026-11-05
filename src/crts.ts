@@ -8,9 +8,16 @@ import layout from "./room-layout.json";
 type V3 = [number, number, number];
 /** `panel` is where the station's text is pinned: the CRT screen, unless the layout gives a
  *  point beside it so the text leaves the station's subject in view (the home lab's rack). */
-/** `portrait` is how much further back the camera stands on a portrait window (see tour.ts). */
-export type Crt = { id: string; screen: V3; yaw: number; camera: V3; look: V3; panel: V3; portrait: number };
-type LayoutCrt = { id: string; screen: number[]; yaw: number; camera: number[]; look: number[]; panel?: number[]; portrait?: number };
+/** `portrait` is how much further back the camera stands on a portrait window (see tour.ts).
+ *  `phone`, if set, replaces that pull-back with its own stop on a portrait window: where the
+ *  camera stands, what it looks at and where the text is pinned, to bring lit parts of the room
+ *  into a tall, narrow frame. Desktop never uses it. */
+export type Stop = { camera: V3; look: V3; panel: V3 };
+export type Crt = { id: string; screen: V3; yaw: number; camera: V3; look: V3; panel: V3; portrait: number; phone?: Stop };
+type LayoutCrt = {
+  id: string; screen: number[]; yaw: number; camera: number[]; look: number[]; panel?: number[]; portrait?: number;
+  phone?: { camera: number[]; look: number[]; panel?: number[] };
+};
 
 /** The glass on every CRT, in metres. */
 export const CRT_GLASS = { width: 0.46, height: 0.36 };
@@ -21,7 +28,11 @@ const v3 = (a: number[]): V3 => [a[0], a[1], a[2]];
 export const crts: Crt[] = (layout.crts as LayoutCrt[]).map((c) => ({
   id: c.id, screen: v3(c.screen), yaw: c.yaw, camera: v3(c.camera), look: v3(c.look),
   panel: v3(c.panel ?? c.screen), portrait: c.portrait ?? 1,
+  ...(c.phone && { phone: { camera: v3(c.phone.camera), look: v3(c.phone.look), panel: v3(c.phone.panel ?? c.panel ?? c.screen) } }),
 }));
+
+/** Where a station's text is pinned in a window of this shape. */
+export const panelPoint = (crt: Crt, aspect: number): V3 => (aspect < 1 && crt.phone ? crt.phone.panel : crt.panel);
 
 /** Where the camera stands at the entrance, which is not a station, and what it looks at: close
  *  on the desk meter. `reveal` is the wide view of the room the camera pulls back through on its

@@ -3,7 +3,7 @@ import { Suspense, useEffect, useMemo, type MutableRefObject } from "react";
 import { MeshBasicMaterial, Vector3, type Mesh, type MeshStandardMaterial } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import roomUrl from "./assets/room.glb?url";
-import { crts, glassEdge } from "./crts";
+import { crts, glassEdge, panelPoint } from "./crts";
 import { fitPanel } from "./pin";
 import { parallax, STATION_COUNT, tourAt } from "./tour";
 import { ENTRANCE } from "./crts";
@@ -13,7 +13,7 @@ import { markMore } from "./ScreenPanels";
 
 // Pins each station's HTML panel (a DOM element with data-screen="<id>") to its real CRT in the
 // baked room: every frame it projects the CRT's panel point (room-layout.json, via crts.ts) into
-// the window and places the panel there, as wide as the CRT looks, kept inside the window by fitPanel. The text stays real HTML, so it is sharp
+// the window and places the panel there (on a phone, the station's phone pin if it has one), as wide as the CRT looks, kept inside the window by fitPanel. The text stays real HTML, so it is sharp
 // at any size, selectable, and its links work. Only the current station's panel is shown.
 function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
   const c = useMemo(() => new Vector3(), []);
@@ -33,7 +33,7 @@ function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
       const [x, y, z] = crt.screen;
       c.set(x, y, z).project(camera);
       e.set(...glassEdge(crt)).project(camera);
-      p.set(...crt.panel).project(camera);
+      p.set(...panelPoint(crt, size.width / size.height)).project(camera);
       const px = (p.x * 0.5 + 0.5) * size.width, py = (-p.y * 0.5 + 0.5) * size.height;
       const crtWidth = Math.hypot((e.x - c.x) * size.width, (e.y - c.y) * size.height);
       // Set the width first, then measure the natural height at that width and fit, so the
