@@ -17,4 +17,4 @@ integration: frontend
 browser:
 	npm ci
 	npx playwright install --with-deps chromium
-	npx playwright test
+	npx playwright test $(PW_ARGS)
