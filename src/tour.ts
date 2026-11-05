@@ -1,5 +1,5 @@
 import { stations } from "./content";
-import { crts, ENTRANCE, isPortrait } from "./crts";
+import { ARCS, crts, ENTRANCE, isPortrait } from "./crts";
 import { squareStop } from "./stop";
 import { holdSpan, progressFor, STATION_COUNT, TOTAL, TRAVEL, PER_STATION } from "./hold";
 export { holdSpan, progressFor, STATION_COUNT };
@@ -50,7 +50,6 @@ export function textOnGlass(progress: number, i: number, aspect: number): boolea
 /** Below this strength a panel is hidden. */
 export const PANEL_SHOWN = 0.05;
 
-const straight = (a: V3, b: V3, f: number): V3 => [0, 1, 2].map((k) => a[k] + (b[k] - a[k]) * f) as V3;
 /** A quadratic curve from `a` to `b` that passes through `mid` halfway along. */
 const curveThrough = (mid: V3) => (a: V3, b: V3, f: number): V3 =>
   [0, 1, 2].map((k) => {
@@ -89,9 +88,11 @@ export function tourAt(progress: number, gap: number, aspect = 16 / 9, height = 
   const aims = portrait ? portraitLooks : [looks[0], ...square!.map((s) => s.look)];
   const a = path[i], b = path[i + 1], la = aims[i], lb = aims[i + 1];
   // Leaving the entrance, the camera pulls back from the meter through the wide view of the room
-  // (ENTRANCE.reveal) on one smooth curve; between stations it goes straight.
-  const move = i === 0 ? curveThrough(ENTRANCE.reveal.camera) : straight;
-  const turn = i === 0 ? curveThrough(ENTRANCE.reveal.look) : straight;
+  // (ENTRANCE.reveal) on one smooth curve. Between stations it does the same through that leg's
+  // wide view of the room (ARCS), so the room shows halfway between two TVs.
+  const mid = i === 0 ? ENTRANCE.reveal : ARCS[i - 1];
+  const move = curveThrough(mid.camera);
+  const turn = curveThrough(mid.look);
   // In a hold the camera is exactly on the stop, not a lerp that lands within rounding of it.
   return {
     station: Math.round(x),

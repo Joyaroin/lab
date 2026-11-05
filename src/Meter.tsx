@@ -1,5 +1,26 @@
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { formatReading } from "./gap";
+import { shiftDigits, type ShiftKind } from "./nixie";
+
+/** The digits the bar shows: the reading, except for a moment while a shift scrambles them. Frames
+ *  run only during the shift. `shift.id` changes to start a new one. */
+function useShifted(digits: string, shift?: { kind: ShiftKind; id: number } | null) {
+  const [shown, setShown] = useState<string | null>(null);
+  useEffect(() => {
+    if (!shift) return;
+    const start = performance.now();
+    let raf = 0;
+    const tick = () => {
+      const s = shiftDigits((performance.now() - start) / 1000, digits, shift.kind);
+      setShown(s.done ? null : s.digits);
+      if (!s.done) raf = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => { cancelAnimationFrame(raf); setShown(null); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shift?.id]);
+  return shown ?? digits;
+}
 
 // The meter's plain label, under the room. The meter itself is the nixie meter on the desk
 // (DeskMeter in Effects.tsx), which shows the live digits. Where the desk meter is out of frame,
@@ -7,16 +28,17 @@ import { formatReading } from "./gap";
 // and it shows a small copy of the digits, so the reading is always on screen exactly once.
 // Clicking it calls `onClick` (the tour advances), as clicking the desk meter does.
 // `live` is false only once the live call has failed; `pending` is while it's in flight.
-export function Meter({ reading, label, live, pending = false, onClick }: {
-  reading: number; label: string; live: boolean; pending?: boolean; onClick?: () => void;
+export function Meter({ reading, label, live, pending = false, shift, onClick }: {
+  reading: number; label: string; live: boolean; pending?: boolean; shift?: { kind: ShiftKind; id: number } | null; onClick?: () => void;
 }) {
   const digits = formatReading(reading);
+  const shown = useShifted(digits, shift);
   return (
     <button type="button" onClick={onClick} style={button} data-meter-bar data-desk-meter="out-of-view"
       aria-label={`Meter. ${label}. Click for the next station`}>
       <style>{css}</style>
       <span role="img" aria-label={`Reading ${digits}`} className="meter-digits">
-        {[...digits].map((ch, i) =>
+        {[...shown].map((ch, i) =>
           ch === "." ? <span key={i} className="meter-dot">.</span> : <span key={i} className="meter-tube" data-testid="tube">{ch}</span>,
         )}
       </span>

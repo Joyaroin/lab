@@ -9,19 +9,42 @@ export function powerOn(t: number, digits: string, rand: () => number = Math.ran
   if (t >= POWER_ON_SECONDS) return { digits, glow: 1, done: true };
   const u = Math.max(0, t) / POWER_ON_SECONDS;
   const glow = Math.min(1, u * 2.2); // warms up in the first half
+  return { digits: scramble(u, digits, 0.45, 0.5, rand), glow, done: false };
+}
+
+// Tubes show random digits until their turn, then lock on the real one, left to right. The first
+// locks at `from` (0..1 of the run) and the last at `from + spread`.
+function scramble(u: number, digits: string, from: number, spread: number, rand: () => number): string {
   const tubes = [...digits].filter((c) => c !== ".").length;
   let k = 0;
-  const shown = [...digits].map((c) => {
+  return [...digits].map((c) => {
     if (c === ".") return c;
-    const settleAt = 0.45 + (0.5 * k++) / tubes; // left to right over the second half
+    const settleAt = from + (spread * k++) / tubes;
     return u >= settleAt ? c : String(Math.floor(rand() * 10) % 10);
   }).join("");
-  return { digits: shown, glow, done: false };
+}
+
+// The shift: when it fires the digits scramble and lock back onto the reading. The full version
+// is about the length of the tear; the short one is a quick flick.
+export const SHIFT_SECONDS = { full: 0.8, short: 0.25 } as const;
+
+export type ShiftKind = keyof typeof SHIFT_SECONDS;
+
+/** The digits to show `t` seconds into a shift. Past the end, always exactly `digits`. */
+export function shiftDigits(t: number, digits: string, kind: ShiftKind, rand: () => number = Math.random): { digits: string; done: boolean } {
+  const len = SHIFT_SECONDS[kind];
+  if (!(t < len)) return { digits, done: true };
+  const u = Math.max(0, t) / len;
+  return { digits: scramble(u, digits, 0.3, 0.6, rand), done: false };
 }
 
 /** What the app and tour tell the room about the meter: the digits to show, what a click does,
  *  and whether the boot screen has gone (`on`), which starts the power-on. `redraw` and `onAt`
  *  are the room's. */
-export type MeterLink = { digits: string; next: () => void; on: boolean; onAt: number | null; redraw?: () => void };
+export type MeterLink = {
+  digits: string; next: () => void; on: boolean; onAt: number | null; redraw?: () => void;
+  /** A shift to play on the digits; the room stamps `shiftAt` (its clock) when it first sees it. */
+  shift: ShiftKind | null; shiftAt: number | null;
+};
 
-export const meterLink = (): MeterLink => ({ digits: "0.000000", next: () => {}, on: false, onAt: null });
+export const meterLink = (): MeterLink => ({ digits: "0.000000", next: () => {}, on: false, onAt: null, shift: null, shiftAt: null });

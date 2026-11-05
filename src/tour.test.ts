@@ -39,8 +39,8 @@ describe("tour", () => {
     const mid = tourAt((progressFor(1) + progressFor(2)) / 2, GAP);
     expect(mid.reading).toBeGreaterThan(a.reading);
     expect(mid.reading).toBeLessThan(b.reading);
-    expect(mid.camera[2]).toBeLessThan(a.camera[2]);
-    expect(mid.camera[2]).toBeGreaterThan(b.camera[2]);
+    expect(mid.camera).not.toEqual(a.camera);
+    expect(mid.camera).not.toEqual(b.camera);
   });
 
   it("rolls from the gap toward the first station", () => {
@@ -372,5 +372,110 @@ describe("parallax strength", () => {
     expect(parallax(t.camera, t.look, { x: 1, y: 1 }, 0).map(Math.abs)).toEqual([0, 0, 0]);
     const full = parallax(t.camera, t.look, { x: 1, y: 1 }), half = parallax(t.camera, t.look, { x: 1, y: 1 }, 0.5);
     for (let k = 0; k < 3; k++) expect(half[k]).toBeCloseTo(full[k] / 2, 12);
+  });
+});
+
+// --- arcs between stations: the camera pulls back through the room on one curve (ticket 51) ---
+import { ARCS, CRT_GLASS } from "./crts";
+
+type Box = { name: string; min: number[]; max: number[] };
+// Coarse boxes for the room's walls and props, from tools/room/build.py. The camera must stay
+// outside every one by CLEAR metres (the near plane is 5 cm; this leaves room to see).
+const CLEAR = 0.1;
+const PROPS: Box[] = [
+  { name: "back desk", min: [-1.9, 0, -1.9], max: [0.62, 1.0, -1.15] },
+  { name: "left desk", min: [-1.9, 0, -1.15], max: [-1.15, 1.0, 0.32] },
+  { name: "bench", min: [1.2, 0, -0.92], max: [1.9, 1.17, 0.62] },
+  { name: "bench shelf", min: [1.6, 1.3, -0.92], max: [1.9, 2.0, 0.62] },
+  { name: "parts shelf", min: [1.32, 0, 0.95], max: [1.9, 2.15, 1.85] },
+  { name: "rack", min: [1.2, 0, -1.85], max: [1.7, 1.05, -1.4] },
+  { name: "chair", min: [-0.4, 0, 0.05], max: [0.2, 1.18, 0.65] },
+  { name: "left wall shelf", min: [-1.9, 1.6, -1.9], max: [-1.6, 1.8, -1.0] },
+];
+const ROOM = { min: [-1.9, 0, -1.9], max: [1.9, 2.5, 1.9] };
+
+/** Why the camera at `c` is in the way of something, or null. CRTs are boxes in their own frame:
+ *  the glass is open in front, the body runs 0.5 m behind it. */
+function blockedAt(c: number[]): string | null {
+  for (let k = 0; k < 3; k++) if (c[k] < ROOM.min[k] + CLEAR || c[k] > ROOM.max[k] - CLEAR) return `wall (axis ${k})`;
+  for (const p of PROPS) if ([0, 1, 2].every((k) => c[k] > p.min[k] - CLEAR && c[k] < p.max[k] + CLEAR)) return p.name;
+  for (const crt of crts) {
+    const a = (crt.yaw * Math.PI) / 180, dx = c[0] - crt.screen[0], dz = c[2] - crt.screen[2];
+    const across = dx * Math.cos(a) - dz * Math.sin(a), out = dx * Math.sin(a) + dz * Math.cos(a);
+    if (Math.abs(across) < CRT_GLASS.width / 2 + 0.1 + CLEAR && Math.abs(c[1] - crt.screen[1]) < 0.27 + CLEAR && out > -0.5 - CLEAR && out < CLEAR)
+      return `CRT ${crt.id}`;
+  }
+  return null;
+}
+
+describe("arcs between stations", () => {
+  const legs = Array.from({ length: STATION_COUNT - 1 }, (_, k) => k + 1);
+  const half = (i: number) => (holdSpan(i)[1] + holdSpan(i + 1)[0]) / 2;
+  const sweep = (i: number, aspect: number, fn: (t: ReturnType<typeof tourAt>) => void, n = 300) => {
+    const a = holdSpan(i)[1], b = holdSpan(i + 1)[0];
+    for (let k = 0; k <= n; k++) fn(tourAt(a + ((b - a) * k) / n, GAP, aspect));
+  };
+
+  it("has one wide view for each of the five legs", () => {
+    expect(ARCS.length).toBe(5);
+    expect(STATION_COUNT - 1).toBe(5);
+  });
+  it("shows a wide view of the room at the midpoint of every leg", () => {
+    for (const i of legs) {
+      const t = tourAt(half(i), GAP);
+      for (let k = 0; k < 3; k++) {
+        expect(t.camera[k], `leg ${i}`).toBeCloseTo(ARCS[i - 1].camera[k], 6);
+        expect(t.look[k], `leg ${i}`).toBeCloseTo(ARCS[i - 1].look[k], 6);
+      }
+      // wide: well back from what it looks at, and both TVs of the leg small in frame
+      expect(Math.hypot(...(t.look.map((v, k) => v - t.camera[k]) as number[])), `leg ${i}`).toBeGreaterThan(2);
+      for (const crt of [crts[i - 1], crts[i]]) {
+        const cam = new PerspectiveCamera(CAMERA_FOV, 16 / 10, 0.05, 50);
+        cam.position.set(...t.camera); cam.lookAt(...t.look); cam.updateMatrixWorld();
+        const [l, r] = [-1, 1].map((s) => new Vector3(crt.screen[0] + s * 0.23 * Math.cos((crt.yaw * Math.PI) / 180), crt.screen[1], crt.screen[2] - s * 0.23 * Math.sin((crt.yaw * Math.PI) / 180)).project(cam));
+        expect(Math.max(l.z, r.z), `${crt.id} is in front of the camera on leg ${i}`).toBeLessThan(1);
+        expect(Math.abs(r.x - l.x) * 640, `${crt.id} on leg ${i}`).toBeLessThan(1280 * 0.21);
+      }
+    }
+  });
+  for (const aspect of [16 / 10, 390 / 780]) {
+    it(`never takes the camera through a wall or prop, on any leg (aspect ${aspect.toFixed(2)})`, () => {
+      // On a phone some existing stops sit within 10 cm of the parts shelf; the stops are not
+      // this ticket's, so only the travel more than 30 cm from either end is held to the clearance.
+      const near = (c: number[], p: number[]) => Math.hypot(c[0] - p[0], c[1] - p[1], c[2] - p[2]) < 0.3;
+      for (const i of legs) {
+        const from = tourAt(holdSpan(i)[1], GAP, aspect).camera, to = tourAt(holdSpan(i + 1)[0], GAP, aspect).camera;
+        sweep(i, aspect, (t) => {
+          if (aspect < 1 && (near(t.camera, from) || near(t.camera, to))) return;
+          expect(blockedAt(t.camera), `leg ${i} at ${t.camera.map((v) => v.toFixed(2))}`).toBeNull();
+        });
+      }
+    });
+  }
+  it("keeps the look point inside the room, so the view is never of the void", () => {
+    for (const i of legs) sweep(i, 16 / 10, (t) => { for (let k = 0; k < 3; k++) { expect(t.look[k]).toBeGreaterThan(ROOM.min[k]); expect(t.look[k]).toBeLessThan(ROOM.max[k]); } });
+  });
+  it("is one smooth curve: no jumps, and no sharp turn in the camera's direction", () => {
+    for (const i of legs) {
+      let prev: number[] | null = null, prevDir: number[] | null = null;
+      sweep(i, 16 / 10, (t) => {
+        if (prev) {
+          const d = t.camera.map((v, k) => v - prev![k]), len = Math.hypot(...d);
+          expect(len, `leg ${i}`).toBeLessThan(0.05);
+          if (prevDir && len > 1e-9) expect(d.reduce((s, v, k) => s + v * prevDir![k], 0) / len, `leg ${i}`).toBeGreaterThan(0.9);
+          if (len > 1e-9) prevDir = d.map((v) => v / len);
+        }
+        prev = t.camera;
+      });
+    }
+  });
+  it("arrives square to the glass for the hold, and leaves from the same stop", () => {
+    for (const i of legs) {
+      const arrive = tourAt(holdSpan(i + 1)[0], GAP, 16 / 10, 800), s = squareStop(crts[i], { width: 1280, height: 800 });
+      for (let k = 0; k < 3; k++) { expect(arrive.camera[k]).toBeCloseTo(s.camera[k], 9); expect(arrive.look[k]).toBeCloseTo(s.look[k], 9); }
+      const a = (crts[i].yaw * Math.PI) / 180, fwd = [-Math.sin(a), 0, -Math.cos(a)];
+      const to = arrive.look.map((v, k) => v - arrive.camera[k]);
+      expect(to[0] * fwd[0] + to[2] * fwd[2]).toBeCloseTo(Math.hypot(...to), 9); // looking straight at the glass
+    }
   });
 });

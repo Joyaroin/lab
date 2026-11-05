@@ -1,6 +1,13 @@
 {
-  "_comment": "Shared by tools/room/build.py (where each CRT goes) and src/crts.ts (where the camera stops). Site axes in metres: x across, y up, +z toward the door. yaw is the way a CRT faces, in degrees: 0 faces +z, 90 faces +x. keyboard: false leaves out the keyboard where there is no surface in front of the CRT. panel (site only, no re-bake) pins the station text to that point instead of the CRT, to keep the subject in view. portrait (site only) is how much further back the camera stands on a portrait window. phone (site only) replaces that with its own portrait stop: camera, look and panel pin, to bring lit parts of the room into a phone's frame. entrance is close on the desk meter; entrance.reveal (site only) is the wide view the camera pulls back through on the way to the first station.",
+  "_comment": "Shared by tools/room/build.py (where each CRT goes) and src/crts.ts (where the camera stops). Site axes in metres: x across, y up, +z toward the door. yaw is the way a CRT faces, in degrees: 0 faces +z, 90 faces +x. keyboard: false leaves out the keyboard where there is no surface in front of the CRT. panel (site only, no re-bake) pins the station text to that point instead of the CRT, to keep the subject in view. portrait (site only) is how much further back the camera stands on a portrait window. phone (site only) replaces that with its own portrait stop: camera, look and panel pin, to bring lit parts of the room into a phone's frame. entrance is close on the desk meter; entrance.reveal (site only) is the wide view the camera pulls back through on the way to the first station. arcs (site only) has one wide view per leg between stations (leg 1 is work to mediasafe): the camera and look point the arc passes through at the middle of that leg.",
   "entrance": {"camera": [-1.06, 0.95, 0.44], "look": [-1.522, 0.895, 0.27], "portrait": 1.8, "reveal": {"camera": [-1.0, 1.62, 1.75], "look": [-0.2, 0.78, -1.1]}},
+  "arcs": [
+    {"camera": [-0.65, 1.7, 1.3], "look": [-0.9, 1.0, -0.9]},
+    {"camera": [0.0, 1.7, 1.4], "look": [0.1, 1.0, -1.2]},
+    {"camera": [-0.2, 1.7, 1.2], "look": [1.2, 1.1, -0.8]},
+    {"camera": [-0.9, 1.7, 0.2], "look": [1.4, 1.0, 0.5]},
+    {"camera": [-0.9, 1.7, 0.9], "look": [1.0, 1.0, -0.3]}
+  ],
   "crts": [
     {"id": "work", "screen": [-1.42, 1.04, -0.38], "yaw": 90, "camera": [-0.5, 1.19, -0.08], "look": [-1.42, 1.0, -0.42], "portrait": 1.7},
     {"id": "mediasafe", "screen": [-1.33, 1.04, -1.33], "yaw": 45, "camera": [-0.55, 1.2, -0.72], "look": [-1.33, 1.0, -1.38], "phone": {"camera": [-0.85, 1.4, 0.1], "look": [-0.95, 1.3, -1.6], "panel": [-0.95, 0.7, -0.95]}},
