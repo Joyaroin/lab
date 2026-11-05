@@ -143,7 +143,7 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
       ))}
       {/* the decimal point between the first two tubes, lit with them */}
       <mesh position={[-0.15, 0.108, 0.027]} raycast={() => null}>
-        <circleGeometry args={[0.0035, 12]} />
+        <circleGeometry args={[0.009, 16]} />
         <meshBasicMaterial ref={dotMat} color="#ffb060" transparent opacity={0} toneMapped={false} />
       </mesh>
       {/* bloom: a soft amber haze in front of the tubes, and the light they throw on the desk */}

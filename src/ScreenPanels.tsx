@@ -15,7 +15,7 @@ export function ScreenPanels() {
           onScroll={(e) => markMore(e.currentTarget)}>
           <p style={worldLine}>{s.worldLine}</p>
           <h2 style={heading}>{s.heading}</h2>
-          {s.body.map((b, i) => <p key={i} style={para}>{b}</p>)}
+          {/* links first, so they are on screen without scrolling even in a phone's short panel */}
           <p style={linkRow}>
             {s.links.map((l) => (
               <a key={l.label + l.href} href={l.href} style={link}
@@ -24,6 +24,7 @@ export function ScreenPanels() {
               </a>
             ))}
           </p>
+          {s.body.map((b, i) => <p key={i} style={para}>{b}</p>)}
           <div className="crt-more" aria-hidden="true"><span>more ▾</span></div>
         </section>
       ))}
@@ -59,5 +60,5 @@ const panel: CSSProperties = {
 const worldLine: CSSProperties = { margin: 0, fontSize: "0.75rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "#ffb347" };
 const heading: CSSProperties = { margin: "0.2rem 0 0.5rem", fontSize: "1.25rem" };
 const para: CSSProperties = { margin: "0 0 0.6rem" };
-const linkRow: CSSProperties = { margin: 0, display: "flex", flexWrap: "wrap", gap: "0.3rem 1rem" };
+const linkRow: CSSProperties = { margin: "0 0 0.7rem", display: "flex", flexWrap: "wrap", gap: "0.3rem 1rem" };
 const link: CSSProperties = { color: "#7dffb0", textDecoration: "underline" };

@@ -226,3 +226,37 @@ test("a panel that scrolls shows a 'more' cue until its end (phone)", async ({ p
   await expect(panel).toHaveAttribute("data-more", "false");
   await expect(panel.getByText("more ▾")).toBeHidden();
 });
+
+// --- launch polish (ticket 27) ---
+test("a load that hangs with no error reaches signal lost, and the links work from there", async ({ page }) => {
+  await page.clock.install(); // so the test doesn't have to wait out the real timeout
+  // The room's code request is accepted and then never answered: no error, no data.
+  await page.route("**/assets/Room-*.js", () => {});
+  await page.goto("/");
+  await expect(page.getByLabel("Boot log")).toBeVisible();
+  await page.clock.fastForward("00:45"); // a slow phone link must not trip it this early
+  await expect(page.getByLabel("Boot log")).toBeVisible();
+  await page.clock.fastForward("02:00");
+  await signalLost(page);
+  for (const name of ["Résumé", "LinkedIn", "GitHub"])
+    await expect(page.getByRole("link", { name })).toBeInViewport();
+});
+
+for (const [name, size] of Object.entries({ desktop: { width: 1280, height: 800 }, phone: { width: 390, height: 780 } })) {
+  test(`Contact's email link is on screen without scrolling (${name})`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.route("https://api.github.com/**", (r) => r.fulfill({ status: 403, json: {} }));
+    await page.goto("/");
+    const hud = page.getByRole("navigation", { name: "HUD" });
+    await expect(hud).toBeVisible();
+    await hud.getByRole("link", { name: "Contact" }).click();
+    const panel = page.locator('[data-screen="contact"]');
+    await expect(panel).toHaveCSS("opacity", "1");
+    await page.waitForTimeout(300); // let the pin settle
+    expect(await panel.evaluate((e) => e.scrollTop)).toBe(0);
+    const email = panel.getByRole("link", { name: /@/ });
+    await expect(email).toBeInViewport({ ratio: 1 }); // clipped by the panel's own scroll area counts as not visible
+    await page.screenshot({ path: `test-results/ticket-27-contact-${name}.png` });
+  });
+}

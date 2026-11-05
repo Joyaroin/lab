@@ -17,6 +17,11 @@ class SceneBoundary extends Component<{ onFail: (e: unknown) => void; children: 
 }
 
 const BOOT_FADE_MS = 700;
+// A load that hangs without an error ends at signal lost after this long. The room is about
+// 2.3 MB over the wire, which takes about 90 s at 200 kbit/s, slower than 3G. Anything faster
+// is not a hang, and a visitor who has waited 90 s with no progress has left already, so this
+// favours not cutting off a slow phone over speed.
+export const LOAD_TIMEOUT_MS = 90_000;
 
 export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
   const [capability] = useState(() => checkCapability(browserWebGL));
@@ -38,6 +43,12 @@ export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
     const id = setTimeout(() => setBooted(true), reduced ? 0 : BOOT_FADE_MS);
     return () => clearTimeout(id);
   }, [sceneReady, meter, reduced]);
+
+  useEffect(() => {
+    if (!capability.ok || sceneReady) return;
+    const id = setTimeout(() => setFailed("load-timed-out"), LOAD_TIMEOUT_MS);
+    return () => clearTimeout(id);
+  }, [capability, sceneReady]);
 
   useEffect(() => {
     if (!capability.ok) return;
