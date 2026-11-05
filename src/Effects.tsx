@@ -1,8 +1,8 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { createRef, useEffect, useMemo, useRef } from "react";
-import { AdditiveBlending, CanvasTexture, CylinderGeometry, DoubleSide, SRGBColorSpace, Vector3, type Camera, type MeshBasicMaterial } from "three";
-import { panelStrength } from "./tour";
-import { crts, CRT_GLASS, DESK_METER, isPortrait, type Crt } from "./crts";
+import { AdditiveBlending, CanvasTexture, CylinderGeometry, DoubleSide, SRGBColorSpace, Vector3, type Camera, type Mesh, type MeshBasicMaterial } from "three";
+import { textOnGlass } from "./tour";
+import { crts, CRT_GLASS, DESK_METER, type Crt } from "./crts";
 import { powerOn, type MeterLink } from "./nixie";
 import { stations } from "./content";
 import { LIVING_FPS, LIVING_MS } from "./living";
@@ -204,6 +204,9 @@ function drawPhosphor(c: HTMLCanvasElement, lines: string[], cursor: boolean) {
   g.fillStyle = sheen; g.fillRect(0, 0, w, h);
 }
 
+/** How much smaller than the glass the phosphor plane is, so it stays inside the bezel. */
+const PLANE_INSET = 0.012;
+
 function phosphorFrame(crt: Crt) {
   const a = (crt.yaw * Math.PI) / 180, d = 0.0062; // just in front of the baked glass
   return { position: [crt.screen[0] + Math.sin(a) * d, crt.screen[1], crt.screen[2] + Math.cos(a) * d] as const, yaw: a };
@@ -218,15 +221,19 @@ export function Phosphor({ reduced, progress }: { reduced: boolean; progress: { 
     // the same glass with no terminal text, shown while the station's own text is on it
     const clear = canvas(320, 250);
     drawPhosphor(clear, [], false);
-    return { crt, c, t: texture(c), lines, clear: texture(clear), mats: createRef<MeshBasicMaterial>() };
+    return { crt, c, t: texture(c), lines, clear: texture(clear), mats: createRef<MeshBasicMaterial>(), mesh: createRef<Mesh>() };
   }), []);
   useFrame(({ size }) => {
-    const desktop = !isPortrait(size.width / size.height);
     screens.forEach((s, k) => {
-      const m = s.mats.current;
-      if (!m) return;
-      const map = desktop && panelStrength(progress.current, k + 1) >= 0.05 ? s.clear : s.t;
+      const m = s.mats.current, mesh = s.mesh.current;
+      if (!m || !mesh) return;
+      const clear = textOnGlass(progress.current, k + 1, size.width / size.height);
+      const map = clear ? s.clear : s.t;
       if (m.map !== map) { m.map = map; m.needsUpdate = true; }
+      // While the text is on the glass, the plane runs out to the glass edge: otherwise the flat
+      // baked glass shows in the gap around it as a bright rim (the card used to hide that).
+      const grow = clear ? CRT_GLASS.width / (CRT_GLASS.width - PLANE_INSET) : 1;
+      if (mesh.scale.x !== grow) mesh.scale.set(grow, clear ? CRT_GLASS.height / (CRT_GLASS.height - PLANE_INSET) : 1, 1);
     });
   });
   useEffect(() => {
@@ -262,11 +269,11 @@ export function Phosphor({ reduced, progress }: { reduced: boolean; progress: { 
   }, [screens, reduced, invalidate]);
   return (
     <>
-      {screens.map(({ crt, t, mats }) => {
+      {screens.map(({ crt, t, mats, mesh }) => {
         const f = phosphorFrame(crt);
         return (
-          <mesh key={crt.id} position={[...f.position]} rotation={[0, f.yaw, 0]} raycast={() => null}>
-            <planeGeometry args={[CRT_GLASS.width - 0.012, CRT_GLASS.height - 0.012]} />
+          <mesh key={crt.id} ref={mesh} position={[...f.position]} rotation={[0, f.yaw, 0]} raycast={() => null}>
+            <planeGeometry args={[CRT_GLASS.width - PLANE_INSET, CRT_GLASS.height - PLANE_INSET]} />
             <meshBasicMaterial ref={mats} map={t} toneMapped={false} />
           </mesh>
         );

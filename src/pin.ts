@@ -24,8 +24,11 @@ export function fitPanel(win: { width: number; height: number }, cx: number, cy:
   return { left, top, width, maxHeight };
 }
 
+const MIN_GLASS_FONT = 14; // px
+const GLASS_PER_EM = 40; // glass widths per em: 40 characters of type across
+
 /** Font size (px) for text laid over the glass, so the type scales with it: a large window fills
  *  the screen instead of stopping at a fixed size, and a small one never drops below 14 px. */
 export function glassFontSize(glassWidth: number): number {
-  return Math.max(14, glassWidth / 40);
+  return Math.max(MIN_GLASS_FONT, glassWidth / GLASS_PER_EM);
 }

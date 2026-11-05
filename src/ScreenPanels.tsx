@@ -40,18 +40,19 @@ export function markMore(el: HTMLElement) {
 
 const css = `
 .crt-panel { padding: 0.9rem 1rem; border: 1px solid #2f7a4d; border-radius: 14px;
-  box-shadow: inset 0 0 28px rgba(0,0,0,0.75), 0 0 22px rgba(60,255,140,0.18); }
-.crt-panel { background:
+  box-shadow: inset 0 0 28px rgba(0,0,0,0.75), 0 0 22px rgba(60,255,140,0.18);
+  background:
   repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.22) 2px 3px),
   radial-gradient(ellipse at 50% 45%, #10391f, #04140b 70%, #010804);
   background-attachment: local; }
 .crt-more { position: sticky; bottom: -0.9rem; margin: 0 -1rem -0.9rem; height: 2.6rem; display: none;
   align-items: flex-end; justify-content: center; padding-bottom: 0.3rem; pointer-events: none;
   background: linear-gradient(to bottom, rgba(4,20,11,0), rgba(4,20,11,0.97) 70%); }
-.crt-more span { font-size: 0.8rem; letter-spacing: 0.1em; color: #ffb347; text-shadow: 0 0 6px rgba(255,140,30,0.6); }
+.crt-more span { font-size: 0.8em; letter-spacing: 0.1em; color: #ffb347; text-shadow: 0 0 6px rgba(255,140,30,0.6); }
 .crt-panel[data-more="true"] .crt-more { display: flex; }
 .crt-panel[data-glass="true"] { background: repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.18) 2px 3px); border: 0; border-radius: 0; box-shadow: none; padding: 0.6em 1.2em; }
-.crt-panel[data-glass="true"] .crt-more { margin: 0 -1.2em -0.6em; bottom: -0.6em; background: none; }
+.crt-panel[data-glass="true"] .crt-more { margin: 0 -1.2em -0.6em; bottom: -0.6em; height: 2.6em;
+  background: linear-gradient(to bottom, rgba(2,10,5,0), rgba(2,10,5,0.95) 70%); }
 `;
 
 const panel: CSSProperties = {

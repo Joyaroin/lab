@@ -416,11 +416,10 @@ test("the HUD's Résumé link points at the PDF", async ({ page, request }) => {
 // --- ticket 49: the text is on the glass, not a card on it ---
 const bigSizes = { "1280x800": { width: 1280, height: 800 }, "1920x1080": { width: 1920, height: 1080 } };
 for (const [name, size] of Object.entries(bigSizes)) {
-  test(`at every station the text sits on the glass with no card and no phosphor text behind it (${name})`, async ({ page }) => {
+  test(`at every station the text sits on the glass with no card and no phosphor behind it (${name})`, async ({ page }) => {
     await page.setViewportSize(size);
     await page.emulateMedia({ reducedMotion: "reduce" });
     await startTour(page);
-    let lastFont = 0;
     for (const id of stationIds) {
       await hud(page).locator(`a[href="#${id}"]`).click();
       const panel = page.locator(`[data-screen="${id}"]`);
@@ -429,25 +428,53 @@ for (const [name, size] of Object.entries(bigSizes)) {
       // No card: no border, no own background colour or shadow.
       const style = await panel.evaluate((e) => { const s = getComputedStyle(e); return { border: s.borderTopWidth, radius: s.borderTopLeftRadius, bg: s.backgroundColor, shadow: s.boxShadow }; });
       expect(style, id).toEqual({ border: "0px", radius: "0px", bg: "rgba(0, 0, 0, 0)", shadow: "none" });
-      // Nothing from the 3D phosphor layer behind the text: hide the text and the glass must be
-      // dark. The terminal lines are bright green (#7dffb0); a clear phosphor never passes ~90.
+      // Nothing from the 3D layer shows behind or around the text: hide the text, then sample the
+      // whole panel including its edges. Terminal lines are #7dffb0 and the baked glass is a flat
+      // bright green (150+); a clear phosphor stays dark (under ~90).
       const box = (await panel.boundingBox())!;
-      await page.addStyleTag({ content: `[data-screen] * { visibility: hidden !important; }` });
-      const shot = await page.screenshot({ clip: { x: box.x + box.width * 0.1, y: box.y + box.height * 0.1, width: box.width * 0.8, height: box.height * 0.8 } });
-      await page.evaluate(() => document.querySelectorAll("style:last-of-type").forEach((s) => s.textContent?.includes("visibility: hidden !important") && s.remove()));
-      const brightest = await page.evaluate(async (src) => {
+      const hide = await page.addStyleTag({ content: `[data-screen] * { visibility: hidden !important; }` });
+      const shot = await page.screenshot({ clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
+      await hide.evaluate((e) => (e as Element).remove());
+      const { inner, rim } = await page.evaluate(async (src) => {
         const img = new Image(); img.src = src; await img.decode();
         const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
         const x = c.getContext("2d")!; x.drawImage(img, 0, 0);
         const d = x.getImageData(0, 0, c.width, c.height).data;
-        let m = 0; for (let k = 0; k < d.length; k += 4) m = Math.max(m, d[k + 1]);
-        return m;
+        const edge = 12; // px band along each side, where the rim showed
+        let inner = 0, rim = 0;
+        for (let py = 0; py < c.height; py++) for (let px = 0; px < c.width; px++) {
+          const g = d[(py * c.width + px) * 4 + 1];
+          const onEdge = px < edge || py < edge || px >= c.width - edge || py >= c.height - edge;
+          if (onEdge) rim = Math.max(rim, g); else inner = Math.max(inner, g);
+        }
+        return { inner, rim };
       }, "data:image/png;base64," + shot.toString("base64"));
-      expect(brightest, `${id}: phosphor text shows behind the text`).toBeLessThan(90);
-      lastFont = await panel.evaluate((e) => parseFloat(getComputedStyle(e.querySelector("h2")!).fontSize));
+      expect(inner, `${id}: phosphor text shows behind the text`).toBeLessThan(90);
+      expect(rim, `${id}: bright glass rim around the panel edge`).toBeLessThan(90);
+      const fonts = await panel.evaluate((e) => ({ panel: parseFloat(getComputedStyle(e).fontSize), h2: parseFloat(getComputedStyle(e.querySelector("h2")!).fontSize) }));
+      expect(fonts.h2, id).toBeGreaterThan(fonts.panel);
+      expect(fonts.panel, `${id} type at ${name}`).toBeGreaterThanOrEqual(name === "1920x1080" ? 24 : 16);
       await page.screenshot({ path: `test-results/glass-${id}-${name}.png` });
     }
-    // Type scales with the glass: bigger window, bigger type (checked against the other size below).
-    expect(lastFont).toBeGreaterThanOrEqual(name === "1920x1080" ? 28 : 18);
   });
 }
+
+test("the type is larger at 1920x1080 than at 1280x800 at every station", async ({ page }) => {
+  test.setTimeout(120_000); // 12 stops, each re-sized and settled
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize(bigSizes["1280x800"]);
+  await startTour(page);
+  const fontAt = async (size: { width: number; height: number }, id: string) => {
+    await page.setViewportSize(size);
+    await hud(page).locator(`a[href="#${id}"]`).click();
+    const panel = page.locator(`[data-screen="${id}"]`);
+    await expect(panel).toHaveCSS("opacity", "1");
+    await page.waitForTimeout(400);
+    return panel.evaluate((e) => parseFloat(getComputedStyle(e).fontSize));
+  };
+  for (const id of stationIds) {
+    const small = await fontAt(bigSizes["1280x800"], id);
+    const big = await fontAt(bigSizes["1920x1080"], id);
+    expect(big, id).toBeGreaterThan(small * 1.3);
+  }
+});
