@@ -1,7 +1,7 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { AdditiveBlending, CanvasTexture, CylinderGeometry, DoubleSide, SRGBColorSpace, Vector3, type Group } from "three";
-import { crts, CRT_GLASS, type Crt } from "./crts";
+import { crts, CRT_GLASS, DESK_METER, type Crt } from "./crts";
 import { powerOn, type MeterLink } from "./nixie";
 import { stations } from "./content";
 
@@ -26,11 +26,9 @@ const texture = (c: HTMLCanvasElement) => {
 // ---------------------------------------------------------------- the desk meter
 // The baked meter (tools/room/build.py) is a walnut case with seven tubes, its digits baked in.
 // Each tube gets a glass envelope drawn over it whose texture shows the live digit, so the one
-// meter on the desk is the live display. Numbers match build.py's meter.
-const NX: [number, number, number] = [-1.55, 0.76, 0.26];
-const NYAW = (70 * Math.PI) / 180;
-const TUBE_X = (i: number) => -0.18 + i * 0.06;
-const TUBE_Y = 0.135, TUBE_R = 0.027, TUBE_H = 0.064, ARC = (2 * Math.PI) / 3;
+// meter on the desk is the live display. Its place is DESK_METER in crts.ts.
+const { position: NX, yaw: NYAW, tubeX: TUBE_X, tubeY: TUBE_Y, tubeR: TUBE_R, tubeH: TUBE_H } = DESK_METER;
+const ARC = (2 * Math.PI) / 3;
 
 function drawTube(c: HTMLCanvasElement, digit: string, glow: number) {
   const g = c.getContext("2d")!, w = c.width, h = c.height;

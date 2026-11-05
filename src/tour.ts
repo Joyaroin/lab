@@ -4,7 +4,8 @@ import { crts, ENTRANCE } from "./crts";
 type V3 = [number, number, number];
 
 // The tour: scroll position in, current station, camera position and meter reading out.
-// Stop 0 is the entrance (shows the gap); stops 1..STATION_COUNT are the stations.
+// Stop 0 is the entrance (shows the gap, close on the desk meter); stops 1..STATION_COUNT are
+// the stations.
 export const STATION_COUNT = stations.length;
 
 // Camera position at each stop, entrance first, then one per CRT (see crts.ts).
@@ -27,6 +28,14 @@ export type TourState = { station: number; camera: V3; look: V3; reading: number
 /** Scroll progress (0..1) at which the camera sits on stop `i`. */
 export const progressFor = (i: number) => Math.min(Math.max(i, 0), STATION_COUNT) / STATION_COUNT;
 
+const straight = (a: V3, b: V3, f: number): V3 => [0, 1, 2].map((k) => a[k] + (b[k] - a[k]) * f) as V3;
+/** A quadratic curve from `a` to `b` that passes through `mid` halfway along. */
+const curveThrough = (mid: V3) => (a: V3, b: V3, f: number): V3 =>
+  [0, 1, 2].map((k) => {
+    const c = 2 * mid[k] - (a[k] + b[k]) / 2;
+    return (1 - f) ** 2 * a[k] + 2 * (1 - f) * f * c + f ** 2 * b[k];
+  }) as V3;
+
 /** `aspect` is the window's width over height; below 1 (portrait) the portrait stops are used. */
 export function tourAt(progress: number, gap: number, aspect = 16 / 9): TourState {
   const p = Math.min(Math.max(Number.isFinite(progress) ? progress : 0, 0), 1);
@@ -37,10 +46,14 @@ export function tourAt(progress: number, gap: number, aspect = 16 / 9): TourStat
   const lerp = (a: number, b: number) => a + (b - a) * f;
   const path = aspect < 1 ? portraitStops : stops;
   const a = path[i], b = path[i + 1], la = looks[i], lb = looks[i + 1];
+  // Leaving the entrance, the camera pulls back from the meter through the wide view of the room
+  // (ENTRANCE.reveal) on one smooth curve; between stations it goes straight.
+  const move = i === 0 ? curveThrough(ENTRANCE.reveal.camera) : straight;
+  const turn = i === 0 ? curveThrough(ENTRANCE.reveal.look) : straight;
   return {
     station: Math.round(x),
-    camera: [lerp(a[0], b[0]), lerp(a[1], b[1]), lerp(a[2], b[2])],
-    look: [lerp(la[0], lb[0]), lerp(la[1], lb[1]), lerp(la[2], lb[2])],
+    camera: move(a, b, f),
+    look: turn(la, lb, f),
     reading: lerp(readingAt(i), readingAt(i + 1)),
   };
 }

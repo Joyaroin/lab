@@ -23,9 +23,31 @@ export const crts: Crt[] = (layout.crts as LayoutCrt[]).map((c) => ({
   panel: v3(c.panel ?? c.screen), portrait: c.portrait ?? 1,
 }));
 
-/** Where the camera stands at the entrance, which is not a station, and what it looks at. */
-const entrance: { camera: number[]; look: number[]; portrait?: number } = layout.entrance;
-export const ENTRANCE = { camera: v3(entrance.camera), look: v3(entrance.look), portrait: entrance.portrait ?? 1 };
+/** Where the camera stands at the entrance, which is not a station, and what it looks at: close
+ *  on the desk meter. `reveal` is the wide view of the room the camera pulls back through on its
+ *  way to the first station (see tour.ts). */
+const entrance: { camera: number[]; look: number[]; portrait?: number; reveal: { camera: number[]; look: number[] } } = layout.entrance;
+export const ENTRANCE = {
+  camera: v3(entrance.camera), look: v3(entrance.look), portrait: entrance.portrait ?? 1,
+  reveal: { camera: v3(entrance.reveal.camera), look: v3(entrance.reveal.look) },
+};
+
+/** The desk meter's place in the baked room. Numbers match build.py's meter: seven tubes in a
+ *  row on a case at `position`, turned `yaw` radians. Tube positions are in the case's frame. */
+const METER_YAW = (70 * Math.PI) / 180;
+export const DESK_METER = {
+  position: [-1.55, 0.76, 0.26] as V3,
+  yaw: METER_YAW,
+  tubeX: (i: number) => -0.18 + i * 0.06,
+  tubeY: 0.135, tubeR: 0.027, tubeH: 0.064,
+  /** The bottom and top of the first and last tubes' fronts, in room coordinates. */
+  tubeEnds(): V3[] {
+    const [px, py, pz] = DESK_METER.position, c = Math.cos(METER_YAW), s = Math.sin(METER_YAW), z = 0.03;
+    const at = (x: number, y: number): V3 => [px + x * c + z * s, py + y, pz - x * s + z * c];
+    const { tubeX, tubeY, tubeH } = DESK_METER;
+    return [at(tubeX(0), tubeY - tubeH / 2), at(tubeX(0), tubeY + tubeH / 2), at(tubeX(6), tubeY - tubeH / 2), at(tubeX(6), tubeY + tubeH / 2)];
+  },
+};
 
 /** The middle of the glass's right-hand edge, used to measure how wide the screen looks. */
 export function glassEdge(crt: Crt): V3 {

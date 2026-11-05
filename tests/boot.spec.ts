@@ -200,19 +200,31 @@ for (const [name, size] of Object.entries(sizes)) {
 }
 
 // --- the desk meter and the scroll cue (ticket 9) ---
-test("the desk meter shows the reading at the entrance; the bar's digits appear only where it can't", async ({ page }) => {
-  await page.setViewportSize(sizes.desktop);
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await startTour(page);
-  const bar = page.getByRole("button", { name: /^Meter/ });
-  await expect(bar).toHaveAttribute("data-desk-meter", "in-view");
-  await expect(bar.getByTestId("tube").first()).not.toBeInViewport(); // visually hidden, still read out
-  await expect(page.getByText("prod is 9 deploys behind staging", { exact: true })).toBeVisible();
-  await page.setViewportSize(sizes.phone);
-  await page.mouse.move(10, 400); // a frame at the new size
-  await expect(bar).toHaveAttribute("data-desk-meter", "out-of-view");
-  await expect(bar.getByTestId("tube").first()).toBeVisible();
-});
+// --- the entrance is the meter, then the room (ticket 29) ---
+for (const [name, size] of Object.entries(sizes)) {
+  test(`the entrance shows the desk meter large; scrolling reveals the room and back returns to it (${name})`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await startTour(page);
+    const bar = page.getByRole("button", { name: /^Meter/ });
+    await expect(bar).toHaveAttribute("data-desk-meter", "in-view");
+    await expect(bar.getByTestId("tube").first()).not.toBeInViewport(); // visually hidden, still read out
+    await expect(page.getByText("prod is 9 deploys behind staging", { exact: true })).toBeVisible(); // the plain label stays
+    await page.screenshot({ path: `test-results/entrance-${name}.png` });
+
+    const to = (f: number) => page.evaluate((f) => scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)), f);
+    await to(1 / 12); // halfway to the first station: the wide view of the room
+    await page.mouse.move(10, 400); // a frame at the new position
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `test-results/entrance-reveal-${name}.png` });
+    await to(1); // a station: the desk meter is out of frame, so the bar shows the digits
+    await expect(bar).toHaveAttribute("data-desk-meter", "out-of-view");
+    await expect(bar.getByTestId("tube").first()).toBeVisible();
+    await to(0);
+    await expect(bar).toHaveAttribute("data-desk-meter", "in-view");
+    await expect(page.getByRole("img", { name: /^Reading/ })).toHaveAttribute("aria-label", "Reading 0.000009");
+  });
+}
 
 test("a panel that scrolls shows a 'more' cue until its end (phone)", async ({ page }) => {
   await page.setViewportSize(sizes.phone);

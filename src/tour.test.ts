@@ -99,8 +99,64 @@ describe("portrait framing", () => {
     for (let i = 0; i <= STATION_COUNT; i++) {
       const wide = tourAt(progressFor(i), GAP), tall = tourAt(progressFor(i), GAP, 390 / 780);
       expect(tall.look).toEqual(wide.look);
-      const pull = i === 0 ? 1 : crts[i - 1].portrait;
+      const pull = i === 0 ? ENTRANCE.portrait : crts[i - 1].portrait;
       expect(dist(tall.camera, tall.look)).toBeCloseTo(dist(wide.camera, wide.look) * pull, 6);
     }
+  });
+});
+
+// --- the entrance: the desk meter first, then a pull back to reveal the room (ticket 29) ---
+import { PerspectiveCamera, Vector3 } from "three";
+import { DESK_METER, ENTRANCE } from "./crts";
+
+/** Where the desk meter's row of tubes lands in a window of `w` x `h`, seen from tour position `p`. */
+function meterOnScreen(p: number, w: number, h: number) {
+  const t = tourAt(p, GAP, w / h);
+  const cam = new PerspectiveCamera(55, w / h, 0.05, 50);
+  cam.position.set(...t.camera);
+  cam.lookAt(...t.look);
+  cam.updateMatrixWorld();
+  const pts = DESK_METER.tubeEnds().map((v) => {
+    const q = new Vector3(...v).project(cam);
+    return { x: (q.x * 0.5 + 0.5) * w, y: (-q.y * 0.5 + 0.5) * h };
+  });
+  const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
+  return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
+}
+
+describe("entrance framing", () => {
+  it("fills the middle of a desktop window with the meter's tubes", () => {
+    const m = meterOnScreen(0, 1280, 800);
+    expect(m.right - m.left).toBeGreaterThan(1280 * 0.4);
+    expect(m.bottom - m.top).toBeGreaterThan(60); // each tube's digit is big, not 14 px
+    expect(m.left).toBeGreaterThan(1280 * 0.1);
+    expect(m.right).toBeLessThan(1280 * 0.9);
+    expect(m.top).toBeGreaterThan(800 * 0.15);
+    expect(m.bottom).toBeLessThan(800 * 0.75); // clear of the label bar at the bottom
+  });
+  it("shows the whole meter, large, on a portrait phone", () => {
+    const m = meterOnScreen(0, 390, 780);
+    expect(m.right - m.left).toBeGreaterThan(390 * 0.5);
+    expect(m.left).toBeGreaterThan(8);
+    expect(m.right).toBeLessThan(390 - 8);
+  });
+  it("pulls back to the wide view of the room halfway to the first station", () => {
+    const half = tourAt(progressFor(1) / 2, GAP);
+    for (let k = 0; k < 3; k++) {
+      expect(half.camera[k]).toBeCloseTo(ENTRANCE.reveal.camera[k], 6);
+      expect(half.look[k]).toBeCloseTo(ENTRANCE.reveal.look[k], 6);
+    }
+    const m = meterOnScreen(progressFor(1) / 2, 1280, 800);
+    expect(m.right - m.left).toBeLessThan(1280 * 0.15); // the meter is now a small part of the room
+  });
+  it("moves smoothly from the meter to the first station, with no jumps", () => {
+    const steps = 200, end = progressFor(1);
+    let prev = tourAt(0, GAP).camera, longest = 0;
+    for (let i = 1; i <= steps; i++) {
+      const c = tourAt((end * i) / steps, GAP).camera;
+      longest = Math.max(longest, Math.hypot(c[0] - prev[0], c[1] - prev[1], c[2] - prev[2]));
+      prev = c;
+    }
+    expect(longest).toBeLessThan(0.05); // no step of the 200 moves more than 5 cm
   });
 });
