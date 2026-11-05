@@ -3,7 +3,7 @@
 // The numbers live in room-layout.json, which tools/room/build.py also reads to place the CRTs,
 // so the room and the tour can't drift apart. Change them there, then re-bake (`make room`).
 // Positions are in site axes: x across, y up, +z toward the room's door.
-import layout from "./room-layout.json";
+import layout from "./room-layout.json" with { type: "json" };
 
 type V3 = [number, number, number];
 /** A phone stop: where the camera stands, what it looks at and where the text is pinned. */

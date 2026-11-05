@@ -5,14 +5,11 @@ import { textOnGlass } from "./tour";
 import { crts, CRT_GLASS, DESK_METER, type Crt } from "./crts";
 import { powerOn, shiftDigits, type MeterLink } from "./nixie";
 import { stations } from "./content";
-import { LIVING_FPS, LIVING_MS } from "./living";
 
 // The late-night look, drawn over the baked room (Room.tsx) without making it redraw nonstop.
 // Everything here is a few small textured planes drawn once. The only things that move are the
-// meter's power-on (about a second and a half, then it stops) and the CRT cursors, which blink
-// at LIVING_FPS for LIVING_MS after the page starts and after each scroll or pointer move, then
-// stop with the cursor lit. At rest the scene draws nothing. Both are off when the visitor
-// prefers reduced motion.
+// meter's power-on, about a second and a half, then it stops. At rest the scene draws nothing.
+// It is off when the visitor prefers reduced motion.
 
 const canvas = (w: number, h: number) => {
   const c = document.createElement("canvas");
@@ -178,27 +175,37 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
 
 // ---------------------------------------------------------------- CRT phosphor
 // The baked glass is a flat green block. Each CRT gets a phosphor screen over it: a dark glass
-// whose centre glows, scanlines, darker curved corners, and a few lines of dim terminal text
-// with a blinking cursor. The lines are the station's `terminal` copy in the content module.
-// The station's own text is the HTML panel pinned on top (Room.tsx).
+// whose centre glows, scanlines and darker curved corners. While you aren't at that station it
+// also carries a title card: the station's world line over its name, big enough to read from the
+// wide view. Both lines come from the content module (worldLine and name); no copy is held here.
+// Nothing on the card moves or reads as live. The station's own text is the HTML panel pinned on
+// top (Room.tsx), and the card is swapped for the clear glass while that text is showing.
 
-function drawPhosphor(c: HTMLCanvasElement, lines: string[], cursor: boolean) {
+const MONO = '"DejaVu Sans Mono", ui-monospace, monospace';
+
+function drawPhosphor(c: HTMLCanvasElement, card?: { worldLine: string; name: string }) {
   const g = c.getContext("2d")!, w = c.width, h = c.height;
   g.fillStyle = "#020a05"; g.fillRect(0, 0, w, h);
   const glow = g.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w * 0.62);
   glow.addColorStop(0, "#0f3d22"); glow.addColorStop(0.6, "#082513"); glow.addColorStop(1, "#010603");
   g.fillStyle = glow; g.fillRect(0, 0, w, h);
-  g.font = `${Math.round(h / 12)}px "DejaVu Sans Mono", ui-monospace, monospace`;
-  g.textBaseline = "top";
-  g.shadowColor = "rgba(90,255,150,0.9)"; g.shadowBlur = 6;
-  g.fillStyle = "#7dffb0";
-  const lh = h / 9;
-  lines.forEach((l, i) => {
-    const text = l.endsWith("_") ? l.slice(0, -1) : l;
-    g.fillText(text, w * 0.09, h * 0.12 + i * lh);
-    if (l.endsWith("_") && cursor) g.fillRect(w * 0.09 + g.measureText(text).width, h * 0.12 + i * lh, h / 22, h / 13);
-  });
-  g.shadowBlur = 0;
+  if (card) {
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.shadowColor = "rgba(90,255,150,0.9)"; g.shadowBlur = 8;
+    g.fillStyle = "#7dffb0";
+    // Each line is as large as fits inside the visible part of the glass, up to a cap.
+    const fit = (text: string, cap: number) => {
+      g.font = `bold ${cap}px ${MONO}`;
+      const wide = g.measureText(text).width;
+      return Math.floor(wide > w * 0.8 ? (cap * w * 0.8) / wide : cap);
+    };
+    const small = fit(card.worldLine, h / 8);
+    g.font = `bold ${small}px ${MONO}`; g.fillText(card.worldLine, w / 2, h * 0.34);
+    const big = fit(card.name, h / 5);
+    g.font = `bold ${big}px ${MONO}`; g.fillText(card.name, w / 2, h * 0.56);
+    g.shadowBlur = 0;
+    g.fillRect(w * 0.15, h * 0.44, w * 0.7, Math.max(2, h / 120)); // rule between the lines
+  }
   g.fillStyle = "rgba(0,0,0,0.35)"; // scanlines
   for (let y = 0; y < h; y += 3) g.fillRect(0, y, w, 1);
   // the tube's curve: corners fall off into the bezel
@@ -218,16 +225,15 @@ function phosphorFrame(crt: Crt) {
   return { position: [crt.screen[0] + Math.sin(a) * d, crt.screen[1], crt.screen[2] + Math.cos(a) * d] as const, yaw: a };
 }
 
-export function Phosphor({ reduced, progress }: { reduced: boolean; progress: { current: number } }) {
-  const invalidate = useThree((s) => s.invalidate);
+export function Phosphor({ progress }: { progress: { current: number } }) {
   const screens = useMemo(() => crts.map((crt) => {
-    const c = canvas(320, 250);
-    const lines = [...(stations.find((s) => s.id === crt.id)?.terminal ?? []), "$ _"];
-    drawPhosphor(c, lines, true);
-    // the same glass with no terminal text, shown while the station's own text is on it
-    const clear = canvas(320, 250);
-    drawPhosphor(clear, [], false);
-    return { crt, c, t: texture(c), lines, clear: texture(clear), mats: createRef<MeshBasicMaterial>(), mesh: createRef<Mesh>() };
+    const station = stations.find((s) => s.id === crt.id);
+    const c = canvas(640, 500);
+    drawPhosphor(c, station);
+    // the same glass with no card, shown while the station's own text is on it
+    const clear = canvas(640, 500);
+    drawPhosphor(clear);
+    return { crt, t: texture(c), clear: texture(clear), mats: createRef<MeshBasicMaterial>(), mesh: createRef<Mesh>() };
   }), []);
   useFrame(({ size }) => {
     screens.forEach((s, k) => {
@@ -242,37 +248,6 @@ export function Phosphor({ reduced, progress }: { reduced: boolean; progress: { 
       if (mesh.scale.x !== grow) mesh.scale.set(grow, clear ? CRT_GLASS.height / (CRT_GLASS.height - PLANE_INSET) : 1, 1);
     });
   });
-  useEffect(() => {
-    if (reduced) return;
-    let on = true;
-    let until = performance.now() + LIVING_MS;
-    let id: ReturnType<typeof setInterval> | undefined;
-    const draw = () => {
-      for (const s of screens) { drawPhosphor(s.c, s.lines, on); s.t.needsUpdate = true; }
-      invalidate();
-    };
-    const tick = () => {
-      if (document.hidden) return;
-      if (performance.now() >= until) { // time's up: leave the cursors lit and stop drawing
-        clearInterval(id); id = undefined;
-        if (!on) { on = true; draw(); }
-        return;
-      }
-      on = !on;
-      draw();
-    };
-    const wake = () => {
-      until = performance.now() + LIVING_MS;
-      if (id === undefined) id = setInterval(tick, 1000 / LIVING_FPS);
-    };
-    wake();
-    window.addEventListener("scroll", wake, { passive: true });
-    window.addEventListener("pointermove", wake, { passive: true });
-    return () => {
-      clearInterval(id);
-      window.removeEventListener("scroll", wake); window.removeEventListener("pointermove", wake);
-    };
-  }, [screens, reduced, invalidate]);
   return (
     <>
       {screens.map(({ crt, t, mats, mesh }) => {

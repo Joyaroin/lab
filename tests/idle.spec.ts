@@ -1,12 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
-import { LIVING_FPS, LIVING_MS } from "../src/living";
 
 // Counts the 3D scene's draw calls, which is what a drawn frame is made of. Headless Chromium has
 // software WebGL, so this proves the scene is idle, not how much a phone would spend drawing.
-// With `blink: false` the CRT cursors' timer never runs, so any draw that follows is the scene
-// answering something else: the power-on, a scroll or a pointer move.
-const countDraws = async (page: Page, { blink = true } = {}) => {
-  await page.addInitScript(({ blink, blinkMs }) => {
+// Nothing on the CRTs moves, so every draw is the power-on, a scroll or a pointer move.
+const countDraws = async (page: Page) => {
+  await page.addInitScript(() => {
     const w = window as unknown as { __draws: number; __frames: number };
     w.__draws = 0;
     w.__frames = 0; // each frame clears the screen once
@@ -20,21 +18,15 @@ const countDraws = async (page: Page, { blink = true } = {}) => {
         (C.prototype as any)[fn] = function (...a: unknown[]) { w.__draws++; return orig.apply(this, a); };
       }
     }
-    if (!blink) {
-      const set = window.setInterval.bind(window);
-      window.setInterval = ((fn: TimerHandler, ms?: number, ...args: unknown[]) =>
-        ms === blinkMs ? 0 : set(fn, ms, ...args)) as typeof window.setInterval;
-    }
-  }, { blink, blinkMs: 1000 / LIVING_FPS });
+  });
 };
 test.setTimeout(60_000); // several idle waits
 
 const draws = (page: Page) => page.evaluate(() => (window as unknown as { __draws: number }).__draws);
 const frames = (page: Page) => page.evaluate(() => (window as unknown as { __frames: number }).__frames);
 
-// The cursors blink for LIVING_MS after the power-on and any scroll or pointer move, then stop.
-// Wait out that and the power-on, with a margin.
-const SETTLE_MS = LIVING_MS + 3_000;
+// Wait out the power-on (about 1.5 s) and the camera's glide, with a margin.
+const SETTLE_MS = 8_000;
 
 async function bootDone(page: Page) {
   await page.goto("/");
@@ -56,7 +48,7 @@ test("at rest the 3D scene draws no frames", async ({ page }) => {
 });
 
 test("scrolling and pointer movement still draw, and then it goes idle again", async ({ page }) => {
-  await countDraws(page, { blink: false });
+  await countDraws(page);
   await powerOnSettled(page);
   let before = await draws(page);
   await page.mouse.move(100, 100);
@@ -74,11 +66,11 @@ test("scrolling and pointer movement still draw, and then it goes idle again", a
   expect(await draws(page)).toBe(before);
 });
 
-// Without the cursors' timer, the only thing left to draw after the room starts is the power-on:
+// After the room starts, the only thing left to draw is the power-on:
 // a frame after frame for about a second and a half, then nothing. Counting frames (not draw
 // calls) tells that from the one or two frames the room draws when it appears.
 test("the power-on draws frame after frame, then stops", async ({ page }) => {
-  await countDraws(page, { blink: false });
+  await countDraws(page);
   await bootDone(page);
   await page.waitForTimeout(3_000);
   const settled = await frames(page);
@@ -90,7 +82,7 @@ test("the power-on draws frame after frame, then stops", async ({ page }) => {
 // is expected to manage the power-on's 1.4 s in about 7 (an estimate, not measured on the runner), so 5 should separate the two.
 const POWER_ON_MIN_FRAMES = 5;
 
-test("at rest the CRTs still look alive", async ({ page }) => {
+test("at rest the title cards show on the TVs", async ({ page }) => {
   await powerOnSettled(page);
   await page.screenshot({ path: "test-results/idle-rest.png" });
 });

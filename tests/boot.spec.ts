@@ -458,7 +458,7 @@ for (const [name, size] of Object.entries(bigSizes)) {
       const style = await panel.evaluate((e) => { const s = getComputedStyle(e); return { border: s.borderTopWidth, radius: s.borderTopLeftRadius, bg: s.backgroundColor, shadow: s.boxShadow }; });
       expect(style, id).toEqual({ border: "0px", radius: "0px", bg: "rgba(0, 0, 0, 0)", shadow: "none" });
       // Nothing from the 3D layer shows behind or around the text: hide the text, then sample the
-      // whole panel including its edges. Terminal lines are #7dffb0 and the baked glass is a flat
+      // whole panel including its edges. A title card's text is #7dffb0 and the baked glass is a flat
       // bright green (150+); a clear phosphor stays dark (under ~90).
       const box = (await panel.boundingBox())!;
       const hide = await page.addStyleTag({ content: `[data-screen] * { visibility: hidden !important; }` });
@@ -478,7 +478,7 @@ for (const [name, size] of Object.entries(bigSizes)) {
         }
         return { inner, rim };
       }, "data:image/png;base64," + shot.toString("base64"));
-      expect(inner, `${id}: phosphor text shows behind the text`).toBeLessThan(90);
+      expect(inner, `${id}: title card shows behind the text`).toBeLessThan(90);
       expect(rim, `${id}: bright glass rim around the panel edge`).toBeLessThan(90);
       const fonts = await panel.evaluate((e) => ({ panel: parseFloat(getComputedStyle(e).fontSize), h2: parseFloat(getComputedStyle(e.querySelector("h2")!).fontSize) }));
       expect(fonts.h2, id).toBeGreaterThan(fonts.panel);
