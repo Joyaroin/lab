@@ -1,5 +1,6 @@
 import { stations } from "./content";
 import { crts, ENTRANCE, isPortrait } from "./crts";
+import { squareStop } from "./stop";
 import { holdSpan, progressFor, STATION_COUNT, TOTAL, TRAVEL, PER_STATION } from "./hold";
 export { holdSpan, progressFor, STATION_COUNT };
 
@@ -49,8 +50,23 @@ const curveThrough = (mid: V3) => (a: V3, b: V3, f: number): V3 =>
     return (1 - f) ** 2 * a[k] + 2 * (1 - f) * f * c + f ** 2 * b[k];
   }) as V3;
 
-/** `aspect` is the window's width over height; below 1 (portrait) the portrait stops are used. */
-export function tourAt(progress: number, gap: number, aspect = 16 / 9): TourState {
+/** How much mouse parallax applies at scroll progress `progress`: none for the whole hold, so the
+ *  glass stays square behind the flat text, rising to full over the first third of travel away
+ *  from the stop, and full through the rest of travel. */
+export function parallaxStrength(progress: number): number {
+  const p = Math.min(Math.max(Number.isFinite(progress) ? progress : 0, 0), 1);
+  let away = Infinity;
+  for (let i = 1; i <= STATION_COUNT; i++) {
+    const [a, b] = holdSpan(i);
+    away = Math.min(away, p < a ? a - p : p > b ? p - b : 0);
+  }
+  return Math.min(1, (away * TOTAL) / (TRAVEL / 3));
+}
+
+/** `aspect` is the window's width over height; below 1 (portrait) the portrait stops are used.
+ *  On a landscape window each station's stop is worked out from the window's `height` (px) and
+ *  aspect, so the glass fills the space between the HUD and the meter at any size. */
+export function tourAt(progress: number, gap: number, aspect = 16 / 9, height = 800): TourState {
   const p = Math.min(Math.max(Number.isFinite(progress) ? progress : 0, 0), 1);
   const u = p * TOTAL;
   const i = Math.min(Math.floor(u / PER_STATION), STATION_COUNT - 1); // travel i leads to station i+1
@@ -59,8 +75,10 @@ export function tourAt(progress: number, gap: number, aspect = 16 / 9): TourStat
   const x = i + f;
   const readingAt = (s: number) => (s === 0 ? gap : stations[s - 1].reading);
   const lerp = (a: number, b: number) => (f === 1 ? b : a + (b - a) * f);
-  const path = isPortrait(aspect) ? portraitStops : stops;
-  const aims = isPortrait(aspect) ? portraitLooks : looks;
+  const portrait = isPortrait(aspect);
+  const square = portrait ? undefined : crts.map((c) => squareStop(c, { width: aspect * height, height }));
+  const path = portrait ? portraitStops : [stops[0], ...square!.map((s) => s.camera)];
+  const aims = portrait ? portraitLooks : [looks[0], ...square!.map((s) => s.look)];
   const a = path[i], b = path[i + 1], la = aims[i], lb = aims[i + 1];
   // Leaving the entrance, the camera pulls back from the meter through the wide view of the room
   // (ENTRANCE.reveal) on one smooth curve; between stations it goes straight.
@@ -80,7 +98,7 @@ export function tourAt(progress: number, gap: number, aspect = 16 / 9): TourStat
  *  so it slides the view sideways rather than toward or away from what it looks at, and it is a
  *  fixed share of the distance to the look point, so it feels the same close up and from afar. */
 export const PARALLAX = { right: 0.1, up: 0.05 };
-export function parallax(camera: V3, look: V3, pointer: { x: number; y: number }): V3 {
+export function parallax(camera: V3, look: V3, pointer: { x: number; y: number }, strength = 1): V3 {
   const f = [look[0] - camera[0], look[1] - camera[1], look[2] - camera[2]];
   const d = Math.hypot(f[0], f[1], f[2]);
   if (d === 0) return [0, 0, 0];
@@ -89,6 +107,6 @@ export function parallax(camera: V3, look: V3, pointer: { x: number; y: number }
   if (rl === 0) return [0, 0, 0];
   const r = [-f[2] / rl, 0, f[0] / rl];
   const u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]].map((v) => v / d);
-  const a = pointer.x * PARALLAX.right * d, b = pointer.y * PARALLAX.up * d;
+  const a = pointer.x * PARALLAX.right * d * strength, b = pointer.y * PARALLAX.up * d * strength;
   return [r[0] * a + u[0] * b, r[1] * a + u[1] * b, r[2] * a + u[2] * b];
 }

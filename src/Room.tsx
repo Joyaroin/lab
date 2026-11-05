@@ -3,9 +3,9 @@ import { Suspense, useEffect, useMemo, type MutableRefObject } from "react";
 import { MeshBasicMaterial, Vector3, type Mesh, type MeshStandardMaterial } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import roomUrl from "./assets/room.glb?url";
-import { CAMERA_FOV, crts, ENTRANCE, glassEdge, panelPoint } from "./crts";
+import { CAMERA_FOV, crts, ENTRANCE, glassCorners, glassEdge, isPortrait, panelPoint } from "./crts";
 import { fitPanel } from "./pin";
-import { panelStrength, parallax, tourAt } from "./tour";
+import { panelStrength, parallax, parallaxStrength, tourAt } from "./tour";
 import { DeskMeter, Phosphor, Rain } from "./Effects";
 import type { MeterLink } from "./nixie";
 import { markMore } from "./ScreenPanels";
@@ -29,6 +29,23 @@ function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
       el.style.visibility = strength < 0.05 ? "hidden" : "visible";
       el.style.pointerEvents = strength > 0.6 ? "auto" : "none";
       if (strength < 0.05) return;
+      if (!isPortrait(size.width / size.height)) {
+        // Desktop: the camera is square to the glass, so the text is laid exactly over it.
+        const xs: number[] = [], ys: number[] = [];
+        for (const v of glassCorners(crt)) {
+          c.set(...v).project(camera);
+          xs.push((c.x * 0.5 + 0.5) * size.width);
+          ys.push((-c.y * 0.5 + 0.5) * size.height);
+        }
+        const left = Math.min(...xs), top = Math.min(...ys);
+        el.style.width = `${Math.max(...xs) - left}px`;
+        el.style.height = `${Math.max(...ys) - top}px`;
+        el.style.maxHeight = "none";
+        el.style.transform = `translate(${left}px, ${top}px)`;
+        markMore(el);
+        return;
+      }
+      el.style.height = "";
       const [x, y, z] = crt.screen;
       c.set(x, y, z).project(camera);
       e.set(...glassEdge(crt)).project(camera);
@@ -79,10 +96,10 @@ function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; 
     return () => { window.removeEventListener("scroll", redraw); window.removeEventListener("pointermove", redraw); };
   }, [invalidate]);
   useFrame(({ camera, pointer, size }, dt) => {
-    const { camera: target, look } = tourAt(progress.current, 0, size.width / size.height);
+    const { camera: target, look } = tourAt(progress.current, 0, size.width / size.height, size.height);
     // dt is large after an idle spell, so cap it: the first frame of a move still eases.
     const k = reduced ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 6);
-    const [px, py, pz] = reduced ? [0, 0, 0] : parallax(target, look, pointer);
+    const [px, py, pz] = reduced ? [0, 0, 0] : parallax(target, look, pointer, isPortrait(size.width / size.height) ? 1 : parallaxStrength(progress.current)); // phones are unchanged
     const dx = target[0] + px - camera.position.x, dy = target[1] + py - camera.position.y, dz = target[2] + pz - camera.position.z;
     camera.position.x += dx * k;
     camera.position.y += dy * k;

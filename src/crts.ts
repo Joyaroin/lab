@@ -71,3 +71,9 @@ export function glassEdge(crt: Crt): V3 {
   const a = (crt.yaw * Math.PI) / 180, h = CRT_GLASS.width / 2;
   return [crt.screen[0] + Math.cos(a) * h, crt.screen[1], crt.screen[2] - Math.sin(a) * h];
 }
+
+/** The glass's four corners in room coordinates. */
+export function glassCorners(crt: Crt): V3[] {
+  const a = (crt.yaw * Math.PI) / 180, hw = CRT_GLASS.width / 2, hh = CRT_GLASS.height / 2;
+  return [-1, 1].flatMap((sx) => [-1, 1].map((sy): V3 => [crt.screen[0] + Math.cos(a) * hw * sx, crt.screen[1] + hh * sy, crt.screen[2] - Math.sin(a) * hw * sx]));
+}

@@ -67,3 +67,42 @@ test("on a phone, MediaSafe and WC2026 Predictor frame lit parts of the room", a
     expect(last, name).toBeGreaterThan(27);
   }
 });
+
+// Ticket 48: on desktop each station stops square to its TV, the text is laid over the glass, and
+// moving the pointer inside a hold doesn't move either.
+for (const [w, h] of [[1280, 800], [1920, 1080]]) {
+  test(`desktop ${w}x${h}: text sits on the glass at every station and the pointer does not move it`, async ({ page }) => {
+    test.setTimeout(150_000); // six stations, each waits for the camera on software WebGL
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto("/");
+    await expect(page.getByLabel("Boot log")).toBeHidden();
+    const ids = ["work", "mediasafe", "home-lab", "order-tracker", "wc2026-predictor", "contact"];
+    const box = (id: string) => page.locator(`[data-screen="${id}"]`).evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left, top: r.top, width: r.width, height: r.height };
+    });
+    for (const [k, id] of ids.entries()) {
+      const delta = await page.evaluate((f) => f * (document.documentElement.scrollHeight - innerHeight) - scrollY, progressFor(k + 1));
+      await page.mouse.move(10, h / 2); // beside the text, so the wheel scrolls the page
+      await page.mouse.wheel(0, delta);
+      await expect(page.locator(`[data-screen="${id}"]`)).toBeVisible();
+      // wait for the camera to arrive: the text stops moving
+      let last = "";
+      await expect.poll(async () => { const now = JSON.stringify(await box(id)); const still = now === last; last = now; return still; }, { intervals: [400] }).toBe(true);
+      const b = await box(id);
+      // between the HUD (128) and the meter (150 from the bottom), inside the sides
+      expect(b.top, id).toBeGreaterThanOrEqual(127);
+      expect(b.top + b.height, id).toBeLessThanOrEqual(h - 149);
+      expect(b.left, id).toBeGreaterThanOrEqual(7);
+      expect(b.left + b.width, id).toBeLessThanOrEqual(w - 7);
+      await page.screenshot({ path: `test-results/desktop-${w}x${h}-${id}.png` });
+      // pointer to a corner: the text, and so the glass behind it, stay where they are
+      await page.mouse.move(5, 5);
+      await page.mouse.move(w - 5, h - 5);
+      await page.waitForTimeout(800);
+      const after = await box(id);
+      // allow for the camera's last sub-pixel of easing; a parallax shift would be tens of pixels
+      for (const k of ["left", "top", "width", "height"] as const) expect(Math.abs(after[k] - b[k]), `${id} ${k}`).toBeLessThan(1);
+    }
+  });
+}

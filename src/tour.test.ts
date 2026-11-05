@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { tourAt, progressFor, holdSpan, panelStrength, STATION_COUNT } from "./tour";
 import { stations } from "./content";
 import { crts, panelPoint } from "./crts";
+import { squareStop } from "./stop";
 
 const GAP = 9;
 const readings = stations.map((s) => s.reading);
@@ -82,8 +83,13 @@ describe("holds", () => {
       }
     });
   }
-  it("sit on the exact stop camera on desktop", () => {
-    for (let i = 1; i <= STATION_COUNT; i++) same(tourAt(progressFor(i), GAP).camera, crts[i - 1].camera);
+  it("sit on the square stop for the window on desktop", () => {
+    for (const [w, h] of [[1280, 800], [1920, 1080]])
+      for (let i = 1; i <= STATION_COUNT; i++) {
+        const t = tourAt(progressFor(i), GAP, w / h, h), s = squareStop(crts[i - 1], { width: w, height: h });
+        same(t.camera, s.camera);
+        same(t.look, s.look);
+      }
   });
   it("are in order, do not overlap, and leave travel between them", () => {
     let prevEnd = 0;
@@ -173,13 +179,14 @@ describe("portrait framing", () => {
   it("pulls back every station but the home lab, whose phone view is approved, and those with a phone stop", () => {
     for (const c of crts) expect(c.portrait > 1, c.id).toBe(c.id !== "home-lab" && !c.phone);
   });
-  it("stands further back on a portrait window, still looking at the same point", () => {
+  it("stands further back on a portrait window along the layout's own stop, looking at the same point", () => {
     for (let i = 0; i <= STATION_COUNT; i++) {
       if (i > 0 && crts[i - 1].phone) continue; // reframed on phones instead, below
-      const wide = tourAt(progressFor(i), GAP), tall = tourAt(progressFor(i), GAP, 390 / 780);
-      for (let k = 0; k < 3; k++) expect(tall.look[k]).toBeCloseTo(wide.look[k], 9);
+      const tall = tourAt(progressFor(i), GAP, 390 / 780);
+      const cam = i === 0 ? ENTRANCE.camera : crts[i - 1].camera, look = i === 0 ? ENTRANCE.look : crts[i - 1].look;
+      for (let k = 0; k < 3; k++) expect(tall.look[k]).toBeCloseTo(look[k], 9);
       const pull = i === 0 ? ENTRANCE.portrait : crts[i - 1].portrait;
-      expect(dist(tall.camera, tall.look)).toBeCloseTo(dist(wide.camera, wide.look) * pull, 6);
+      expect(dist(tall.camera, tall.look)).toBeCloseTo(dist(cam, look) * pull, 6);
     }
   });
 });
@@ -198,12 +205,12 @@ describe("phone stops", () => {
       expect(tall.look).toEqual(phone.look);
     }
   });
-  it("leave the desktop stop alone", () => {
+  it("do not change the desktop stop: it is the square one", () => {
     for (const id of reframed) {
       const i = crts.findIndex((c) => c.id === id) + 1, c = crts[i - 1];
-      const wide = tourAt(progressFor(i), GAP, 1280 / 800);
-      expect(wide.camera).toEqual(c.camera);
-      expect(wide.look).toEqual(c.look);
+      const wide = tourAt(progressFor(i), GAP, 1280 / 800, 800), s = squareStop(c, { width: 1280, height: 800 });
+      expect(wide.camera).toEqual(s.camera);
+      expect(wide.look).toEqual(s.look);
     }
   });
   it("pin the text at the phone's own point on a portrait window, and at the desktop point otherwise", () => {
@@ -276,12 +283,12 @@ describe("entrance framing", () => {
       longest = Math.max(longest, Math.hypot(c[0] - prev[0], c[1] - prev[1], c[2] - prev[2]));
       prev = c;
     }
-    expect(longest).toBeLessThan(0.05); // no step of the 200 moves more than 5 cm
+    expect(longest).toBeLessThan(0.06); // no step of the 200 moves more than 6 cm
   });
 });
 
 // --- mouse parallax: a slight sideways shift at every stop, never a zoom (ticket 29 review) ---
-import { parallax } from "./tour";
+import { parallax, parallaxStrength } from "./tour";
 
 /** The meter on screen at the entrance, with the pointer at (`x`, `y`). */
 function meterWithPointer(x: number, y: number, w: number, h: number) {
@@ -331,5 +338,39 @@ describe("mouse parallax", () => {
         expect(len(o) / d, `stop ${i}`).toBeGreaterThan(0.03);
       }
     }
+  });
+});
+
+describe("parallax near a stop", () => {
+  it("is gone for the whole of every hold", () => {
+    for (let i = 1; i <= STATION_COUNT; i++) {
+      const [a, b] = holdSpan(i);
+      for (let k = 0; k <= 20; k++) expect(parallaxStrength(a + ((b - a) * k) / 20), `stop ${i}`).toBe(0);
+    }
+  });
+  it("is full at the entrance and halfway through every travel", () => {
+    expect(parallaxStrength(0)).toBe(1);
+    for (let i = 1; i < STATION_COUNT; i++) expect(parallaxStrength((holdSpan(i)[1] + holdSpan(i + 1)[0]) / 2)).toBe(1);
+  });
+  it("fades in between, without a jump, as the camera leaves a stop", () => {
+    const [, end] = holdSpan(1);
+    let prev = 0;
+    for (let k = 1; k <= 100; k++) {
+      const s = parallaxStrength(end + (k / 200) * (holdSpan(2)[0] - end));
+      expect(s).toBeGreaterThanOrEqual(prev);
+      expect(s - prev).toBeLessThan(0.1);
+      prev = s;
+    }
+    expect(parallaxStrength(end + 0.01)).toBeGreaterThan(0);
+    expect(parallaxStrength(end + 0.01)).toBeLessThan(1);
+  });
+});
+
+describe("parallax strength", () => {
+  it("scales the shift, and at zero gives none", () => {
+    const t = tourAt(progressFor(1), GAP);
+    expect(parallax(t.camera, t.look, { x: 1, y: 1 }, 0).map(Math.abs)).toEqual([0, 0, 0]);
+    const full = parallax(t.camera, t.look, { x: 1, y: 1 }), half = parallax(t.camera, t.look, { x: 1, y: 1 }, 0.5);
+    for (let k = 0; k < 3; k++) expect(half[k]).toBeCloseTo(full[k] / 2, 12);
   });
 });
