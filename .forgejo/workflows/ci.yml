@@ -23,7 +23,26 @@ jobs:
     runs-on: docker
     steps:
       - uses: actions/checkout@v4
-      - run: make browser
+      - run: make browser PW_ARGS="--reporter=list,json"
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: ${{ runner.temp }}/playwright.json
+      # Forgejo has no job-log API, so put the failures on the PR. Best effort: it never changes
+      # the job result, and a failed post is only logged.
+      - name: Post failures on the PR
+        if: failure()
+        continue-on-error: true
+        env:
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f "${{ runner.temp }}/playwright.json" ]; then
+            node scripts/post-browser-failure.mjs "${{ runner.temp }}/playwright.json"
+          else
+            echo "No Playwright report; nothing to post."
+          fi
   secret-scan:
     runs-on: docker
     steps:
