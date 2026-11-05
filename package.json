@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && node scripts/check-budget.mjs dist",
+    "build": "node scripts/save-gap.mjs && tsc --noEmit && vite build && node scripts/check-budget.mjs dist",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "preview": "vite preview --host 127.0.0.1 --port 4173 --strictPort"
