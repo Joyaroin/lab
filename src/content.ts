@@ -38,14 +38,24 @@ export const content: Content = {
     { label: "GitHub", href: "https://github.com/Joyaroin" },
   ],
 
-  // PLACEHOLDER copy, in tour order. Real text comes in a later PR that Adham reviews before merge.
+  // Real copy, in tour order. Plain descriptions; lab language lives in the world-line labels only.
+  // Every fact here comes from ticket #11. Add nothing that is not there.
   stations: [
     {
       id: "work", name: "Work", worldLine: "World line 01", reading: 214,
       heading: "Work experience",
       body: [
-        "Placeholder: the employer and role go here, newest first.",
-        "Placeholder: one plain sentence on what was built or run there.",
+        "Solace: Software Developer Co-op, Platform Engineering. Ottawa, Sep to Dec 2026.",
+        "Made the EC2 proxies behind CI/CD builds self-healing. CloudWatch alarms defined in Terraform reboot an out-of-memory instance, and a Lambda posts its status to Slack. A failure that sat unnoticed for hours became an unattended recovery, since proven on a real outage.",
+        "Provisioned an S3 artifact store in Terraform, with versioning and lifecycle rules, giving a customer-facing UI pinned releases that can be rolled back.",
+        "Wrote a Python check that fails any pull request where a pipeline drifts from its template.",
+        "Automated product offboarding in an internal security dashboard across UI, API, data model and scripts, ending 30 to 60 minutes of manual cleanup each time.",
+        "Barracuda Networks: Software Engineer Co-op, BarracudaONE Platform. Ottawa, Sep 2025 to Aug 2026.",
+        "Built a GitHub Actions workflow that opens hotfix branches from the commit actually in production, serving 18 service repos and saving 5 to 10 minutes per ticket.",
+        "Authored Terraform for production AWS infrastructure: VPC, ALB, IAM, ECR and External Secrets.",
+        "Set up a Grafana dashboard with threshold alerts on SaaS metrics, used daily by the team.",
+        "Built a test-scenario generator on the Claude API and a Jira MCP server, adopted by all 15 developers, cutting test-note writing by roughly 40%.",
+        "Delivered C# and .NET services and React/TypeScript UI across some 60 tickets, and brought open-source license scanning into CI.",
       ],
       links: [{ label: "LinkedIn", href: "https://www.linkedin.com/in/adham-sedik" }],
     },
@@ -53,42 +63,60 @@ export const content: Content = {
       id: "mediasafe", name: "MediaSafe", worldLine: "World line 02", reading: 377,
       heading: "MediaSafe",
       body: [
-        "Placeholder: what MediaSafe is, in one plain sentence.",
-        "Placeholder: how it is deployed, from staging to production.",
+        "A personal tracker for shows and films, built, deployed and operated end to end by one person. Next.js 16 and Postgres.",
+        "Live at mediasafe.space, which needs a Google sign-in.",
+        "Argo CD syncs the cluster from Git, and a commit is the only way it changes. Merges ship to staging automatically; production is promoted by hand. Secrets live in Vault with nightly snapshots to Cloudflare R2 and a scripted restore drill.",
+        "About 700 commits and 170+ merged pull requests since August 2026.",
       ],
-      links: [{ label: "Deploy repo", href: "https://github.com/Joyaroin/morioh-cho-gitops" }],
+      links: [
+        { label: "MediaSafe repo", href: "https://github.com/Joyaroin/MediaSafe" },
+        { label: "Deploy repo", href: "https://github.com/Joyaroin/morioh-cho-gitops" },
+        { label: "mediasafe.space (Google sign-in)", href: "https://mediasafe.space" },
+      ],
     },
     {
       id: "home-lab", name: "Home lab", worldLine: "World line 03", reading: 512,
       heading: "Home lab and Proxmox",
       body: [
-        "Placeholder: what the lab runs and why it is built this way.",
-        "Placeholder: the hypervisor, the cluster and how changes reach them.",
+        "Two Proxmox hosts, jonathan (HP ProDesk) and joseph (GEEKOM A5), run a two-node k3s cluster on VMs hamon and hermit.",
+        "No ports are open at home: traffic arrives only through a Cloudflare Tunnel. Traefik with Gateway API, cert-manager, Vault, External Secrets.",
+        "Git hosting and CI runners run at home too, with the CI runner firewalled from the home network and cluster. Production and staging are pinned to separate nodes.",
+        "This site runs on that cluster.",
       ],
-      links: [{ label: "GitHub", href: "https://github.com/Joyaroin" }],
+      links: [{ label: "This site's source", href: "https://github.com/Joyaroin/lab" }],
     },
     {
       id: "order-tracker", name: "Order Tracker", worldLine: "World line 04", reading: 640,
-      heading: "Order Tracker",
-      body: ["Placeholder: what Order Tracker does and what it was built with."],
-      links: [{ label: "GitHub", href: "https://github.com/Joyaroin" }],
+      heading: "Order Tracker GitOps Platform",
+      body: [
+        "A GitOps delivery pipeline: Argo CD ApplicationSets and Kustomize overlays generate per-environment apps.",
+        "Five reusable Terraform modules (VPC, EKS, ECR, IAM, S3 and DynamoDB locking).",
+        "GitHub Actions pushes images to ECR with OIDC instead of static AWS keys. Pull requests against hotfix branches spin up isolated EKS environments in about 10 minutes.",
+        "The repo is private, so there is no link.",
+      ],
+      links: [],
     },
     {
-      id: "wc2026-predictor", name: "wc2026-predictor", worldLine: "World line 05", reading: 733,
-      heading: "wc2026-predictor",
-      body: ["Placeholder: what the predictor does and how it was built."],
-      links: [{ label: "GitHub", href: "https://github.com/Joyaroin" }],
+      id: "wc2026-predictor", name: "WC2026 Predictor", worldLine: "World line 05", reading: 733,
+      heading: "WC2026 Predictor",
+      body: [
+        "A live score-prediction game for the 2026 FIFA World Cup: friends join a group, call scorelines and climb leaderboards that move as goals go in.",
+        "React 19, TypeScript, Express 5, single-table DynamoDB, Terraform, Helm and Argo CD.",
+      ],
+      links: [{ label: "Repo", href: "https://github.com/Joyaroin/wc2026-predictor" }],
     },
     {
       id: "contact", name: "Contact", worldLine: "World line 06", reading: 861,
       heading: "Contact",
       body: [
-        "Placeholder: availability for co-op and full-time roles, and the graduation date.",
-        "Reach me through the links below.",
+        "Adham Sedik. SWE & Platform.",
+        "Honours Computer Science, Software Engineering stream, Carleton University, Ottawa, expected Dec 2027. Open to co-op and full-time roles.",
       ],
       links: [
+        { label: "adhamsedik@cmail.carleton.ca", href: "mailto:adhamsedik@cmail.carleton.ca" },
         { label: "LinkedIn", href: "https://www.linkedin.com/in/adham-sedik" },
         { label: "GitHub", href: "https://github.com/Joyaroin" },
+        { label: "This site's source", href: "https://github.com/Joyaroin/lab" },
       ],
     },
   ],

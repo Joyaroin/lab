@@ -100,3 +100,7 @@ describe("validateContent", () => {
     });
   });
 });
+
+it("has no placeholder copy left", () => {
+  expect(JSON.stringify(content)).not.toMatch(/placeholder/i);
+});
