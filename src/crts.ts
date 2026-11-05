@@ -77,3 +77,7 @@ export function glassCorners(crt: Crt): V3[] {
   const a = (crt.yaw * Math.PI) / 180, hw = CRT_GLASS.width / 2, hh = CRT_GLASS.height / 2;
   return [-1, 1].flatMap((sx) => [-1, 1].map((sy): V3 => [crt.screen[0] + Math.cos(a) * hw * sx, crt.screen[1] + hh * sy, crt.screen[2] - Math.sin(a) * hw * sx]));
 }
+
+/** One wide view of the room per leg between stations (leg 1 is the first station to the second):
+ *  where the camera and its look point are halfway along that leg (see tour.ts). */
+export const ARCS: { camera: V3; look: V3 }[] = (layout.arcs as { camera: number[]; look: number[] }[]).map((a) => ({ camera: v3(a.camera), look: v3(a.look) }));
