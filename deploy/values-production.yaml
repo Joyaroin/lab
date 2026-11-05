@@ -5,4 +5,4 @@ image:
 publicRoute:
   enabled: true
   hostname: lab.mediasafe.space
-  listener: lab
+  listener: https-lab
