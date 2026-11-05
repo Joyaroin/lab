@@ -4,8 +4,8 @@ import { MeshBasicMaterial, Vector3, type Mesh, type MeshStandardMaterial } from
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import roomUrl from "./assets/room.glb?url";
 import { CAMERA_FOV, crts, ENTRANCE, glassCorners, glassEdge, isPortrait, panelPoint } from "./crts";
-import { fitPanel } from "./pin";
-import { panelStrength, parallax, parallaxStrength, tourAt } from "./tour";
+import { fitPanel, glassFontSize } from "./pin";
+import { PANEL_SHOWN, panelStrength, parallax, textOnGlass, parallaxStrength, tourAt } from "./tour";
 import { DeskMeter, Phosphor, Rain } from "./Effects";
 import type { MeterLink } from "./nixie";
 import { markMore } from "./ScreenPanels";
@@ -26,10 +26,10 @@ function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
       if (!el) return;
       const strength = panelStrength(progress.current, k + 1); // full for the whole hold
       el.style.opacity = String(strength);
-      el.style.visibility = strength < 0.05 ? "hidden" : "visible";
+      el.style.visibility = strength < PANEL_SHOWN ? "hidden" : "visible";
       el.style.pointerEvents = strength > 0.6 ? "auto" : "none";
-      if (strength < 0.05) return;
-      if (!isPortrait(size.width / size.height)) {
+      if (strength < PANEL_SHOWN) return;
+      if (textOnGlass(progress.current, k + 1, size.width / size.height)) {
         // Desktop: the camera is square to the glass, so the text is laid exactly over it.
         const xs: number[] = [], ys: number[] = [];
         for (const v of glassCorners(crt)) {
@@ -41,11 +41,15 @@ function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
         el.style.width = `${Math.max(...xs) - left}px`;
         el.style.height = `${Math.max(...ys) - top}px`;
         el.style.maxHeight = "none";
+        el.style.fontSize = `${glassFontSize(Math.max(...xs) - left)}px`;
+        el.dataset.glass = "true";
         el.style.transform = `translate(${left}px, ${top}px)`;
         markMore(el);
         return;
       }
       el.style.height = "";
+      el.style.fontSize = "";
+      delete el.dataset.glass;
       const [x, y, z] = crt.screen;
       c.set(x, y, z).project(camera);
       e.set(...glassEdge(crt)).project(camera);
@@ -130,7 +134,7 @@ export default function Room({ onReady, onProgress, progress, reduced, meter }: 
       <Suspense fallback={null}>
         <BakedRoom onLoaded={onReady} onProgress={onProgress} />
         <DeskMeter link={meter} reduced={reduced} />
-        <Phosphor reduced={reduced} />
+        <Phosphor reduced={reduced} progress={progress} />
         <Rain />
       </Suspense>
     </Canvas>

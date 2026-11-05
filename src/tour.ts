@@ -42,6 +42,14 @@ export function panelStrength(progress: number, i: number): number {
   return Math.min(1, Math.max(0, 1.1 - (away * TOTAL) / TRAVEL * 3));
 }
 
+/** True while station `i`'s text is laid over its glass (desktop, panel showing). The pin and the
+ *  phosphor swap both use this, so they cannot drift apart. */
+export function textOnGlass(progress: number, i: number, aspect: number): boolean {
+  return !isPortrait(aspect) && panelStrength(progress, i) >= PANEL_SHOWN;
+}
+/** Below this strength a panel is hidden. */
+export const PANEL_SHOWN = 0.05;
+
 /** A quadratic curve from `a` to `b` that passes through `mid` halfway along. */
 const curveThrough = (mid: V3) => (a: V3, b: V3, f: number): V3 =>
   [0, 1, 2].map((k) => {

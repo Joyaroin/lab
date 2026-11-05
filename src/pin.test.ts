@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { BOTTOM_CLEAR, fitPanel, TOP_CLEAR } from "./pin";
+import { BOTTOM_CLEAR, fitPanel, glassFontSize, TOP_CLEAR } from "./pin";
 
 const wins = [{ width: 1280, height: 800 }, { width: 390, height: 780 }, { width: 320, height: 500 }];
 
@@ -27,5 +27,13 @@ describe("fitPanel", () => {
     const f = fitPanel(wins[0], 640, 400, 400, 200);
     expect(f.left + f.width / 2).toBe(640);
     expect(f.top + 100).toBe(400);
+  });
+});
+
+describe("glassFontSize", () => {
+  it("grows with the glass and never goes below a readable size", () => {
+    expect(glassFontSize(100)).toBe(14);
+    expect(glassFontSize(1600)).toBeGreaterThan(glassFontSize(800));
+    expect(glassFontSize(800)).toBeGreaterThanOrEqual(16);
   });
 });
