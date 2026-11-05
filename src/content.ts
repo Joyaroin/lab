@@ -35,10 +35,9 @@ export const content: Content = {
     availability: "Graduating Dec 2027. Open to co-op and full-time.",
   },
 
-  // The résumé PDF is added at launch (#12).
   links: [
     { label: "Résumé", href: "/resume.pdf" },
-    { label: "LinkedIn", href: "https://www.linkedin.com/in/adham-sedik" },
+    { label: "LinkedIn", href: "https://www.linkedin.com/in/adham-sedik-971a57184/" },
     { label: "GitHub", href: "https://github.com/Joyaroin" },
   ],
 
@@ -61,7 +60,7 @@ export const content: Content = {
         "Built a test-scenario generator on the Claude API and a Jira MCP server, adopted by all 15 developers, cutting test-note writing by roughly 40%.",
         "Delivered C# and .NET services and React/TypeScript UI across some 60 tickets, and brought open-source license scanning into CI.",
       ],
-      links: [{ label: "LinkedIn", href: "https://www.linkedin.com/in/adham-sedik" }],
+      links: [{ label: "LinkedIn", href: "https://www.linkedin.com/in/adham-sedik-971a57184/" }],
       terminal: ["$ cat roles.txt", "solace     platform", "barracuda  platform"],
     },
     {
@@ -123,7 +122,7 @@ export const content: Content = {
       ],
       links: [
         { label: "adhamsedik@cmail.carleton.ca", href: "mailto:adhamsedik@cmail.carleton.ca" },
-        { label: "LinkedIn", href: "https://www.linkedin.com/in/adham-sedik" },
+        { label: "LinkedIn", href: "https://www.linkedin.com/in/adham-sedik-971a57184/" },
         { label: "GitHub", href: "https://github.com/Joyaroin" },
         { label: "This site's source", href: "https://github.com/Joyaroin/lab" },
       ],

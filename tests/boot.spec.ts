@@ -272,3 +272,10 @@ for (const [name, size] of Object.entries({ desktop: { width: 1280, height: 800 
     await page.screenshot({ path: `test-results/ticket-27-contact-${name}.png` });
   });
 }
+
+test("the résumé link serves a PDF", async ({ request }) => {
+  const res = await request.get("/resume.pdf");
+  expect(res.status()).toBe(200);
+  expect(res.headers()["content-type"]).toContain("pdf");
+  expect((await res.body()).subarray(0, 4).toString()).toBe("%PDF");
+});
