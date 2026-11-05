@@ -15,9 +15,18 @@ const size = { width: 1280, height: 800 };
 // Far enough into the travel that the TV is large, but before its text starts to fade in.
 const INTO_TRAVEL = 0.6;
 
+/** The tour's camera position at progress `p`, on the path the page flies with normal motion. */
+const cameraAt = (p: number) => tourAt(p, 0, size.width / size.height, size.height).camera;
+
+/** Scrolls to `p` and waits until the camera has arrived there: it eases toward the scroll position,
+ *  so the glass is only where the test works it out to be once the canvas reports that position. */
 async function scrollToProgress(page: Page, p: number) {
   await page.evaluate((p) => scrollTo(0, p * (document.documentElement.scrollHeight - innerHeight)), p);
-  await page.waitForTimeout(500); // the frame that follows the scroll
+  const want = cameraAt(p);
+  await expect.poll(async () => {
+    const got = (await page.locator("canvas").first().getAttribute("data-camera"))?.split(",").map(Number) ?? [];
+    return got.length === 3 ? Math.hypot(...got.map((g, k) => g - want[k])) : Infinity;
+  }, { message: "camera arrived at the scroll position" }).toBeLessThan(0.02);
 }
 
 /** The glass's box in window pixels at scroll progress `p`, or undefined if it is off screen. */
@@ -35,7 +44,6 @@ function glassBox(i: number, p: number) {
 test("every TV shows its own title card from the wide view", async ({ page }) => {
   test.setTimeout(90_000);
   await page.setViewportSize(size);
-  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.route("https://api.github.com/**", (r) => r.fulfill({ status: 403, json: {} }));
   await page.goto("/");
   await expect(page.getByRole("navigation", { name: "HUD" })).toBeVisible();
