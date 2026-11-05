@@ -1,4 +1,4 @@
-import { Canvas, useFrame, useLoader } from "@react-three/fiber";
+import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, type MutableRefObject } from "react";
 import { MeshBasicMaterial, Vector3, type Mesh, type MeshStandardMaterial } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -9,13 +9,15 @@ import { STATION_COUNT, tourAt } from "./tour";
 import { ENTRANCE } from "./crts";
 
 // Pins each station's HTML panel (a DOM element with data-screen="<id>") to its real CRT in the
-// baked room: every frame it projects the CRT (positions in crts.ts) into the window and places
-// the panel there, kept inside the window by fitPanel. The text stays real HTML, so it is sharp
+// baked room: every frame it projects the CRT's panel point (room-layout.json, via crts.ts) into
+// the window and places the panel there, as wide as the CRT looks, kept inside the window by fitPanel. The text stays real HTML, so it is sharp
 // at any size, selectable, and its links work. Only the current station's panel is shown.
 function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
   const c = useMemo(() => new Vector3(), []);
   const e = useMemo(() => new Vector3(), []);
+  const p = useMemo(() => new Vector3(), []);
   useFrame(({ camera, size }) => {
+    camera.updateMatrixWorld(); // CameraRig just moved it; project from where it is now
     const at = progress.current * STATION_COUNT;
     crts.forEach((crt, k) => {
       const el = document.querySelector<HTMLElement>(`[data-screen="${crt.id}"]`);
@@ -28,11 +30,14 @@ function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
       const [x, y, z] = crt.screen;
       c.set(x, y, z).project(camera);
       e.set(...glassEdge(crt)).project(camera);
-      const px = (c.x * 0.5 + 0.5) * size.width, py = (-c.y * 0.5 + 0.5) * size.height;
+      p.set(...crt.panel).project(camera);
+      const px = (p.x * 0.5 + 0.5) * size.width, py = (-p.y * 0.5 + 0.5) * size.height;
       const crtWidth = Math.hypot((e.x - c.x) * size.width, (e.y - c.y) * size.height);
-      el.style.maxHeight = "none"; // measure the natural height, then fit
+      // Set the width first, then measure the natural height at that width and fit, so the
+      // panel settles in this one frame: frames are only drawn on demand.
+      el.style.width = `${fitPanel(size, px, py, crtWidth, 0).width}px`;
+      el.style.maxHeight = "none";
       const f = fitPanel(size, px, py, crtWidth, el.scrollHeight);
-      el.style.width = `${f.width}px`;
       el.style.maxHeight = `${f.maxHeight}px`;
       el.style.transform = `translate(${f.left}px, ${f.top}px)`;
     });
@@ -60,15 +65,27 @@ function BakedRoom({ onLoaded }: { onLoaded: () => void }) {
 
 // Moves the camera along the tour. Eases toward the scroll position and adds slight mouse
 // parallax, unless the visitor prefers reduced motion: then it snaps and holds still.
+// The room is drawn only on demand (see Room): this asks for the next frame until the camera
+// has arrived, and scrolling or moving the pointer starts it again.
 function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; reduced: boolean }) {
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    const redraw = () => invalidate();
+    window.addEventListener("scroll", redraw, { passive: true });
+    window.addEventListener("pointermove", redraw, { passive: true });
+    return () => { window.removeEventListener("scroll", redraw); window.removeEventListener("pointermove", redraw); };
+  }, [invalidate]);
   useFrame(({ camera, pointer }, dt) => {
     const { camera: target, look } = tourAt(progress.current, 0);
-    const k = reduced ? 1 : 1 - Math.exp(-dt * 6);
+    // dt is large after an idle spell, so cap it: the first frame of a move still eases.
+    const k = reduced ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 6);
     const px = reduced ? 0 : pointer.x * 0.3, py = reduced ? 0 : pointer.y * 0.15;
-    camera.position.x += (target[0] + px - camera.position.x) * k;
-    camera.position.y += (target[1] + py - camera.position.y) * k;
-    camera.position.z += (target[2] - camera.position.z) * k;
+    const dx = target[0] + px - camera.position.x, dy = target[1] + py - camera.position.y, dz = target[2] - camera.position.z;
+    camera.position.x += dx * k;
+    camera.position.y += dy * k;
+    camera.position.z += dz * k;
     camera.lookAt(look[0], look[1], look[2]);
+    if (Math.hypot(dx, dy, dz) * (1 - k) > 1e-4) invalidate();
   });
   return null;
 }
@@ -77,7 +94,11 @@ export default function Room({ onReady, progress, reduced }: {
   onReady: () => void; progress: MutableRefObject<number>; reduced: boolean;
 }) {
   return (
+    // Drawn on demand, not 60 times a second: the baked room is costly to draw (texture
+    // sampling over many layered props) and mostly stands still between stops, so this saves
+    // phone batteries and keeps software WebGL (CI, locked-down laptops) from starving the page.
     <Canvas
+      frameloop="demand"
       style={{ position: "fixed", inset: 0 }}
       camera={{ position: ENTRANCE.camera, fov: 55 }}
     >

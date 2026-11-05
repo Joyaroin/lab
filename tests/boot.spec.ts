@@ -61,14 +61,18 @@ test("meter shows the saved value and says so when the call fails", async ({ pag
 });
 
 test("meter does not say 'saved value' while the live call is still pending", async ({ page }) => {
+  // Hold the answer until the pending label has been seen, however long the room takes to load.
+  let answer!: () => void;
+  const answered = new Promise<void>((res) => (answer = res));
   await page.route("https://api.github.com/**", async (r) => {
-    await new Promise((res) => setTimeout(res, 1500));
+    await answered;
     await r.fulfill({ json: commits(...deploys(2), "Promote MediaSafe abc to prod") });
   });
   await page.goto("/");
   await expect(page.locator("canvas")).toBeVisible();
   await expect(page.getByText("reading prod and staging…")).toBeVisible();
   await expect(page.getByText(/saved value/)).toHaveCount(0);
+  answer();
   await expect(page.getByText("prod is 2 deploys behind staging", { exact: true })).toBeVisible();
 });
 

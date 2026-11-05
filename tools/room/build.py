@@ -1,6 +1,7 @@
 """Builds the room: models, lighting bake, glTF export. Run headless with `make room`.
 
-    blender -b -P tools/room/build.py -- --out src/assets/room.glb [--size 4096] [--samples 256]
+    blender -b -P tools/room/build.py -- --out src/assets/room.glb [--size 4096] [--samples 192]
+    (`make room` then shrinks the atlases to the shipped size with tools/room/resize.py)
     blender -b -P tools/room/build.py -- --preview /tmp/shots [--samples 32]   # camera renders, no bake
 
 One small late-night home lab, modelled from primitives here so it is original (ADR-0002). The

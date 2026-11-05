@@ -2,6 +2,7 @@
 .PHONY: room setup frontend backend integration browser
 room:
 	blender -b -P tools/room/build.py -- --out src/assets/room.glb
+	blender -b -P tools/room/resize.py -- src/assets/room.glb --size 2048
 setup:
 	git config core.hooksPath .githooks
 frontend:
