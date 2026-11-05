@@ -123,3 +123,51 @@ describe("title card text", () => {
     expect(validateContent(content)).toEqual([]);
   });
 });
+
+// A station's optional diagram is held as data and checked like other copy.
+describe("diagram", () => {
+  const media = () => {
+    const c = good();
+    return { c, d: c.stations.find((s) => s.id === "mediasafe")!.diagram! };
+  };
+  it("MediaSafe has one: Git to Argo CD to staging, then production by hand", () => {
+    const { d } = media();
+    expect(d.steps).toEqual(["Git", "Argo CD", "Staging", "Production"]);
+    expect(d.hops[2]).toMatch(/by hand/i);
+  });
+  it("uses only facts in the station's copy", () => {
+    const { d } = media();
+    const body = content.stations.find((s) => s.id === "mediasafe")!.body.join(" ").toLowerCase();
+    for (const t of [...d.steps, ...d.hops.filter(Boolean)]) {
+      for (const w of t.toLowerCase().split(/\s+/)) expect(body, w).toContain(w.slice(0, 5));
+    }
+  });
+  it("a station without one is still valid", () => {
+    const c = good();
+    delete c.stations[0].diagram;
+    expect(validateContent(c)).toEqual([]);
+  });
+  it.each(["description", "step", "hop"])("checks the %s text like other copy", (what) => {
+    const { c, d } = media();
+    const bad = "Call 613-555-0142";
+    if (what === "description") d.description = bad;
+    if (what === "step") d.steps[1] = "10.0.0.5";
+    if (what === "hop") d.hops[2] = bad;
+    expect(validateContent(c).join("\n")).toMatch(/diagram/);
+  });
+  it("rejects a missing description, since a screen reader needs one", () => {
+    const { c, d } = media();
+    d.description = "";
+    expect(validateContent(c).join("\n")).toContain("diagram.description");
+  });
+  it("rejects hops that do not fit the steps", () => {
+    const { c, d } = media();
+    d.hops.pop();
+    expect(validateContent(c).join("\n")).toContain("diagram.hops");
+  });
+  it("rejects a step that reads as a live status", () => {
+    const { c, d } = media();
+    d.steps[2] = "Synced";
+    expect(validateContent(c).join("\n")).toContain("reads as a live status");
+  });
+});

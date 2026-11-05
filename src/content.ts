@@ -18,7 +18,13 @@ export type Station = {
   /** plain paragraphs shown on the CRT */
   body: string[];
   links: Link[];
+  /** optional line drawing of facts already in `body` */
+  diagram?: Diagram;
 };
+/** A chain of steps drawn left to right. `hops[i]` labels the arrow from step i to step i+1
+ *  ("" for none), so it has one entry fewer than `steps`. `description` is the plain-text version
+ *  a screen reader gets. */
+export type Diagram = { description: string; steps: string[]; hops: string[] };
 export type Content = {
   identity: { name: string; title: string; availability: string };
   links: Link[];
@@ -73,6 +79,11 @@ export const content: Content = {
         "Argo CD syncs the cluster from Git, and a commit is the only way it changes. Merges ship to staging automatically; production is promoted by hand. Secrets live in Vault with nightly snapshots to Cloudflare R2 and a scripted restore drill.",
         "As of November 2026: about 700 commits and 170+ merged pull requests since August 2026.",
       ],
+      diagram: {
+        description: "Git feeds Argo CD, which syncs staging automatically. Production is promoted from staging by hand.",
+        steps: ["Git", "Argo CD", "Staging", "Production"],
+        hops: ["", "automatic", "by hand"],
+      },
       links: [
         { label: "MediaSafe repo", href: "https://github.com/Joyaroin/MediaSafe" },
         { label: "Deploy repo", href: "https://github.com/Joyaroin/morioh-cho-gitops" },
@@ -191,6 +202,23 @@ export function validateContent(c: Content): string[] {
     if (!Array.isArray(s.body) || s.body.length === 0) problems.push(`${p}.body: missing`);
     else s.body.forEach((b, j) => text(`${p}.body[${j}]`, b));
     linkList(`${p}.links`, s.links);
+    if (s.diagram) {
+      const d = s.diagram, dp = `${p}.diagram`;
+      text(`${dp}.description`, d.description);
+      if (!Array.isArray(d.steps) || d.steps.length === 0) problems.push(`${dp}.steps: missing`);
+      else {
+        d.steps.forEach((t, j) => {
+          text(`${dp}.steps[${j}]`, t);
+          if (typeof t === "string" && LIVE_STATUS.test(t)) problems.push(`${dp}.steps[${j}]: reads as a live status`);
+        });
+        if (!Array.isArray(d.hops) || d.hops.length !== d.steps.length - 1) problems.push(`${dp}.hops: need one fewer than steps`);
+      }
+      (d.hops ?? []).forEach((t, j) => {
+        if (t === "") return;
+        text(`${dp}.hops[${j}]`, t);
+        if (typeof t === "string" && LIVE_STATUS.test(t)) problems.push(`${dp}.hops[${j}]: reads as a live status`);
+      });
+    }
   });
   return problems;
 }

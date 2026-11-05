@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { stations } from "./content";
+import { stations, type Diagram } from "./content";
 
 // Each station's text as real HTML. The room (Room.tsx) pins each panel to its CRT screen and
 // sets its position, size and opacity; this file only holds how it looks: green phosphor with
@@ -24,6 +24,7 @@ export function ScreenPanels() {
               </a>
             ))}
           </p>
+          {s.diagram && <DiagramFigure d={s.diagram} />}
           {s.body.map((b, i) => <p key={i} style={para}>{b}</p>)}
           <div className="crt-more" aria-hidden="true"><span>more ▾</span></div>
         </section>
@@ -31,6 +32,37 @@ export function ScreenPanels() {
     </>
   );
 }
+
+// A station's diagram as a line drawing. The labels are real SVG text (selectable, scaling with the
+// panel); the figure as a whole carries the plain description for a screen reader.
+const BOX_W = 92, BOX_H = 34, GAP = 72, H = 62, Y = 22;
+function DiagramFigure({ d }: { d: Diagram }) {
+  const n = d.steps.length;
+  const w = n * BOX_W + (n - 1) * GAP;
+  return (
+    <figure data-diagram style={figure}>
+      <svg viewBox={`0 0 ${w} ${H}`} role="img" aria-label={d.description} style={{ width: "100%", maxWidth: w * 1.6, display: "block" }}
+        fill="none" stroke="#7dffb0" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+        {d.steps.map((t, i) => {
+          const x = i * (BOX_W + GAP);
+          return (
+            <g key={i}>
+              <rect x={x + 1} y={Y} width={BOX_W - 2} height={BOX_H} rx={4} />
+              <text x={x + BOX_W / 2} y={Y + BOX_H / 2 + 4} textAnchor="middle" fill="#b4ffd0" stroke="none" fontSize={13} fontFamily="inherit">{t}</text>
+              {i < n - 1 && (
+                <>
+                  <path d={`M${x + BOX_W + 4} ${Y + BOX_H / 2} H${x + BOX_W + GAP - 5} m-5 -4 l5 4 l-5 4`} />
+                  <text x={x + BOX_W + GAP / 2} y={Y + BOX_H / 2 - 7} textAnchor="middle" fill="#ffb347" stroke="none" fontSize={10} fontFamily="inherit">{d.hops[i]}</text>
+                </>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </figure>
+  );
+}
+const figure: CSSProperties = { margin: "0 0 0.7rem", padding: 0 };
 
 /** Marks a panel whose text runs on below its bottom edge, which shows the "more" cue. */
 export function markMore(el: HTMLElement) {
