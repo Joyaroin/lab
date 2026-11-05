@@ -1,4 +1,4 @@
-# Runs on every branch. A PR needs all four green before it merges.
+# Runs on every branch. A PR needs all five green before it merges.
 name: ci
 on:
   push:
@@ -19,6 +19,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: make integration
+  browser:
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@v4
+      - run: make browser
   secret-scan:
     runs-on: docker
     steps:
