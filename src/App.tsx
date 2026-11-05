@@ -1,7 +1,9 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { BootScreen } from "./BootScreen";
 import { SignalLost } from "./SignalLost";
 import { browserWebGL, checkCapability } from "./capability";
+import { Tour, prefersReducedMotion } from "./Tour";
+import { useGap } from "./useGap";
 import { Component, type ReactNode } from "react";
 
 const loadRoom = () => import("./Room");
@@ -18,6 +20,9 @@ export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
   const [failed, setFailed] = useState<string | null>(null);
   const [codeLoaded, setCodeLoaded] = useState(false);
   const [sceneReady, setSceneReady] = useState(false);
+  const gap = useGap();
+  const progress = useRef(0);
+  const [reduced] = useState(() => capability.ok && prefersReducedMotion());
 
   useEffect(() => {
     if (!capability.ok) return;
@@ -37,9 +42,10 @@ export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
       {!sceneReady && <BootScreen steps={steps} />}
       <SceneBoundary onFail={() => setFailed("scene-error")}>
         <Suspense fallback={null}>
-          {codeLoaded && <Room onReady={() => setSceneReady(true)} />}
+          {codeLoaded && <Room onReady={() => setSceneReady(true)} progress={progress} reduced={reduced} />}
         </Suspense>
       </SceneBoundary>
+      {sceneReady && <Tour gap={gap} progress={progress} />}
     </>
   );
 }
