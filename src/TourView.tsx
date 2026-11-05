@@ -8,7 +8,9 @@ import { formatReading, gapLabel, type Gap } from "./gap";
 import { pendingDeploys } from "./useGap";
 import { progressFor, STATION_COUNT, tourAt } from "./tour";
 
-const SCROLL_SCREENS = 6; // page height in screens: sets how much scrolling the tour takes
+// Page height in screens: how much scrolling the tour takes. 9 screens is 8 of scrolling, about
+// 0.8 of a screen per stretch of travel, plus half a screen of hold at each station.
+const SCROLL_SCREENS = 9;
 
 export const prefersReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 

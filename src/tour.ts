@@ -1,12 +1,13 @@
 import { stations } from "./content";
 import { crts, ENTRANCE, isPortrait } from "./crts";
+import { holdSpan, progressFor, STATION_COUNT, TOTAL, TRAVEL, PER_STATION } from "./hold";
+export { holdSpan, progressFor, STATION_COUNT };
 
 type V3 = [number, number, number];
 
 // The tour: scroll position in, current station, camera position and meter reading out.
 // Stop 0 is the entrance (shows the gap, close on the desk meter); stops 1..STATION_COUNT are
 // the stations.
-export const STATION_COUNT = stations.length;
 
 // Camera position at each stop, entrance first, then one per CRT (see crts.ts).
 const stops: V3[] = [ENTRANCE.camera, ...crts.map((c) => c.camera)];
@@ -31,8 +32,14 @@ export const stopPosition = (i: number) => stops[Math.min(Math.max(i, 0), STATIO
 
 export type TourState = { station: number; camera: V3; look: V3; reading: number };
 
-/** Scroll progress (0..1) at which the camera sits on stop `i`. */
-export const progressFor = (i: number) => Math.min(Math.max(i, 0), STATION_COUNT) / STATION_COUNT;
+/** How strongly station `i`'s text panel shows at scroll progress `progress`: full for the whole
+ *  hold, then fading out over the first third of travel away. */
+export function panelStrength(progress: number, i: number): number {
+  const [a, b] = holdSpan(i);
+  const p = Math.min(Math.max(Number.isFinite(progress) ? progress : 0, 0), 1);
+  const away = p < a ? a - p : p > b ? p - b : 0; // scroll distance outside the hold
+  return Math.min(1, Math.max(0, 1.1 - (away * TOTAL) / TRAVEL * 3));
+}
 
 const straight = (a: V3, b: V3, f: number): V3 => [0, 1, 2].map((k) => a[k] + (b[k] - a[k]) * f) as V3;
 /** A quadratic curve from `a` to `b` that passes through `mid` halfway along. */
@@ -45,11 +52,13 @@ const curveThrough = (mid: V3) => (a: V3, b: V3, f: number): V3 =>
 /** `aspect` is the window's width over height; below 1 (portrait) the portrait stops are used. */
 export function tourAt(progress: number, gap: number, aspect = 16 / 9): TourState {
   const p = Math.min(Math.max(Number.isFinite(progress) ? progress : 0, 0), 1);
-  const x = p * STATION_COUNT;
-  const i = Math.min(Math.floor(x), STATION_COUNT - 1);
-  const f = x - i;
+  const u = p * TOTAL;
+  const i = Math.min(Math.floor(u / PER_STATION), STATION_COUNT - 1); // travel i leads to station i+1
+  const r = u - i * PER_STATION;
+  const f = Math.min(r / TRAVEL, 1); // 1 for the whole hold: the camera is on the stop
+  const x = i + f;
   const readingAt = (s: number) => (s === 0 ? gap : stations[s - 1].reading);
-  const lerp = (a: number, b: number) => a + (b - a) * f;
+  const lerp = (a: number, b: number) => (f === 1 ? b : a + (b - a) * f);
   const path = isPortrait(aspect) ? portraitStops : stops;
   const aims = isPortrait(aspect) ? portraitLooks : looks;
   const a = path[i], b = path[i + 1], la = aims[i], lb = aims[i + 1];
@@ -57,10 +66,11 @@ export function tourAt(progress: number, gap: number, aspect = 16 / 9): TourStat
   // (ENTRANCE.reveal) on one smooth curve; between stations it goes straight.
   const move = i === 0 ? curveThrough(ENTRANCE.reveal.camera) : straight;
   const turn = i === 0 ? curveThrough(ENTRANCE.reveal.look) : straight;
+  // In a hold the camera is exactly on the stop, not a lerp that lands within rounding of it.
   return {
     station: Math.round(x),
-    camera: move(a, b, f),
-    look: turn(la, lb, f),
+    camera: f === 1 ? [...b] : move(a, b, f),
+    look: f === 1 ? [...lb] : turn(la, lb, f),
     reading: lerp(readingAt(i), readingAt(i + 1)),
   };
 }

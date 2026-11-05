@@ -5,7 +5,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import roomUrl from "./assets/room.glb?url";
 import { CAMERA_FOV, crts, ENTRANCE, glassEdge, panelPoint } from "./crts";
 import { fitPanel } from "./pin";
-import { parallax, STATION_COUNT, tourAt } from "./tour";
+import { panelStrength, parallax, tourAt } from "./tour";
 import { DeskMeter, Phosphor, Rain } from "./Effects";
 import type { MeterLink } from "./nixie";
 import { markMore } from "./ScreenPanels";
@@ -21,11 +21,10 @@ function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
   const p = useMemo(() => new Vector3(), []);
   useFrame(({ camera, size }) => {
     camera.updateMatrixWorld(); // CameraRig just moved it; project from where it is now
-    const at = progress.current * STATION_COUNT;
     crts.forEach((crt, k) => {
       const el = document.querySelector<HTMLElement>(`[data-screen="${crt.id}"]`);
       if (!el) return;
-      const strength = Math.min(1, Math.max(0, 1.1 - Math.abs(at - (k + 1)) * 3)); // full strength a little either side
+      const strength = panelStrength(progress.current, k + 1); // full for the whole hold
       el.style.opacity = String(strength);
       el.style.visibility = strength < 0.05 ? "hidden" : "visible";
       el.style.pointerEvents = strength > 0.6 ? "auto" : "none";

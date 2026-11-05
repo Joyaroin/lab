@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { stations } from "../src/content";
 import { GAP_TIMEOUT_MS } from "../src/gap";
+import { holdSpan, progressFor, STATION_COUNT } from "../src/hold";
 
 const signalLost = async (page: Page, reason?: string) => {
   await expect(page.getByRole("alert")).toContainText("SIGNAL LOST");
@@ -145,14 +146,14 @@ test("reduced motion: jumps are instant; otherwise they glide", async ({ page })
   await page.emulateMedia({ reducedMotion: "reduce" });
   await startTour(page);
   await page.getByRole("link", { name: "Contact" }).click();
-  expect(await scrollFraction(page)).toBeCloseTo(1, 2);
+  expect(await scrollFraction(page)).toBeCloseTo(progressFor(STATION_COUNT), 2); // the middle of the hold
 
   const page2 = await page.context().newPage();
   await page2.emulateMedia({ reducedMotion: "no-preference" });
   await startTour(page2);
   await page2.getByRole("link", { name: "Contact" }).click();
-  expect(await scrollFraction(page2)).toBeLessThan(0.99);
-  await expect.poll(() => scrollFraction(page2)).toBeCloseTo(1, 2);
+  expect(await scrollFraction(page2)).toBeLessThan(progressFor(STATION_COUNT) - 0.01);
+  await expect.poll(() => scrollFraction(page2)).toBeCloseTo(progressFor(STATION_COUNT), 2);
 });
 
 // --- text on the CRT screens ---
@@ -233,7 +234,7 @@ for (const [name, size] of Object.entries(sizes)) {
     await page.screenshot({ path: `test-results/entrance-${name}.png` });
 
     const to = (f: number) => page.evaluate((f) => scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)), f);
-    await to(0.5 / stations.length); // halfway to the first station: the wide view of the room
+    await to(holdSpan(1)[0] / 2); // halfway to the first station: the wide view of the room
     await page.mouse.move(10, 400); // a frame at the new position
     await page.waitForTimeout(300);
     await page.screenshot({ path: `test-results/entrance-reveal-${name}.png` });

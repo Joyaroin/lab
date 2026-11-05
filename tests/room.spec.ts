@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { progressFor } from "../src/hold";
 
 // Baked room loads and the tour still moves the camera. Screenshots go to test-results/.
 test("baked room loads and the entrance and every station render", async ({ page }) => {
@@ -12,7 +13,7 @@ test("baked room loads and the entrance and every station render", async ({ page
   const shots: Buffer[] = [];
   const stops = ["entrance", "work", "mediasafe", "home-lab", "order-tracker", "wc2026-predictor", "contact"];
   for (const [i, name] of stops.entries()) {
-    const frac = i / (stops.length - 1);
+    const frac = progressFor(i);
     await page.evaluate((f) => window.scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)), frac);
     await page.waitForTimeout(1500);
     shots.push(await page.screenshot({ path: `test-results/room-${name}.png` }));
@@ -50,7 +51,7 @@ test("on a phone, MediaSafe and WC2026 Predictor frame lit parts of the room", a
   await expect(page.getByLabel("Boot log")).toBeHidden();
   const stops = ["entrance", "work", "mediasafe", "home-lab", "order-tracker", "wc2026-predictor", "contact"];
   for (const [name, label] of [["mediasafe", "World line 02: MediaSafe"], ["wc2026-predictor", "World line 05: WC2026 Predictor"]]) {
-    const frac = stops.indexOf(name) / (stops.length - 1);
+    const frac = progressFor(stops.indexOf(name));
     const delta = await page.evaluate((f) => f * (document.documentElement.scrollHeight - innerHeight) - scrollY, frac);
     await page.mouse.move(195, 300);
     await page.mouse.wheel(0, delta);
