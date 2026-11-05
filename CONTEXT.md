@@ -1,3 +1,21 @@
 # Context
 
 The language of this project: its terms, what each one means, and what it doesn't.
+
+- **Lab**: the whole site. A 3D late-night home lab that hiring teams tour to learn what Adham does.
+  Not a page with a 3D header: the room is the site.
+- **Room**: the 3D scene itself, its models and baked lighting.
+- **Station**: a stop on the tour, with its own place in the room, world line and reading.
+- **Tour**: the fixed camera path through the stations, driven by scrolling. It starts at the
+  entrance, which is where the gap shows and is not a station.
+- **World line**: a station's themed label, such as "World line 03". A label only: the copy beside it
+  stays plain.
+- **Meter**: the nixie tube display at the centre of the site. It is our own design, and it is both
+  navigation and a live readout.
+- **Reading**: the number the meter shows. Each station has a fixed reading; the entrance shows the gap.
+- **Gap**: how many MediaSafe staging deploys have landed since the last promotion to prod. Real
+  data, not decoration, and the meter says so when it's showing the saved value instead. Not config
+  drift, which Argo CD keeps at zero.
+- **Boot screen**: the instant lightweight first screen with Adham's name, title and real load progress.
+- **Signal lost**: the one static screen shown when 3D can't start. Not a second site.
+- **HUD**: the small always-on corner overlay with résumé, contact and station links.
