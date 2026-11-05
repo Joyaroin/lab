@@ -40,7 +40,7 @@ function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
         const left = Math.min(...xs), top = Math.min(...ys);
         el.style.width = `${Math.max(...xs) - left}px`;
         el.style.height = `${Math.max(...ys) - top}px`;
-        el.style.maxHeight = "none";
+        if (el.style.maxHeight !== "none") el.style.maxHeight = "none"; // the fixed height is the limit
         el.style.fontSize = `${glassFontSize(Math.max(...xs) - left)}px`;
         el.dataset.glass = "true";
         el.style.transform = `translate(${left}px, ${top}px)`;
@@ -59,9 +59,13 @@ function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
       // Set the width first, then measure the natural height at that width and fit, so the
       // panel settles in this one frame: frames are only drawn on demand.
       el.style.width = `${fitPanel(size, px, py, crtWidth, 0).width}px`;
+      // With no height limit nothing overflows, so the browser resets scrollTop to 0: keep it and
+      // put it back once the limit is restored (it is clamped to the new range if the panel shrank).
+      const kept = el.scrollTop;
       el.style.maxHeight = "none";
       const f = fitPanel(size, px, py, crtWidth, el.scrollHeight);
       el.style.maxHeight = `${f.maxHeight}px`;
+      el.scrollTop = kept;
       el.style.transform = `translate(${f.left}px, ${f.top}px)`;
       markMore(el);
     });
