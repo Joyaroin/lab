@@ -92,7 +92,9 @@ function BakedRoom({ onLoaded, onProgress }: { onLoaded: () => void; onProgress:
 }
 
 // Moves the camera along the tour. Eases toward the scroll position and adds slight mouse
-// parallax, unless the visitor prefers reduced motion: then it snaps and holds still.
+// parallax, unless the visitor prefers reduced motion: then it snaps, holds still, and travels in
+// a straight line between stations (the leg from the entrance still curves).
+// It writes the camera position to the canvas's data-camera, so tests can check the path.
 // The room is drawn only on demand (see Room): this asks for the next frame until the camera
 // has arrived, and scrolling or moving the pointer starts it again.
 function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; reduced: boolean }) {
@@ -103,8 +105,8 @@ function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; 
     window.addEventListener("pointermove", redraw, { passive: true });
     return () => { window.removeEventListener("scroll", redraw); window.removeEventListener("pointermove", redraw); };
   }, [invalidate]);
-  useFrame(({ camera, pointer, size }, dt) => {
-    const { camera: target, look } = tourAt(progress.current, 0, size.width / size.height, size.height);
+  useFrame(({ gl, camera, pointer, size }, dt) => {
+    const { camera: target, look } = tourAt(progress.current, 0, size.width / size.height, size.height, reduced);
     // dt is large after an idle spell, so cap it: the first frame of a move still eases.
     const k = reduced ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 6);
     const [px, py, pz] = reduced ? [0, 0, 0] : parallax(target, look, pointer, isPortrait(size.width / size.height) ? 1 : parallaxStrength(progress.current)); // phones are unchanged
@@ -113,6 +115,7 @@ function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; 
     camera.position.y += dy * k;
     camera.position.z += dz * k;
     camera.lookAt(look[0], look[1], look[2]);
+    gl.domElement.dataset.camera = [camera.position.x, camera.position.y, camera.position.z].join(",");
     if (Math.hypot(dx, dy, dz) * (1 - k) > 1e-4) invalidate();
   });
   return null;

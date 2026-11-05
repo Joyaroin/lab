@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { progressFor } from "../src/hold";
+import { holdSpan, progressFor } from "../src/hold";
 
 // Baked room loads and the tour still moves the camera. Screenshots go to test-results/.
 // Seven software-WebGL screenshots: each waits for a drawn frame, which is slow on a loaded machine.
@@ -109,5 +109,35 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
       // allow for the camera's last sub-pixel of easing; a parallax shift would be tens of pixels
       for (const k of ["left", "top", "width", "height"] as const) expect(Math.abs(after[k] - b[k]), `${id} ${k}`).toBeLessThan(1);
     }
+  });
+}
+
+// Ticket 72: with reduced motion, travel between stations is a straight line, but the leg from the
+// entrance keeps its curve. Each test reads the camera from the canvas's data-camera at the two stops
+// of a leg and halfway between them, once it has stopped moving. Halfway along a straight line is
+// the average of the two stops; the arc sits well off that (about 2 m here).
+for (const [name, leg, straight] of [["between stations 1 and 2", 1, true], ["out of the entrance", 0, false]] as const) {
+  test(`reduced motion, ${name}: the camera ${straight ? "is on the straight line" : "keeps its curve"}`, async ({ browser }) => {
+    test.setTimeout(90_000);
+    const ctx = await browser.newContext({ reducedMotion: "reduce", viewport: { width: 1280, height: 800 } });
+    const page = await ctx.newPage();
+    await page.goto("/");
+    await expect(page.getByLabel("Boot log")).toBeHidden();
+    const read = () => page.locator("canvas").evaluate((c) => (c.dataset.camera ?? "").split(",").map(Number));
+    // scroll to progress `p` and wait for the camera to stop moving
+    const goTo = async (p: number) => {
+      await page.evaluate((f) => window.scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)), p);
+      let last = "";
+      await expect.poll(async () => { const now = JSON.stringify(await read()); const still = now === last; last = now; return still; }, { intervals: [300] }).toBe(true);
+      return read();
+    };
+    const [from, to] = [leg === 0 ? 0 : holdSpan(leg)[1], progressFor(leg + 1)];
+    const a = await goTo(from);
+    const b = await goTo(to);
+    const m = await goTo((from + (leg === 0 ? holdSpan(1)[0] : holdSpan(leg + 1)[0])) / 2);
+    const offLine = Math.hypot(...m.map((v, k) => v - (a[k] + b[k]) / 2));
+    if (straight) expect(offLine).toBeLessThan(0.01);
+    else expect(offLine).toBeGreaterThan(0.3);
+    await ctx.close();
   });
 }

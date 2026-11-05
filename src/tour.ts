@@ -57,6 +57,8 @@ const curveThrough = (mid: V3) => (a: V3, b: V3, f: number): V3 =>
     return (1 - f) ** 2 * a[k] + 2 * (1 - f) * f * c + f ** 2 * b[k];
   }) as V3;
 
+const line = (a: V3, b: V3, f: number): V3 => [0, 1, 2].map((k) => a[k] + (b[k] - a[k]) * f) as V3;
+
 /** How much mouse parallax applies at scroll progress `progress`: none for the whole hold, so the
  *  glass stays square behind the flat text, rising to full over the first third of travel away
  *  from the stop, and full through the rest of travel. */
@@ -72,8 +74,11 @@ export function parallaxStrength(progress: number): number {
 
 /** `aspect` is the window's width over height; below 1 (portrait) the portrait stops are used.
  *  On a landscape window each station's stop is worked out from the window's `height` (px) and
- *  aspect, so the glass fills the space between the HUD and the meter at any size. */
-export function tourAt(progress: number, gap: number, aspect = 16 / 9, height = 800): TourState {
+ *  aspect, so the glass fills the space between the HUD and the meter at any size.
+ *  With `straight` (reduced motion) travel between stations is a straight line, not an arc. The
+ *  leg from the entrance stays curved: the entrance isn't a station, and the wide view of the room
+ *  on the way in is kept for everyone. */
+export function tourAt(progress: number, gap: number, aspect = 16 / 9, height = 800, straight = false): TourState {
   const p = Math.min(Math.max(Number.isFinite(progress) ? progress : 0, 0), 1);
   const u = p * TOTAL;
   const i = Math.min(Math.floor(u / PER_STATION), STATION_COUNT - 1); // travel i leads to station i+1
@@ -89,10 +94,11 @@ export function tourAt(progress: number, gap: number, aspect = 16 / 9, height = 
   const a = path[i], b = path[i + 1], la = aims[i], lb = aims[i + 1];
   // Leaving the entrance, the camera pulls back from the meter through the wide view of the room
   // (ENTRANCE.reveal) on one smooth curve. Between stations it does the same through that leg's
-  // wide view of the room (ARCS), so the room shows halfway between two TVs.
+  // wide view of the room (ARCS), so the room shows halfway between two TVs, unless `straight`
+  // (reduced motion) asks for a straight line there. The entrance leg always curves.
   const mid = i === 0 ? ENTRANCE.reveal : ARCS[i - 1];
-  const move = curveThrough(mid.camera);
-  const turn = curveThrough(mid.look);
+  const move = straight && i > 0 ? line : curveThrough(mid.camera);
+  const turn = straight && i > 0 ? line : curveThrough(mid.look);
   // In a hold the camera is exactly on the stop, not a lerp that lands within rounding of it.
   return {
     station: Math.round(x),
