@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { progressFor } from "../src/hold";
+import { holdSpan, progressFor } from "../src/hold";
 
 // Baked room loads and the tour still moves the camera. Screenshots go to test-results/.
 // Seven software-WebGL screenshots: each waits for a drawn frame, which is slow on a loaded machine.
@@ -111,3 +111,33 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     }
   });
 }
+
+// Ticket 72: with reduced motion, scrolling between stations moves the camera on a straight line,
+// not the arc. Halfway along leg 1 the arc is about 0.7 m higher, so the two frames must differ.
+// And the reduced frame there must differ from both stops, which it is only if the camera is
+// travelling rather than stuck, and then ends square on the next TV (its text fully in).
+test("with reduced motion, scrolling between stations takes a different path from the arc", async ({ browser }) => {
+  test.setTimeout(120_000);
+  const shootMid = async (reducedMotion: "reduce" | "no-preference") => {
+    const ctx = await browser.newContext({ reducedMotion, viewport: { width: 1280, height: 800 } });
+    const page = await ctx.newPage();
+    await page.goto("/");
+    await expect(page.getByLabel("Boot log")).toBeHidden();
+    const mid = (holdSpan(1)[1] + holdSpan(2)[0]) / 2;
+    const go = (f: number) => page.evaluate((f) => window.scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)), f);
+    await go(progressFor(1));
+    await expect(page.locator('[data-screen="work"]')).toHaveCSS("opacity", "1");
+    const atStop = await page.screenshot();
+    await go(mid);
+    await page.waitForTimeout(3_000); // the camera has arrived (reduced motion snaps; the arc eases)
+    const midShot = await page.screenshot();
+    await go(progressFor(2));
+    await expect(page.locator('[data-screen="mediasafe"]')).toHaveCSS("opacity", "1");
+    await ctx.close();
+    return { atStop, midShot };
+  };
+  const reduced = await shootMid("reduce");
+  const arc = await shootMid("no-preference");
+  expect(reduced.midShot.equals(arc.midShot)).toBe(false);
+  expect(reduced.midShot.equals(reduced.atStop)).toBe(false);
+});

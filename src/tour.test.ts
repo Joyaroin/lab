@@ -479,3 +479,34 @@ describe("arcs between stations", () => {
     }
   });
 });
+
+describe("reduced motion", () => {
+  const on = (p: number, aspect = 16 / 9, h = 800) => tourAt(p, GAP, aspect, h, true);
+  for (const aspect of [16 / 9, 390 / 780]) {
+    it(`travels in a straight line between every pair of stops (aspect ${aspect.toFixed(2)})`, () => {
+      for (let i = 0; i < STATION_COUNT; i++) {
+        const b = progressFor(i + 1);
+        const from = on(i === 0 ? 0 : holdSpan(i)[1], aspect), to = on(b, aspect);
+        const [s, e] = i === 0 ? [0, holdSpan(1)[0]] : [holdSpan(i)[1], holdSpan(i + 1)[0]];
+        for (let k = 1; k < 10; k++) {
+          const f = k / 10, t = on(s + (e - s) * f, aspect);
+          for (let c = 0; c < 3; c++) {
+            expect(t.camera[c]).toBeCloseTo(from.camera[c] + (to.camera[c] - from.camera[c]) * f, 6);
+            expect(t.look[c]).toBeCloseTo(from.look[c] + (to.look[c] - from.look[c]) * f, 6);
+          }
+        }
+      }
+    });
+  }
+  it("still ends square on each TV, exactly as without it", () => {
+    for (let i = 1; i <= STATION_COUNT; i++) {
+      const p = progressFor(i);
+      expect(on(p, 1280 / 800)).toEqual(tourAt(p, GAP, 1280 / 800, 800));
+    }
+  });
+  it("differs from the arcs mid-travel, which are unchanged by default", () => {
+    const p = (holdSpan(1)[1] + holdSpan(2)[0]) / 2;
+    expect(on(p).camera).not.toEqual(tourAt(p, GAP).camera);
+    expect(tourAt(p, GAP, 16 / 9, 800, false)).toEqual(tourAt(p, GAP));
+  });
+});

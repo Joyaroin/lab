@@ -96,7 +96,7 @@ function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; 
     return () => { window.removeEventListener("scroll", redraw); window.removeEventListener("pointermove", redraw); };
   }, [invalidate]);
   useFrame(({ camera, pointer, size }, dt) => {
-    const { camera: target, look } = tourAt(progress.current, 0, size.width / size.height, size.height);
+    const { camera: target, look } = tourAt(progress.current, 0, size.width / size.height, size.height, reduced);
     // dt is large after an idle spell, so cap it: the first frame of a move still eases.
     const k = reduced ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 6);
     const [px, py, pz] = reduced ? [0, 0, 0] : parallax(target, look, pointer, isPortrait(size.width / size.height) ? 1 : parallaxStrength(progress.current)); // phones are unchanged

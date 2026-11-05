@@ -49,6 +49,8 @@ const curveThrough = (mid: V3) => (a: V3, b: V3, f: number): V3 =>
     return (1 - f) ** 2 * a[k] + 2 * (1 - f) * f * c + f ** 2 * b[k];
   }) as V3;
 
+const line = (a: V3, b: V3, f: number): V3 => [0, 1, 2].map((k) => a[k] + (b[k] - a[k]) * f) as V3;
+
 /** How much mouse parallax applies at scroll progress `progress`: none for the whole hold, so the
  *  glass stays square behind the flat text, rising to full over the first third of travel away
  *  from the stop, and full through the rest of travel. */
@@ -64,8 +66,9 @@ export function parallaxStrength(progress: number): number {
 
 /** `aspect` is the window's width over height; below 1 (portrait) the portrait stops are used.
  *  On a landscape window each station's stop is worked out from the window's `height` (px) and
- *  aspect, so the glass fills the space between the HUD and the meter at any size. */
-export function tourAt(progress: number, gap: number, aspect = 16 / 9, height = 800): TourState {
+ *  aspect, so the glass fills the space between the HUD and the meter at any size.
+ *  With `straight` (reduced motion) travel is a straight line between stops, not an arc. */
+export function tourAt(progress: number, gap: number, aspect = 16 / 9, height = 800, straight = false): TourState {
   const p = Math.min(Math.max(Number.isFinite(progress) ? progress : 0, 0), 1);
   const u = p * TOTAL;
   const i = Math.min(Math.floor(u / PER_STATION), STATION_COUNT - 1); // travel i leads to station i+1
@@ -88,8 +91,8 @@ export function tourAt(progress: number, gap: number, aspect = 16 / 9, height = 
   // In a hold the camera is exactly on the stop, not a lerp that lands within rounding of it.
   return {
     station: Math.round(x),
-    camera: f === 1 ? [...b] : move(a, b, f),
-    look: f === 1 ? [...lb] : turn(la, lb, f),
+    camera: f === 1 ? [...b] : straight ? line(a, b, f) : move(a, b, f),
+    look: f === 1 ? [...lb] : straight ? line(la, lb, f) : turn(la, lb, f),
     reading: lerp(readingAt(i), readingAt(i + 1)),
   };
 }
