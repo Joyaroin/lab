@@ -82,6 +82,7 @@ async function startTour(page: import("@playwright/test").Page) {
   );
   await page.goto("/");
   await expect(page.getByRole("navigation", { name: "HUD" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "HUD" })).toContainText("Open to co-op and full-time");
 }
 
 test("scrolling moves the tour and rolls the meter, and back again", async ({ page }) => {
@@ -186,7 +187,8 @@ for (const [name, size] of Object.entries(sizes)) {
       const box = (await panel.boundingBox())!;
       expect(box.x, `${id} left`).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width, `${id} right`).toBeLessThanOrEqual(size.width);
-      expect(box.y, `${id} top`).toBeGreaterThanOrEqual(0);
+      const hud = (await page.getByRole("navigation", { name: "HUD" }).boundingBox())!;
+      expect(box.y, `${id} clear of the HUD`).toBeGreaterThanOrEqual(hud.y + hud.height);
       expect(box.y + box.height, `${id} bottom`).toBeLessThanOrEqual(size.height);
       await page.screenshot({ path: `test-results/screen-${id}-${name}.png` });
     }

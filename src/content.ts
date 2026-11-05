@@ -20,7 +20,7 @@ export type Station = {
   links: Link[];
 };
 export type Content = {
-  identity: { name: string; title: string };
+  identity: { name: string; title: string; availability: string };
   links: Link[];
   stations: Station[];
 };
@@ -29,6 +29,7 @@ export const content: Content = {
   identity: {
     name: "Adham Sedik",
     title: "SWE & Platform",
+    availability: "Graduating Dec 2027. Open to co-op and full-time.",
   },
 
   // The résumé PDF is added at launch (#12).
@@ -90,8 +91,8 @@ export const content: Content = {
       heading: "Order Tracker GitOps Platform",
       body: [
         "A GitOps delivery pipeline: Argo CD ApplicationSets and Kustomize overlays generate per-environment apps.",
-        "Five reusable Terraform modules (VPC, EKS, ECR, IAM, S3 and DynamoDB locking).",
-        "GitHub Actions pushes images to ECR with OIDC instead of static AWS keys. Pull requests against hotfix branches spin up isolated EKS environments in about 10 minutes.",
+        "Reusable Terraform modules for the network, cluster, registry, IAM and remote state.",
+        "GitHub Actions pushes images to ECR with OIDC instead of static AWS keys. Pull requests against hotfix branches spin up isolated EKS environments.",
         "The repo is private, so there is no link.",
       ],
       links: [],
@@ -169,6 +170,7 @@ export function validateContent(c: Content): string[] {
 
   text("identity.name", c.identity?.name);
   text("identity.title", c.identity?.title);
+  text("identity.availability", c.identity?.availability);
   linkList("links", c.links);
   if (!Array.isArray(c.stations) || c.stations.length === 0) problems.push("stations: missing");
   (c.stations ?? []).forEach((s, i) => {
