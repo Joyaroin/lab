@@ -226,6 +226,27 @@ for (const [name, size] of Object.entries(sizes)) {
   });
 }
 
+// Mouse parallax is a slight sideways shift, so moving the pointer at the close-up entrance
+// never pushes the desk meter out of frame and the bar's own digits never pop up over it.
+test("moving the pointer at the entrance keeps the desk meter in view (desktop)", async ({ page }) => {
+  await page.setViewportSize(sizes.desktop);
+  await page.emulateMedia({ reducedMotion: "no-preference" }); // parallax is on
+  await startTour(page);
+  const bar = page.getByRole("button", { name: /^Meter/ });
+  await expect(bar).toHaveAttribute("data-desk-meter", "in-view");
+  const { width, height } = sizes.desktop;
+  for (const [x, y] of [[1, height / 2], [width - 2, height / 2], [1, 1], [width - 2, height - 2], [width / 2, height / 2]]) {
+    await page.mouse.move(x, y, { steps: 8 });
+    // Watch the camera ease all the way to its new place: the bar must say in view throughout.
+    for (let i = 0; i < 8; i++) {
+      await page.waitForTimeout(200);
+      expect(await bar.getAttribute("data-desk-meter"), `pointer at ${x},${y}`).toBe("in-view");
+    }
+    await expect(bar.getByTestId("tube").first()).not.toBeInViewport();
+    if (x === 1 && y === height / 2) await page.screenshot({ path: "test-results/entrance-pointer-left-desktop.png" });
+  }
+});
+
 test("a panel that scrolls shows a 'more' cue until its end (phone)", async ({ page }) => {
   await page.setViewportSize(sizes.phone);
   await page.emulateMedia({ reducedMotion: "reduce" });

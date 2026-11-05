@@ -67,6 +67,15 @@ function glowTexture(inner: string) {
   return texture(c);
 }
 
+/** A round glow, bright in the middle and gone at the edge. */
+function pointGlowTexture(inner: string, mid: string) {
+  const c = canvas(64, 64), g = c.getContext("2d")!;
+  const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, inner); r.addColorStop(0.3, mid); r.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+  return texture(c);
+}
+
 /** Is the meter's row of tubes fully in the window, big enough to read, and not under a panel? */
 function meterInView(camera: import("three").Camera, size: { width: number; height: number }, ends: Vector3[]): boolean {
   const pts = ends.map((v) => {
@@ -96,10 +105,12 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
   const geometry = useMemo(() => new CylinderGeometry(TUBE_R, TUBE_R, TUBE_H, 16, 1, true, -ARC / 2, ARC), []);
   const halo = useMemo(() => glowTexture("rgba(255,120,30,0.9)"), []);
   const pool = useMemo(() => glowTexture("rgba(255,110,25,0.8)"), []);
+  const dotGlow = useMemo(() => pointGlowTexture("rgba(255,150,50,1)", "rgba(255,120,30,0.5)"), []);
   const ends = useMemo(() => [new Vector3(), new Vector3(), new Vector3(), new Vector3()], []);
   const haloMat = useRef<import("three").MeshBasicMaterial>(null);
   const poolMat = useRef<import("three").MeshBasicMaterial>(null);
   const dotMat = useRef<import("three").MeshBasicMaterial>(null);
+  const dotGlowMat = useRef<import("three").MeshBasicMaterial>(null);
   useEffect(() => { link.redraw = invalidate; return () => { link.redraw = undefined; }; }, [link, invalidate]);
 
   useFrame(({ camera, size, clock }) => {
@@ -117,6 +128,7 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
     if (haloMat.current) haloMat.current.opacity = 0.55 * s.glow;
     if (poolMat.current) poolMat.current.opacity = 0.4 * s.glow;
     if (dotMat.current) dotMat.current.opacity = s.glow;
+    if (dotGlowMat.current) dotGlowMat.current.opacity = s.glow;
     if (link.on && !s.done) invalidate(); // keep drawing until the power-on has settled
 
     const g = group.current;
@@ -140,10 +152,15 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
           <meshBasicMaterial map={tube.t} transparent toneMapped={false} />
         </mesh>
       ))}
-      {/* the decimal point between the first two tubes, lit with them */}
+      {/* the decimal point between the first two tubes, lit with them: a small hot core that
+          reads as a point up close, in a soft halo that keeps it visible from across the room */}
       <mesh position={[-0.15, 0.108, 0.027]} raycast={() => null}>
-        <circleGeometry args={[0.009, 16]} />
-        <meshBasicMaterial ref={dotMat} color="#ffb060" transparent opacity={0} toneMapped={false} />
+        <circleGeometry args={[0.0035, 16]} />
+        <meshBasicMaterial ref={dotMat} color="#ffd9a0" transparent opacity={0} toneMapped={false} />
+      </mesh>
+      <mesh position={[-0.15, 0.108, 0.028]} renderOrder={2} raycast={() => null}>
+        <planeGeometry args={[0.04, 0.04]} />
+        <meshBasicMaterial ref={dotGlowMat} map={dotGlow} transparent opacity={0} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
       </mesh>
       {/* bloom: a soft amber haze in front of the tubes, and the light they throw on the desk */}
       <mesh position={[0, TUBE_Y, 0.05]} renderOrder={2} raycast={() => null}>
