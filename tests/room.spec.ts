@@ -2,6 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 import { progressFor } from "../src/hold";
 
 // Baked room loads and the tour still moves the camera. Screenshots go to test-results/.
+// Seven software-WebGL screenshots: each waits for a drawn frame, which is slow on a loaded machine.
+test.setTimeout(60_000);
 test("baked room loads and the entrance and every station render", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(String(e)));
@@ -15,7 +17,10 @@ test("baked room loads and the entrance and every station render", async ({ page
   for (const [i, name] of stops.entries()) {
     const frac = progressFor(i);
     await page.evaluate((f) => window.scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)), frac);
-    await page.waitForTimeout(1500);
+    // Wait for the station's text to be fully in, which only happens inside its hold, rather
+    // than a fixed time. The entrance has no text, so it gets a short settle instead.
+    if (i === 0) await page.waitForTimeout(300);
+    else await expect(page.locator(`[data-screen="${name}"]`)).toHaveCSS("opacity", "1");
     shots.push(await page.screenshot({ path: `test-results/room-${name}.png` }));
   }
   expect(shots[0].equals(shots[1])).toBe(false); // camera moved
