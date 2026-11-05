@@ -2,3 +2,6 @@
 nodeName: hermit
 image:
   tag: "bcb7ac399997001c23c0bdceaf6d6191bed7f3dd"
+tailnet:
+  enabled: true
+  hostname: lab-staging

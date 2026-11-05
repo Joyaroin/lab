@@ -2,3 +2,7 @@
 nodeName: hamon
 image:
   tag: ""
+publicRoute:
+  enabled: true
+  hostname: lab.mediasafe.space
+  listener: lab
