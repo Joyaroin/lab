@@ -294,8 +294,13 @@ for (const [name, size] of Object.entries({ desktop: { width: 1280, height: 800 
   });
 }
 
-test("the résumé link serves a PDF", async ({ request }) => {
-  const res = await request.get("/resume.pdf");
+test("the HUD's Résumé link points at the PDF", async ({ page, request }) => {
+  await page.goto("/");
+  const link = page.getByRole("navigation", { name: "HUD" }).getByRole("link", { name: "Résumé" });
+  await expect(link).toBeVisible();
+  // The link itself must be the PDF, not just /resume.pdf existing.
+  await expect(link).toHaveAttribute("href", "/resume.pdf");
+  const res = await request.get((await link.getAttribute("href"))!);
   expect(res.status()).toBe(200);
   expect(res.headers()["content-type"]).toContain("pdf");
   expect((await res.body()).subarray(0, 4).toString()).toBe("%PDF");
