@@ -40,7 +40,7 @@ export function markMore(el: HTMLElement) {
 const css = `
 .crt-panel { background:
   repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.22) 2px 3px),
-  radial-gradient(ellipse at 50% 45%, rgba(18,64,36,0.96), rgba(4,20,11,0.95) 70%, rgba(1,8,4,0.97));
+  radial-gradient(ellipse at 50% 45%, #10391f, #04140b 70%, #010804);
   background-attachment: local; }
 .crt-more { position: sticky; bottom: -0.9rem; margin: 0 -1rem -0.9rem; height: 2.6rem; display: none;
   align-items: flex-end; justify-content: center; padding-bottom: 0.3rem; pointer-events: none;

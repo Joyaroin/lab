@@ -198,3 +198,31 @@ for (const [name, size] of Object.entries(sizes)) {
     }
   });
 }
+
+// --- the desk meter and the scroll cue (ticket 9) ---
+test("the desk meter shows the reading at the entrance; the bar's digits appear only where it can't", async ({ page }) => {
+  await page.setViewportSize(sizes.desktop);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await startTour(page);
+  const bar = page.getByRole("button", { name: /^Meter/ });
+  await expect(bar).toHaveAttribute("data-desk-meter", "in-view");
+  await expect(bar.getByTestId("tube").first()).not.toBeInViewport(); // visually hidden, still read out
+  await expect(page.getByText("prod is 9 deploys behind staging", { exact: true })).toBeVisible();
+  await page.setViewportSize(sizes.phone);
+  await page.mouse.move(10, 400); // a frame at the new size
+  await expect(bar).toHaveAttribute("data-desk-meter", "out-of-view");
+  await expect(bar.getByTestId("tube").first()).toBeVisible();
+});
+
+test("a panel that scrolls shows a 'more' cue until its end (phone)", async ({ page }) => {
+  await page.setViewportSize(sizes.phone);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await startTour(page);
+  await page.getByRole("navigation", { name: "HUD" }).locator('a[href="#work"]').click();
+  const panel = page.locator('[data-screen="work"]');
+  await expect(panel).toHaveAttribute("data-more", "true");
+  await expect(panel.getByText("more ▾")).toBeVisible();
+  await panel.evaluate((e) => e.scrollTo(0, e.scrollHeight));
+  await expect(panel).toHaveAttribute("data-more", "false");
+  await expect(panel.getByText("more ▾")).toBeHidden();
+});
