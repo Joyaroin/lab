@@ -1,4 +1,4 @@
-// Posts the failed Playwright tests on the open PR for this branch.
+// Posts (or updates, on a later push) the failed Playwright tests on the open PR for this branch.
 // Forgejo has no job-log API, so this is how workers and reviewers see why the browser job failed.
 // Usage: node scripts/post-browser-failure.mjs <playwright-report.json>
 // Env: SERVER_URL, REPOSITORY, BRANCH, SHA, TOKEN. Never fails the job: see the main() wrapper.
@@ -29,6 +29,9 @@ export function failedTests(report) {
   return out;
 }
 
+/** Hidden line that marks the comment as ours, so a later push updates it instead of adding another. */
+export const MARKER = "<!-- ci-browser-failure -->";
+
 /** The comment body. The first line must not start with verdict, pass or fail: merge-pr reads those. */
 export function formatComment(tests, sha) {
   const lines = [`CI browser job output for ${sha.slice(0, 7)}`, ""];
@@ -38,7 +41,7 @@ export function formatComment(tests, sha) {
     lines.push(`**${t.name}**`, "", "~~~", err, "~~~", "");
   }
   if (tests.length > MAX_TESTS) lines.push(`… and ${tests.length - MAX_TESTS} more.`);
-  return lines.join("\n").trimEnd();
+  return lines.join("\n").trimEnd() + `\n\n${MARKER}`;
 }
 
 async function api(env, path, init) {
@@ -60,13 +63,26 @@ export async function findPr(env) {
   }
 }
 
+/** Id of this script's earlier comment on the PR, or undefined. */
+export async function findComment(env, pr) {
+  for (let page = 1; page <= 10; page++) {
+    const comments = await api(env, `/issues/${pr}/comments?limit=50&page=${page}`);
+    const mine = comments.find((c) => c.body?.includes(MARKER));
+    if (mine) return mine.id;
+    if (comments.length < 50) return undefined;
+  }
+}
+
 export async function main(file, env) {
   const tests = failedTests(JSON.parse(readFileSync(file, "utf8")));
   if (tests.length === 0) return console.log("No failed tests in the report; nothing to post.");
   const pr = await findPr(env);
   if (pr === undefined) return console.log(`No open PR for ${env.BRANCH}; nothing to post.`);
-  await api(env, `/issues/${pr}/comments`, { method: "POST", body: JSON.stringify({ body: formatComment(tests, env.SHA) }) });
-  console.log(`Posted the failures on #${pr}.`);
+  const body = JSON.stringify({ body: formatComment(tests, env.SHA) });
+  const earlier = await findComment(env, pr);
+  if (earlier === undefined) await api(env, `/issues/${pr}/comments`, { method: "POST", body });
+  else await api(env, `/issues/comments/${earlier}`, { method: "PATCH", body });
+  console.log(`${earlier === undefined ? "Posted" : "Updated"} the failures on #${pr}.`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

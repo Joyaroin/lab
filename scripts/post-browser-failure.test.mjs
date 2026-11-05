@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { failedTests, formatComment, main } from "./post-browser-failure.mjs";
+import { failedTests, formatComment, main, MARKER } from "./post-browser-failure.mjs";
 
 const test = (status, message) => ({ status, results: [{ error: message && { message } }] });
 const report = {
@@ -48,40 +48,56 @@ describe("formatComment", () => {
 describe("main against a fake Forgejo", () => {
   let server;
   afterEach(() => server?.close());
-  async function run(prs, file = report) {
-    const posts = [];
+  // `comments` is what the PR already has. POST adds to it and PATCH changes one, as Forgejo does.
+  async function run(prs, file = report, comments = []) {
+    const calls = [];
     server = createServer((req, res) => {
       let body = "";
       req.on("data", (c) => (body += c));
       req.on("end", () => {
-        if (req.method === "POST") posts.push({ url: req.url, body: JSON.parse(body) });
         res.setHeader("content-type", "application/json");
-        res.end(req.method === "POST" ? "{}" : JSON.stringify(prs));
+        if (req.method === "POST" || req.method === "PATCH") {
+          calls.push({ method: req.method, url: req.url, body: JSON.parse(body) });
+          return res.end("{}");
+        }
+        res.end(JSON.stringify(req.url.includes("/comments") ? comments : prs));
       });
     });
     await new Promise((r) => server.listen(0, "127.0.0.1", r));
     const f = join(mkdtempSync(join(tmpdir(), "pw-")), "r.json");
     writeFileSync(f, JSON.stringify(file));
     const env = { SERVER_URL: `http://127.0.0.1:${server.address().port}`, REPOSITORY: "projects/lab", BRANCH: "ticket-66", SHA: "abcdef1234", TOKEN: "t" };
-    return { posts, run: () => main(f, env) };
+    return { calls, run: () => main(f, env) };
   }
   const pr = (n, ref) => ({ number: n, head: { ref, repo: { full_name: "projects/lab" } } });
 
   it("comments on the PR for the branch", async () => {
     const t = await run([pr(5, "other"), pr(7, "ticket-66")]);
     await t.run();
-    expect(t.posts).toHaveLength(1);
-    expect(t.posts[0].url).toBe("/api/v1/repos/projects/lab/issues/7/comments");
-    expect(t.posts[0].body.body).toMatch(/HUD appears/);
+    expect(t.calls).toHaveLength(1);
+    expect(t.calls[0].method).toBe("POST");
+    expect(t.calls[0].url).toBe("/api/v1/repos/projects/lab/issues/7/comments");
+    expect(t.calls[0].body.body).toMatch(/HUD appears/);
+    expect(t.calls[0].body.body).toContain(MARKER);
+  });
+  it("updates its earlier comment instead of posting a second one", async () => {
+    const earlier = [{ id: 11, body: "someone else" }, { id: 12, body: `CI browser job output for 1111111\n\n${MARKER}` }];
+    const t = await run([pr(7, "ticket-66")], report, earlier);
+    await t.run();
+    expect(t.calls).toHaveLength(1);
+    expect(t.calls[0].method).toBe("PATCH");
+    expect(t.calls[0].url).toBe("/api/v1/repos/projects/lab/issues/comments/12");
+    expect(t.calls[0].body.body).toMatch(/for abcdef1/);
+    expect(t.calls[0].body.body).toContain(MARKER);
   });
   it("posts nothing without an open PR", async () => {
     const t = await run([pr(5, "other")]);
     await t.run();
-    expect(t.posts).toEqual([]);
+    expect(t.calls).toEqual([]);
   });
   it("posts nothing when no test failed", async () => {
     const t = await run([pr(7, "ticket-66")], { suites: [] });
     await t.run();
-    expect(t.posts).toEqual([]);
+    expect(t.calls).toEqual([]);
   });
 });

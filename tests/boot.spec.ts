@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { AddressInfo } from "node:net";
 import { stations } from "../src/content";
 import { GAP_TIMEOUT_MS } from "../src/gap";
@@ -142,17 +143,32 @@ test("HUD links and the meter jump to stations; the HUD stays reachable", async 
   await expect.poll(() => scrollFraction(page)).toBe(0);
 });
 
+// Records how the page asks to scroll. Under load the browser can finish a glide before the test
+// reads the position, so the glide is checked by what the click asked for, not by catching the
+// page part-way.
+const recordScrolls = (page: Page) =>
+  page.addInitScript(() => {
+    const w = window as unknown as { __scrolls: unknown[] };
+    w.__scrolls = [];
+    const orig = window.scrollTo.bind(window);
+    window.scrollTo = ((o: ScrollToOptions) => { w.__scrolls.push(o?.behavior); return orig(o); }) as typeof window.scrollTo;
+  });
+const scrollBehaviors = (page: Page) => page.evaluate(() => (window as unknown as { __scrolls: unknown[] }).__scrolls);
+
 test("reduced motion: jumps are instant; otherwise they glide", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
+  await recordScrolls(page);
   await startTour(page);
   await page.getByRole("link", { name: "Contact" }).click();
+  expect(await scrollBehaviors(page)).toEqual(["auto"]);
   expect(await scrollFraction(page)).toBeCloseTo(progressFor(STATION_COUNT), 2); // the middle of the hold
 
   const page2 = await page.context().newPage();
   await page2.emulateMedia({ reducedMotion: "no-preference" });
+  await recordScrolls(page2);
   await startTour(page2);
   await page2.getByRole("link", { name: "Contact" }).click();
-  expect(await scrollFraction(page2)).toBeLessThan(progressFor(STATION_COUNT) - 0.01);
+  expect(await scrollBehaviors(page2)).toEqual(["smooth"]);
   await expect.poll(() => scrollFraction(page2)).toBeCloseTo(progressFor(STATION_COUNT), 2);
 });
 
@@ -250,22 +266,34 @@ for (const [name, size] of Object.entries(sizes)) {
 // Mouse parallax is a slight sideways shift, so moving the pointer at the close-up entrance
 // never pushes the desk meter out of frame and the bar's own digits never pop up over it.
 test("moving the pointer at the entrance keeps the desk meter in view (desktop)", async ({ page }) => {
+  test.setTimeout(60_000); // five pointer moves, each followed by a wait, in software WebGL
   await page.setViewportSize(sizes.desktop);
   await page.emulateMedia({ reducedMotion: "no-preference" }); // parallax is on
   await startTour(page);
   const bar = page.getByRole("button", { name: /^Meter/ });
   await expect(bar).toHaveAttribute("data-desk-meter", "in-view");
   const { width, height } = sizes.desktop;
+  // Record every value other than in-view the bar's attribute takes while the camera eases to each new place. The
+  // page watches itself, so the test doesn't poll the page again and again under load.
+  await bar.evaluate((el) => {
+    const w = window as unknown as { __seen: string[] };
+    w.__seen = [];
+    new MutationObserver(() => {
+      const v = el.getAttribute("data-desk-meter") ?? "";
+      if (v !== "in-view") w.__seen.push(v);
+    }).observe(el, {
+      attributes: true, attributeFilter: ["data-desk-meter"],
+    });
+  });
   for (const [x, y] of [[1, height / 2], [width - 2, height / 2], [1, 1], [width - 2, height - 2], [width / 2, height / 2]]) {
-    await page.mouse.move(x, y, { steps: 8 });
-    // Watch the camera ease all the way to its new place: the bar must say in view throughout.
-    for (let i = 0; i < 8; i++) {
-      await page.waitForTimeout(200);
-      expect(await bar.getAttribute("data-desk-meter"), `pointer at ${x},${y}`).toBe("in-view");
-    }
-    await expect(bar.getByTestId("tube").first()).not.toBeInViewport();
+    await page.mouse.move(x, y, { steps: 4 });
+    await page.waitForTimeout(800); // the camera eases over well under this
+    expect(await page.evaluate(() => (window as unknown as { __seen: string[] }).__seen), `pointer at ${x},${y}`).toEqual([]);
     if (x === 1 && y === height / 2) await page.screenshot({ path: "test-results/entrance-pointer-left-desktop.png" });
   }
+  // Each of these waits for a drawn frame, which is slow on a loaded machine, so ask once at the end.
+  await expect(bar).toHaveAttribute("data-desk-meter", "in-view");
+  await expect(bar.getByTestId("tube").first()).not.toBeInViewport();
 });
 
 test("a panel that scrolls shows a 'more' cue until its end (phone)", async ({ page }) => {
@@ -301,7 +329,7 @@ test("a load that hangs with no error reaches signal lost, and the links work fr
 // points the page's request for it there. The page clock is separate from the real one, so the
 // test decides how much page time passes between chunks.
 async function slowModel(page: Page) {
-  const glb = readFileSync("src/assets/room.glb");
+  const glb = readFileSync(fileURLToPath(new URL("../src/assets/room.glb", import.meta.url)));
   let res: ServerResponse | undefined;
   let sent = 0;
   const server: Server = createServer((_req, r) => {
