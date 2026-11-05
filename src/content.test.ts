@@ -104,3 +104,32 @@ describe("validateContent", () => {
 it("has no placeholder copy left", () => {
   expect(JSON.stringify(content)).not.toMatch(/placeholder/i);
 });
+
+describe("CRT terminal text", () => {
+  it("every station has terminal lines, short enough for the CRT", () => {
+    for (const s of content.stations) {
+      expect(s.terminal.length, s.id).toBeGreaterThan(0);
+      for (const l of s.terminal) expect(l.length, `${s.id}: ${l}`).toBeLessThanOrEqual(20);
+    }
+  });
+  it("rejects a station with no terminal lines", () => {
+    const c = good();
+    c.stations[3].terminal = [];
+    expect(validateContent(c).join("\n")).toContain("stations[3].terminal");
+  });
+  it("validates terminal lines like any other copy", () => {
+    const c = good();
+    c.stations[0].terminal = ["$ ssh 192.168.1.5"];
+    expect(validateContent(c).join("\n")).toContain("stations[0].terminal[0]: contains a private address");
+  });
+  // Nothing on a CRT may read as a live result: these are what the old invented text claimed.
+  it.each(["hamon   Ready", "mediasafe-prd  Synced", "  42 passing", "group A ... ok", "build OK", "3 pods Running"])(
+    "rejects a line that reads as a live status: %s", (line) => {
+      const c = good();
+      c.stations[0].terminal = [line];
+      expect(validateContent(c).join("\n")).toContain("stations[0].terminal[0]: reads as a live status");
+    });
+  it("the shipped terminal lines hold no counts or statuses", () => {
+    for (const s of content.stations) for (const l of s.terminal) expect(l, s.id).not.toMatch(/\d+\s+(passing|failing|ok)/i);
+  });
+});

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { AdditiveBlending, CanvasTexture, CylinderGeometry, DoubleSide, SRGBColorSpace, Vector3, type Group } from "three";
 import { crts, CRT_GLASS, type Crt } from "./crts";
 import { powerOn, type MeterLink } from "./nixie";
+import { stations } from "./content";
 
 // The late-night look, drawn over the baked room (Room.tsx) without making it redraw nonstop.
 // Everything here is a few small textured planes drawn once. The only things that move are the
@@ -162,15 +163,8 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
 // ---------------------------------------------------------------- CRT phosphor
 // The baked glass is a flat green block. Each CRT gets a phosphor screen over it: a dark glass
 // whose centre glows, scanlines, darker curved corners, and a few lines of dim terminal text
-// with a blinking cursor. The station's own text is the HTML panel pinned on top (Room.tsx).
-const TERMINAL: Record<string, string[]> = {
-  work: ["$ cat roles.txt", "solace     platform", "barracuda  devops", "$ _"],
-  mediasafe: ["$ argocd app list", "mediasafe-stg  Synced", "mediasafe-prd  Synced", "$ _"],
-  "home-lab": ["$ kubectl get nodes", "hamon   Ready", "hermit  Ready", "$ _"],
-  "order-tracker": ["$ npm test", "  42 passing", "$ git push", "$ _"],
-  "wc2026-predictor": ["$ python predict.py", "group A ... ok", "group B ... ok", "$ _"],
-  contact: ["$ whoami", "adham", "$ open --contact", "$ _"],
-};
+// with a blinking cursor. The lines are the station's `terminal` copy in the content module.
+// The station's own text is the HTML panel pinned on top (Room.tsx).
 
 function drawPhosphor(c: HTMLCanvasElement, lines: string[], cursor: boolean) {
   const g = c.getContext("2d")!, w = c.width, h = c.height;
@@ -209,7 +203,7 @@ export function Phosphor({ reduced }: { reduced: boolean }) {
   const invalidate = useThree((s) => s.invalidate);
   const screens = useMemo(() => crts.map((crt) => {
     const c = canvas(320, 250);
-    const lines = TERMINAL[crt.id] ?? ["$ _"];
+    const lines = [...(stations.find((s) => s.id === crt.id)?.terminal ?? []), "$ _"];
     drawPhosphor(c, lines, true);
     return { crt, c, t: texture(c), lines };
   }), []);
