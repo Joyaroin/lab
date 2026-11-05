@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { tourAt, progressFor, STATION_COUNT } from "./tour";
 import { stations } from "./content";
-import { crts } from "./crts";
+import { crts, panelPoint } from "./crts";
 
 const GAP = 9;
 const readings = stations.map((s) => s.reading);
@@ -128,6 +128,16 @@ describe("phone stops", () => {
       expect(wide.look).toEqual(c.look);
     }
   });
+  it("pin the text at the phone's own point on a portrait window, and at the desktop point otherwise", () => {
+    for (const c of crts.filter((c) => c.phone)) {
+      expect(panelPoint(c, 390 / 780), c.id).toEqual(c.phone!.panel);
+      expect(panelPoint(c, 1280 / 800), c.id).toEqual(c.panel);
+    }
+  });
+  it("pin the text at the desktop point on a portrait window for a station with no phone stop", () => {
+    const plain = crts.find((c) => !c.phone)!;
+    expect(panelPoint(plain, 390 / 780)).toEqual(plain.panel);
+  });
   it("still see the station's CRT from in front of its glass", () => {
     for (const c of crts.filter((c) => c.phone)) {
       const a = (c.yaw * Math.PI) / 180, cam = c.phone!.camera;
@@ -138,12 +148,12 @@ describe("phone stops", () => {
 
 // --- the entrance: the desk meter first, then a pull back to reveal the room (ticket 29) ---
 import { PerspectiveCamera, Vector3 } from "three";
-import { DESK_METER, ENTRANCE } from "./crts";
+import { CAMERA_FOV, DESK_METER, ENTRANCE } from "./crts";
 
 /** Where the desk meter's row of tubes lands in a window of `w` x `h`, seen from tour position `p`. */
 function meterOnScreen(p: number, w: number, h: number) {
   const t = tourAt(p, GAP, w / h);
-  const cam = new PerspectiveCamera(55, w / h, 0.05, 50);
+  const cam = new PerspectiveCamera(CAMERA_FOV, w / h, 0.05, 50);
   cam.position.set(...t.camera);
   cam.lookAt(...t.look);
   cam.updateMatrixWorld();
@@ -199,7 +209,7 @@ import { parallax } from "./tour";
 function meterWithPointer(x: number, y: number, w: number, h: number) {
   const t = tourAt(0, GAP, w / h);
   const o = parallax(t.camera, t.look, { x, y });
-  const cam = new PerspectiveCamera(55, w / h, 0.05, 50);
+  const cam = new PerspectiveCamera(CAMERA_FOV, w / h, 0.05, 50);
   cam.position.set(t.camera[0] + o[0], t.camera[1] + o[1], t.camera[2] + o[2]);
   cam.lookAt(...t.look);
   cam.updateMatrixWorld();

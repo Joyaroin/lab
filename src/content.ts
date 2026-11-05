@@ -28,6 +28,14 @@ export type Content = {
   stations: Station[];
 };
 
+// Links that more than one station or the HUD uses, written once.
+const LINKEDIN: Link = { label: "LinkedIn", href: "https://www.linkedin.com/in/adham-sedik-971a57184/" };
+const GITHUB: Link = { label: "GitHub", href: "https://github.com/Joyaroin" };
+const SITE_SOURCE: Link = { label: "This site's source", href: "https://github.com/Joyaroin/lab" };
+
+/** The longest terminal line the CRT glass has room for, in characters. */
+export const TERMINAL_MAX = 20;
+
 export const content: Content = {
   identity: {
     name: "Adham Sedik",
@@ -37,8 +45,8 @@ export const content: Content = {
 
   links: [
     { label: "Résumé", href: "/resume.pdf" },
-    { label: "LinkedIn", href: "https://www.linkedin.com/in/adham-sedik-971a57184/" },
-    { label: "GitHub", href: "https://github.com/Joyaroin" },
+    LINKEDIN,
+    GITHUB,
   ],
 
   // Real copy, in tour order. Plain descriptions; lab language lives in the world-line labels only.
@@ -60,7 +68,7 @@ export const content: Content = {
         "Built a test-scenario generator on the Claude API and a Jira MCP server, adopted by all 15 developers, cutting test-note writing by roughly 40%.",
         "Delivered C# and .NET services and React/TypeScript UI across some 60 tickets, and brought open-source license scanning into CI.",
       ],
-      links: [{ label: "LinkedIn", href: "https://www.linkedin.com/in/adham-sedik-971a57184/" }],
+      links: [LINKEDIN],
       terminal: ["$ cat roles.txt", "solace     platform", "barracuda  platform"],
     },
     {
@@ -70,7 +78,7 @@ export const content: Content = {
         "A personal tracker for shows and films, built, deployed and operated end to end by one person. Next.js 16 and Postgres.",
         "Live at mediasafe.space, which needs a Google sign-in.",
         "Argo CD syncs the cluster from Git, and a commit is the only way it changes. Merges ship to staging automatically; production is promoted by hand. Secrets live in Vault with nightly snapshots to Cloudflare R2 and a scripted restore drill.",
-        "About 700 commits and 170+ merged pull requests since August 2026.",
+        "As of November 2026: about 700 commits and 170+ merged pull requests since August 2026.",
       ],
       links: [
         { label: "MediaSafe repo", href: "https://github.com/Joyaroin/MediaSafe" },
@@ -88,7 +96,7 @@ export const content: Content = {
         "Git hosting and CI runners run at home too, with the CI runner firewalled from the home network and cluster. Production and staging are pinned to separate nodes.",
         "This site runs on that cluster.",
       ],
-      links: [{ label: "This site's source", href: "https://github.com/Joyaroin/lab" }],
+      links: [SITE_SOURCE],
       terminal: ["$ cat hosts.txt", "jonathan  proxmox", "joseph    proxmox", "hamon  hermit  k3s"],
     },
     {
@@ -122,9 +130,9 @@ export const content: Content = {
       ],
       links: [
         { label: "adhamsedik@cmail.carleton.ca", href: "mailto:adhamsedik@cmail.carleton.ca" },
-        { label: "LinkedIn", href: "https://www.linkedin.com/in/adham-sedik-971a57184/" },
-        { label: "GitHub", href: "https://github.com/Joyaroin" },
-        { label: "This site's source", href: "https://github.com/Joyaroin/lab" },
+        LINKEDIN,
+        GITHUB,
+        SITE_SOURCE,
       ],
       terminal: ["$ cat contact.txt", "github.com/Joyaroin", "in/adham-sedik"],
     },
@@ -194,6 +202,7 @@ export function validateContent(c: Content): string[] {
     if (!Array.isArray(s.terminal) || s.terminal.length === 0) problems.push(`${p}.terminal: missing`);
     else s.terminal.forEach((l, j) => {
       text(`${p}.terminal[${j}]`, l);
+      if (typeof l === "string" && l.length > TERMINAL_MAX) problems.push(`${p}.terminal[${j}]: longer than ${TERMINAL_MAX} characters`);
       if (LIVE_STATUS.test(l)) problems.push(`${p}.terminal[${j}]: reads as a live status`);
     });
   });

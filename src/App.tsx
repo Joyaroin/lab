@@ -50,11 +50,11 @@ export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
 
   const stall = useRef<ReturnType<typeof watchForStall>>(undefined);
   useEffect(() => {
-    if (!capability.ok || sceneReady) return;
+    if (!capability.ok || sceneReady || failed) return; // once the load has failed, the reason stands
     const watch = watchForStall(STALL_LIMIT_MS, () => setFailed("load-timed-out"));
     stall.current = watch;
     return () => { watch.stop(); stall.current = undefined; };
-  }, [capability, sceneReady]);
+  }, [capability, sceneReady, failed]);
   const onLoadProgress = useCallback(() => stall.current?.progress(), []);
 
   useEffect(() => {

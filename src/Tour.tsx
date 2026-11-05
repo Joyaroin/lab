@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState, type MutableRefObject } from "react";
 import type { MeterLink } from "./nixie";
-import { formatReading } from "./gap";
 import { stations } from "./content";
 import { Hud } from "./Hud";
 import { ScreenPanels } from "./ScreenPanels";
 import { Meter } from "./Meter";
-import { gapLabel, type Gap } from "./gap";
+import { formatReading, gapLabel, type Gap } from "./gap";
 import { pendingDeploys } from "./useGap";
 import { progressFor, STATION_COUNT, tourAt } from "./tour";
 
@@ -41,7 +40,7 @@ export function Tour({ gap, progress, meter }: { gap: Gap | null; progress: Muta
   const label = gap ? gapLabel(gap) : "reading prod and staging…";
   const next = t.station >= STATION_COUNT ? 0 : t.station + 1;
   const digits = formatReading(Math.round(t.reading));
-  meter.next = () => jump(next);
+  useEffect(() => { meter.next = () => jump(next); }, [meter, jump, next]);
   useEffect(() => { meter.digits = digits; meter.redraw?.(); }, [meter, digits]);
 
   return (

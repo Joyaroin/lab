@@ -3,18 +3,18 @@ import { Suspense, useEffect, useMemo, type MutableRefObject } from "react";
 import { MeshBasicMaterial, Vector3, type Mesh, type MeshStandardMaterial } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import roomUrl from "./assets/room.glb?url";
-import { crts, glassEdge, panelPoint } from "./crts";
+import { CAMERA_FOV, crts, ENTRANCE, glassEdge, panelPoint } from "./crts";
 import { fitPanel } from "./pin";
 import { parallax, STATION_COUNT, tourAt } from "./tour";
-import { ENTRANCE } from "./crts";
 import { DeskMeter, Phosphor, Rain } from "./Effects";
 import type { MeterLink } from "./nixie";
 import { markMore } from "./ScreenPanels";
 
 // Pins each station's HTML panel (a DOM element with data-screen="<id>") to its real CRT in the
 // baked room: every frame it projects the CRT's panel point (room-layout.json, via crts.ts) into
-// the window and places the panel there (on a phone, the station's phone pin if it has one), as wide as the CRT looks, kept inside the window by fitPanel. The text stays real HTML, so it is sharp
-// at any size, selectable, and its links work. Only the current station's panel is shown.
+// the window and places the panel there (on a phone, the station's phone pin if it has one), as
+// wide as the CRT looks, kept inside the window by fitPanel. The text stays real HTML, so it is
+// sharp at any size, selectable, and its links work. Only the current station's panel is shown.
 function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
   const c = useMemo(() => new Vector3(), []);
   const e = useMemo(() => new Vector3(), []);
@@ -104,7 +104,7 @@ export default function Room({ onReady, onProgress, progress, reduced, meter }: 
     <Canvas
       frameloop="demand"
       style={{ position: "fixed", inset: 0 }}
-      camera={{ position: ENTRANCE.camera, fov: 55 }}
+      camera={{ position: ENTRANCE.camera, fov: CAMERA_FOV }}
     >
       <CameraRig progress={progress} reduced={reduced} />
       <ScreenPins progress={progress} />

@@ -101,16 +101,25 @@ describe("validateContent", () => {
   });
 });
 
+it("dates the MediaSafe commit and pull request counts", () => {
+  const body = content.stations.find((s) => s.id === "mediasafe")!.body.join(" ");
+  expect(body).toMatch(/as of November 2026.*commits.*pull requests/i);
+});
+
 it("has no placeholder copy left", () => {
   expect(JSON.stringify(content)).not.toMatch(/placeholder/i);
 });
 
 describe("CRT terminal text", () => {
-  it("every station has terminal lines, short enough for the CRT", () => {
+  it("every station has terminal lines", () => {
     for (const s of content.stations) {
       expect(s.terminal.length, s.id).toBeGreaterThan(0);
-      for (const l of s.terminal) expect(l.length, `${s.id}: ${l}`).toBeLessThanOrEqual(20);
     }
+  });
+  it("rejects a terminal line too long for the CRT", () => {
+    const c = good();
+    c.stations[0].terminal = ["x".repeat(21)];
+    expect(validateContent(c).join("\n")).toContain("stations[0].terminal[0]: longer than 20 characters");
   });
   it("rejects a station with no terminal lines", () => {
     const c = good();

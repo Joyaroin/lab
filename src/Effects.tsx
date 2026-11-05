@@ -1,9 +1,10 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
-import { AdditiveBlending, CanvasTexture, CylinderGeometry, DoubleSide, SRGBColorSpace, Vector3, type Group } from "three";
+import { AdditiveBlending, CanvasTexture, CylinderGeometry, DoubleSide, SRGBColorSpace, Vector3, type Camera, type MeshBasicMaterial } from "three";
 import { crts, CRT_GLASS, DESK_METER, type Crt } from "./crts";
 import { powerOn, type MeterLink } from "./nixie";
 import { stations } from "./content";
+import { LIVING_FPS, LIVING_MS } from "./living";
 
 // The late-night look, drawn over the baked room (Room.tsx) without making it redraw nonstop.
 // Everything here is a few small textured planes drawn once. The only things that move are the
@@ -11,8 +12,6 @@ import { stations } from "./content";
 // at LIVING_FPS for LIVING_MS after the page starts and after each scroll or pointer move, then
 // stop with the cursor lit. At rest the scene draws nothing. Both are off when the visitor
 // prefers reduced motion.
-export const LIVING_FPS = 1;
-export const LIVING_MS = 5000;
 
 const canvas = (w: number, h: number) => {
   const c = document.createElement("canvas");
@@ -30,7 +29,6 @@ const texture = (c: HTMLCanvasElement) => {
 // The baked meter (tools/room/build.py) is a walnut case with seven tubes, its digits baked in.
 // Each tube gets a glass envelope drawn over it whose texture shows the live digit, so the one
 // meter on the desk is the live display. Its place is DESK_METER in crts.ts.
-const { position: NX, yaw: NYAW, tubeX: TUBE_X, tubeY: TUBE_Y, tubeR: TUBE_R, tubeH: TUBE_H } = DESK_METER;
 const ARC = (2 * Math.PI) / 3;
 
 function drawTube(c: HTMLCanvasElement, digit: string, glow: number) {
@@ -80,7 +78,7 @@ function pointGlowTexture(inner: string, mid: string) {
 }
 
 /** Is the meter's row of tubes fully in the window, big enough to read, and not under a panel? */
-function meterInView(camera: import("three").Camera, size: { width: number; height: number }, ends: Vector3[]): boolean {
+function meterInView(camera: Camera, size: { width: number; height: number }, ends: Vector3[]): boolean {
   const pts = ends.map((v) => {
     const p = v.clone().project(camera);
     return { x: (p.x * 0.5 + 0.5) * size.width, y: (-p.y * 0.5 + 0.5) * size.height, z: p.z };
@@ -99,21 +97,20 @@ function meterInView(camera: import("three").Camera, size: { width: number; heig
 
 export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean }) {
   const invalidate = useThree((s) => s.invalidate);
-  const group = useRef<Group>(null);
   const tubes = useMemo(() => Array.from({ length: 7 }, () => {
     const c = canvas(96, 108);
     drawTube(c, "0", 0);
     return { c, t: texture(c), shown: "" };
   }), []);
-  const geometry = useMemo(() => new CylinderGeometry(TUBE_R, TUBE_R, TUBE_H, 16, 1, true, -ARC / 2, ARC), []);
+  const geometry = useMemo(() => new CylinderGeometry(DESK_METER.tubeR, DESK_METER.tubeR, DESK_METER.tubeH, 16, 1, true, -ARC / 2, ARC), []);
   const halo = useMemo(() => glowTexture("rgba(255,120,30,0.9)"), []);
   const pool = useMemo(() => glowTexture("rgba(255,110,25,0.8)"), []);
   const dotGlow = useMemo(() => pointGlowTexture("rgba(255,150,50,1)", "rgba(255,120,30,0.5)"), []);
-  const ends = useMemo(() => [new Vector3(), new Vector3(), new Vector3(), new Vector3()], []);
-  const haloMat = useRef<import("three").MeshBasicMaterial>(null);
-  const poolMat = useRef<import("three").MeshBasicMaterial>(null);
-  const dotMat = useRef<import("three").MeshBasicMaterial>(null);
-  const dotGlowMat = useRef<import("three").MeshBasicMaterial>(null);
+  const ends = useMemo(() => DESK_METER.tubeEnds().map((v) => new Vector3(...v)), []); // the meter never moves
+  const haloMat = useRef<MeshBasicMaterial>(null);
+  const poolMat = useRef<MeshBasicMaterial>(null);
+  const dotMat = useRef<MeshBasicMaterial>(null);
+  const dotGlowMat = useRef<MeshBasicMaterial>(null);
   useEffect(() => { link.redraw = invalidate; return () => { link.redraw = undefined; }; }, [link, invalidate]);
 
   useFrame(({ camera, size, clock }) => {
@@ -122,7 +119,8 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
     const s = reduced && link.on ? powerOn(Infinity, link.digits) : powerOn(since, link.digits);
     const digits = s.digits.replace(".", "");
     tubes.forEach((tube, i) => {
-      const key = `${digits[i]}:${s.glow.toFixed(2)}`;
+      // an unlit tube shows no digit, so it needs no redraw as the random digits change
+      const key = `${s.glow > 0 ? digits[i] : ""}:${s.glow.toFixed(2)}`;
       if (tube.shown === key) return;
       drawTube(tube.c, digits[i], s.glow);
       tube.t.needsUpdate = true;
@@ -134,24 +132,17 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
     if (dotGlowMat.current) dotGlowMat.current.opacity = s.glow;
     if (link.on && !s.done) invalidate(); // keep drawing until the power-on has settled
 
-    const g = group.current;
-    if (g) {
-      g.updateMatrixWorld();
-      ends[0].set(TUBE_X(0), TUBE_Y - TUBE_H / 2, 0.03); ends[1].set(TUBE_X(0), TUBE_Y + TUBE_H / 2, 0.03);
-      ends[2].set(TUBE_X(6), TUBE_Y - TUBE_H / 2, 0.03); ends[3].set(TUBE_X(6), TUBE_Y + TUBE_H / 2, 0.03);
-      const world = ends.map((v) => v.clone().applyMatrix4(g.matrixWorld));
-      const bar = document.querySelector<HTMLElement>("[data-meter-bar]");
-      if (bar) bar.dataset.deskMeter = meterInView(camera, size, world) ? "in-view" : "out-of-view";
-    }
+    const bar = document.querySelector<HTMLElement>("[data-meter-bar]");
+    if (bar) bar.dataset.deskMeter = meterInView(camera, size, ends) ? "in-view" : "out-of-view";
   });
 
   return (
-    <group ref={group} position={NX} rotation={[0, NYAW, 0]}
+    <group position={DESK_METER.position} rotation={[0, DESK_METER.yaw, 0]}
       onClick={(e) => { e.stopPropagation(); link.next(); }}
       onPointerOver={() => { document.body.style.cursor = "pointer"; }}
       onPointerOut={() => { document.body.style.cursor = ""; }}>
       {tubes.map((tube, i) => (
-        <mesh key={i} geometry={geometry} position={[TUBE_X(i), TUBE_Y, 0]}>
+        <mesh key={i} geometry={geometry} position={[DESK_METER.tubeX(i), DESK_METER.tubeY, 0]}>
           <meshBasicMaterial map={tube.t} transparent toneMapped={false} />
         </mesh>
       ))}
@@ -166,7 +157,7 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
         <meshBasicMaterial ref={dotGlowMat} map={dotGlow} transparent opacity={0} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
       </mesh>
       {/* bloom: a soft amber haze in front of the tubes, and the light they throw on the desk */}
-      <mesh position={[0, TUBE_Y, 0.05]} renderOrder={2} raycast={() => null}>
+      <mesh position={[0, DESK_METER.tubeY, 0.05]} renderOrder={2} raycast={() => null}>
         <planeGeometry args={[0.62, 0.26]} />
         <meshBasicMaterial ref={haloMat} map={halo} transparent opacity={0} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
       </mesh>
@@ -227,7 +218,9 @@ export function Phosphor({ reduced }: { reduced: boolean }) {
   }), []);
   useEffect(() => {
     if (reduced) return;
-    let on = true, until = performance.now() + LIVING_MS, id: ReturnType<typeof setInterval> | undefined;
+    let on = true;
+    let until = performance.now() + LIVING_MS;
+    let id: ReturnType<typeof setInterval> | undefined;
     const draw = () => {
       for (const s of screens) { drawPhosphor(s.c, s.lines, on); s.t.needsUpdate = true; }
       invalidate();

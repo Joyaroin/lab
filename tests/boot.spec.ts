@@ -1,11 +1,15 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import { readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
+import { stations } from "../src/content";
+import { GAP_TIMEOUT_MS } from "../src/gap";
 
-
-const signalLost = (page: import("@playwright/test").Page) =>
-  expect(page.getByRole("alert")).toContainText("SIGNAL LOST");
+const signalLost = async (page: Page, reason?: string) => {
+  await expect(page.getByRole("alert")).toContainText("SIGNAL LOST");
+  if (reason) await expect(page.getByRole("alert")).toContainText(`(${reason})`);
+};
+const hud = (page: Page) => page.getByRole("navigation", { name: "HUD" });
 
 test("name and title are in the HTML before the script runs", async ({ page }) => {
   await page.route("**/assets/*.js", (r) => r.abort());
@@ -38,9 +42,13 @@ test("signal lost when WebGL is disabled", async ({ page }) => {
 });
 
 test("signal lost when the scene fails to load", async ({ page }) => {
+  await page.clock.install();
   await page.route("**/assets/Room-*.js", (r) => r.abort());
   await page.goto("/");
-  await signalLost(page);
+  await signalLost(page, "scene-load-failed");
+  // The stall watch stops when the load fails, so it can't change the reason later.
+  await page.clock.fastForward("01:00");
+  await signalLost(page, "scene-load-failed");
 });
 
 const commits = (...subjects: string[]) => subjects.map((message) => ({ commit: { message } }));
@@ -66,6 +74,14 @@ test("meter shows the saved value and says so when the call fails", async ({ pag
 
 test("meter does not say 'saved value' while the live call is still pending", async ({ page }) => {
   // Hold the answer until the pending label has been seen, however long the room takes to load.
+  // The gap call gives up after GAP_TIMEOUT_MS of real time, which a slow runner can reach before
+  // the room is ready. Keep that one timer from ever firing, so only the test decides when the
+  // call ends. (The timeout itself is covered by the gap module's unit tests.)
+  await page.addInitScript((ms) => {
+    const set = window.setTimeout.bind(window);
+    window.setTimeout = ((fn: TimerHandler, delay?: number, ...args: unknown[]) =>
+      set(fn, delay === ms ? 2 ** 31 - 1 : delay, ...args)) as typeof window.setTimeout;
+  }, GAP_TIMEOUT_MS);
   let answer!: () => void;
   const answered = new Promise<void>((res) => (answer = res));
   await page.route("https://api.github.com/**", async (r) => {
@@ -81,16 +97,16 @@ test("meter does not say 'saved value' while the live call is still pending", as
 });
 
 // --- tour ---
-const scrollFraction = (page: import("@playwright/test").Page) =>
+const scrollFraction = (page: Page) =>
   page.evaluate(() => window.scrollY / (document.documentElement.scrollHeight - innerHeight));
 
-async function startTour(page: import("@playwright/test").Page) {
+async function startTour(page: Page) {
   await page.route("https://api.github.com/**", (r) =>
     r.fulfill({ json: commits(...deploys(9), "Promote MediaSafe abc to prod") }),
   );
   await page.goto("/");
-  await expect(page.getByRole("navigation", { name: "HUD" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "HUD" })).toContainText("Open to co-op and full-time");
+  await expect(hud(page)).toBeVisible();
+  await expect(hud(page)).toContainText("Open to co-op and full-time");
 }
 
 test("scrolling moves the tour and rolls the meter, and back again", async ({ page }) => {
@@ -107,7 +123,7 @@ test("HUD links and the meter jump to stations; the HUD stays reachable", async 
   await page.emulateMedia({ reducedMotion: "reduce" }); // jumps land at once
   await startTour(page);
   const reading = page.getByRole("img", { name: /^Reading/ });
-  await page.getByRole("navigation", { name: "HUD" }).getByRole("link", { name: "Home lab" }).click();
+  await hud(page).getByRole("link", { name: "Home lab" }).click();
   await expect(reading).toHaveAttribute("aria-label", "Reading 0.000512");
   await page.screenshot({ path: "test-results/tour-home-lab.png" });
   await page.getByRole("button", { name: /^Meter/ }).click(); // next station
@@ -116,7 +132,7 @@ test("HUD links and the meter jump to stations; the HUD stays reachable", async 
   for (const f of [0, 0.3, 0.7, 1]) {
     await page.evaluate((f) => scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)), f);
     for (const name of ["Résumé", "LinkedIn", "GitHub", "Contact"])
-      await expect(page.getByRole("navigation", { name: "HUD" }).getByRole("link", { name })).toBeInViewport();
+      await expect(hud(page).getByRole("link", { name })).toBeInViewport();
   }
   await expect(reading).toHaveAttribute("aria-label", "Reading 0.000861");
   await page.screenshot({ path: "test-results/tour-contact.png" });
@@ -147,7 +163,7 @@ for (const [name, size] of Object.entries(sizes)) {
     await page.setViewportSize(size);
     await page.emulateMedia({ reducedMotion: "reduce" });
     await startTour(page);
-    await page.getByRole("navigation", { name: "HUD" }).getByRole("link", { name: "Contact" }).click();
+    await hud(page).getByRole("link", { name: "Contact" }).click();
 
     const panel = page.locator('[data-screen="contact"]');
     await expect(panel).toBeVisible();
@@ -186,7 +202,7 @@ for (const [name, size] of Object.entries(sizes)) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await startTour(page);
     for (const id of stationIds) {
-      await page.getByRole("navigation", { name: "HUD" }).locator(`a[href="#${id}"]`).click();
+      await hud(page).locator(`a[href="#${id}"]`).click();
       const panel = page.locator(`[data-screen="${id}"]`);
       await expect(panel).toBeVisible();
       await expect(panel).toHaveCSS("opacity", "1");
@@ -195,8 +211,8 @@ for (const [name, size] of Object.entries(sizes)) {
       const box = (await panel.boundingBox())!;
       expect(box.x, `${id} left`).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width, `${id} right`).toBeLessThanOrEqual(size.width);
-      const hud = (await page.getByRole("navigation", { name: "HUD" }).boundingBox())!;
-      expect(box.y, `${id} clear of the HUD`).toBeGreaterThanOrEqual(hud.y + hud.height);
+      const bar = (await hud(page).boundingBox())!;
+      expect(box.y, `${id} clear of the HUD`).toBeGreaterThanOrEqual(bar.y + bar.height);
       expect(box.y + box.height, `${id} bottom`).toBeLessThanOrEqual(size.height);
       await page.screenshot({ path: `test-results/screen-${id}-${name}.png` });
     }
@@ -217,7 +233,7 @@ for (const [name, size] of Object.entries(sizes)) {
     await page.screenshot({ path: `test-results/entrance-${name}.png` });
 
     const to = (f: number) => page.evaluate((f) => scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)), f);
-    await to(1 / 12); // halfway to the first station: the wide view of the room
+    await to(0.5 / stations.length); // halfway to the first station: the wide view of the room
     await page.mouse.move(10, 400); // a frame at the new position
     await page.waitForTimeout(300);
     await page.screenshot({ path: `test-results/entrance-reveal-${name}.png` });
@@ -255,7 +271,7 @@ test("a panel that scrolls shows a 'more' cue until its end (phone)", async ({ p
   await page.setViewportSize(sizes.phone);
   await page.emulateMedia({ reducedMotion: "reduce" });
   await startTour(page);
-  await page.getByRole("navigation", { name: "HUD" }).locator('a[href="#work"]').click();
+  await hud(page).locator('a[href="#work"]').click();
   const panel = page.locator('[data-screen="work"]');
   await expect(panel).toHaveAttribute("data-more", "true");
   await expect(panel.getByText("more ▾")).toBeVisible();
@@ -274,7 +290,7 @@ test("a load that hangs with no error reaches signal lost, and the links work fr
   await page.clock.fastForward("00:20"); // a slow phone link must not trip it this early
   await expect(page.getByLabel("Boot log")).toBeVisible();
   await page.clock.fastForward("01:00");
-  await signalLost(page);
+  await signalLost(page, "load-timed-out");
   for (const name of ["Résumé", "LinkedIn", "GitHub"])
     await expect(page.getByRole("link", { name })).toBeInViewport();
 });
@@ -283,7 +299,7 @@ test("a load that hangs with no error reaches signal lost, and the links work fr
 // Serves the room model from a local server whose chunks the test releases one at a time, and
 // points the page's request for it there. The page clock is separate from the real one, so the
 // test decides how much page time passes between chunks.
-async function slowModel(page: import("@playwright/test").Page) {
+async function slowModel(page: Page) {
   const glb = readFileSync("src/assets/room.glb");
   let res: ServerResponse | undefined;
   let sent = 0;
@@ -298,12 +314,20 @@ async function slowModel(page: import("@playwright/test").Page) {
   await new Promise<void>((ok) => server.listen(0, "127.0.0.1", ok));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   await page.route("**/*.glb", (route) => route.continue({ url: `${origin}/room.glb` }));
+  // The browser reports each piece of the model as it receives it, so a test can wait for that
+  // instead of guessing how long the page needs.
+  const cdp = await page.context().newCDPSession(page);
+  const modelRequests = new Set<string>();
+  let received = 0;
+  cdp.on("Network.requestWillBeSent", (e) => { if (e.request.url.endsWith(".glb")) modelRequests.add(e.requestId); });
+  cdp.on("Network.dataReceived", (e) => { if (modelRequests.has(e.requestId)) received += e.dataLength; });
+  await cdp.send("Network.enable");
   const chunk = async (bytes: number) => {
     await expect.poll(() => res !== undefined).toBe(true); // the page has asked for the model
     const part = glb.subarray(sent, Math.min(sent + bytes, glb.length));
     sent += part.length;
     await new Promise<void>((ok) => res!.write(part, () => ok()));
-    await page.waitForTimeout(150); // real time for the page to receive it
+    await expect.poll(() => received).toBe(sent); // the page has the piece
   };
   return {
     chunk,
@@ -313,15 +337,19 @@ async function slowModel(page: import("@playwright/test").Page) {
   };
 }
 
-test("a slow load that keeps making progress past the old 120 s limit does not reach signal lost", async ({ page }) => {
+// The limit is 30 s without progress (STALL_LIMIT_MS in src/App.tsx). The gaps here are 28 s, so
+// a limit shorter than that fails them (checked with 21 s). A limit that is too long is only
+// caught loosely: the page clock keeps running in real time while the test waits, so signal lost
+// shows up as soon as the limit has passed in total, up to the expect timeout later.
+test("a slow load that keeps making progress, for far longer than 30 s in all, does not reach signal lost", async ({ page }) => {
   await page.clock.install();
   const model = await slowModel(page);
   try {
     await page.goto("/");
     const piece = Math.floor(model.size / 10);
-    for (let i = 0; i < 7; i++) { // 7 x 20 s = 140 s of page time, a chunk arriving in each
+    for (let i = 0; i < 7; i++) { // 7 x 28 s = 196 s of page time, a chunk arriving in each
       await model.chunk(piece);
-      await page.clock.fastForward("00:20");
+      await page.clock.fastForward("00:28");
     }
     await expect(page.getByRole("alert")).toBeHidden();
     await expect(page.getByLabel("Boot log")).toBeVisible();
@@ -337,10 +365,10 @@ test("a hang on the room model file, after some of it arrived, reaches signal lo
   try {
     await page.goto("/");
     await model.chunk(Math.floor(model.size / 10));
-    await page.clock.fastForward("00:20");
-    await expect(page.getByLabel("Boot log")).toBeVisible();
-    await page.clock.fastForward("01:00"); // no more bytes
-    await signalLost(page);
+    await page.clock.fastForward("00:28");
+    await expect(page.getByLabel("Boot log")).toBeVisible(); // 28 s without progress is within the limit
+    await page.clock.fastForward("00:03"); // 31 s in all, and no more bytes
+    await signalLost(page, "load-timed-out");
   } finally { model.close(); }
 });
 
@@ -350,7 +378,7 @@ test("a hang on the room model file, with no bytes at all, reaches signal lost",
   await page.goto("/");
   await expect(page.getByLabel("Boot log")).toBeVisible();
   await page.clock.fastForward("01:00");
-  await signalLost(page);
+  await signalLost(page, "load-timed-out");
 });
 
 for (const [name, size] of Object.entries({ desktop: { width: 1280, height: 800 }, phone: { width: 390, height: 780 } })) {
@@ -359,9 +387,8 @@ for (const [name, size] of Object.entries({ desktop: { width: 1280, height: 800 
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.route("https://api.github.com/**", (r) => r.fulfill({ status: 403, json: {} }));
     await page.goto("/");
-    const hud = page.getByRole("navigation", { name: "HUD" });
-    await expect(hud).toBeVisible();
-    await hud.getByRole("link", { name: "Contact" }).click();
+    await expect(hud(page)).toBeVisible();
+    await hud(page).getByRole("link", { name: "Contact" }).click();
     const panel = page.locator('[data-screen="contact"]');
     await expect(panel).toHaveCSS("opacity", "1");
     await page.waitForTimeout(300); // let the pin settle
@@ -373,12 +400,13 @@ for (const [name, size] of Object.entries({ desktop: { width: 1280, height: 800 
 }
 
 test("the HUD's Résumé link points at the PDF", async ({ page, request }) => {
+  await page.route("https://api.github.com/**", (r) => r.fulfill({ status: 403, json: {} }));
   await page.goto("/");
-  const link = page.getByRole("navigation", { name: "HUD" }).getByRole("link", { name: "Résumé" });
+  const link = hud(page).getByRole("link", { name: "Résumé" });
   await expect(link).toBeVisible();
   // The link itself must be the PDF, not just /resume.pdf existing.
   await expect(link).toHaveAttribute("href", "/resume.pdf");
-  const res = await request.get((await link.getAttribute("href"))!);
+  const res = await request.get("/resume.pdf");
   expect(res.status()).toBe(200);
   expect(res.headers()["content-type"]).toContain("pdf");
   expect((await res.body()).subarray(0, 4).toString()).toBe("%PDF");

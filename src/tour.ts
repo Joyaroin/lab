@@ -1,5 +1,5 @@
 import { stations } from "./content";
-import { crts, ENTRANCE } from "./crts";
+import { crts, ENTRANCE, isPortrait } from "./crts";
 
 type V3 = [number, number, number];
 
@@ -50,8 +50,8 @@ export function tourAt(progress: number, gap: number, aspect = 16 / 9): TourStat
   const f = x - i;
   const readingAt = (s: number) => (s === 0 ? gap : stations[s - 1].reading);
   const lerp = (a: number, b: number) => a + (b - a) * f;
-  const path = aspect < 1 ? portraitStops : stops;
-  const aims = aspect < 1 ? portraitLooks : looks;
+  const path = isPortrait(aspect) ? portraitStops : stops;
+  const aims = isPortrait(aspect) ? portraitLooks : looks;
   const a = path[i], b = path[i + 1], la = aims[i], lb = aims[i + 1];
   // Leaving the entrance, the camera pulls back from the meter through the wide view of the room
   // (ENTRANCE.reveal) on one smooth curve; between stations it goes straight.
