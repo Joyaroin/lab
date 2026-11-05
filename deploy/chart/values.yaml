@@ -10,3 +10,14 @@ resources:
     memory: 64Mi
   limits:
     memory: 256Mi
+# Routing is off unless an environment turns it on.
+publicRoute:
+  enabled: false
+  hostname: ""
+  gatewayName: public
+  gatewayNamespace: gateway
+  listener: ""   # must match the listener added to the Gateway in #12
+tailnet:
+  enabled: false
+  hostname: ""   # the name the device gets on the tailnet
+  proxyNamespace: tailscale

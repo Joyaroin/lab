@@ -1,0 +1,16 @@
+{{- if .Values.tailnet.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-tailnet
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: {{ .Release.Name }}
+      port:
+        number: 80
+  tls:
+    - hosts:
+        - {{ required "tailnet.hostname is required" .Values.tailnet.hostname }}
+{{- end }}

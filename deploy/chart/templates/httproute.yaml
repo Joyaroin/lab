@@ -1,0 +1,17 @@
+{{- if .Values.publicRoute.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  parentRefs:
+    - name: {{ .Values.publicRoute.gatewayName }}
+      namespace: {{ .Values.publicRoute.gatewayNamespace }}
+      sectionName: {{ required "publicRoute.listener is required" .Values.publicRoute.listener }}
+  hostnames:
+    - {{ required "publicRoute.hostname is required" .Values.publicRoute.hostname }}
+  rules:
+    - backendRefs:
+        - name: {{ .Release.Name }}
+          port: 80
+{{- end }}
