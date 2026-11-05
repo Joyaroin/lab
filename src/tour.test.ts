@@ -160,3 +160,57 @@ describe("entrance framing", () => {
     expect(longest).toBeLessThan(0.05); // no step of the 200 moves more than 5 cm
   });
 });
+
+// --- mouse parallax: a slight sideways shift at every stop, never a zoom (ticket 29 review) ---
+import { parallax } from "./tour";
+
+/** The meter on screen at the entrance, with the pointer at (`x`, `y`). */
+function meterWithPointer(x: number, y: number, w: number, h: number) {
+  const t = tourAt(0, GAP, w / h);
+  const o = parallax(t.camera, t.look, { x, y });
+  const cam = new PerspectiveCamera(55, w / h, 0.05, 50);
+  cam.position.set(t.camera[0] + o[0], t.camera[1] + o[1], t.camera[2] + o[2]);
+  cam.lookAt(...t.look);
+  cam.updateMatrixWorld();
+  const pts = DESK_METER.tubeEnds().map((v) => {
+    const q = new Vector3(...v).project(cam);
+    return { x: (q.x * 0.5 + 0.5) * w, y: (-q.y * 0.5 + 0.5) * h };
+  });
+  const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
+  return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys), width: Math.max(...xs) - Math.min(...xs) };
+}
+
+describe("mouse parallax", () => {
+  const pointers = [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, 1], [-1, 1], [1, -1]];
+  for (const [w, h] of [[1280, 800], [390, 780]]) {
+    it(`keeps the entrance meter the same size and fully in frame at ${w}x${h}`, () => {
+      const centre = meterWithPointer(0, 0, w, h);
+      for (const [x, y] of pointers) {
+        const m = meterWithPointer(x, y, w, h);
+        expect(m.width / centre.width, `width at ${x},${y}`).toBeGreaterThan(0.95);
+        expect(m.width / centre.width, `width at ${x},${y}`).toBeLessThan(1.05);
+        expect(m.left, `left at ${x},${y}`).toBeGreaterThan(8);
+        expect(m.right, `right at ${x},${y}`).toBeLessThan(w - 8);
+        expect(m.top, `top at ${x},${y}`).toBeGreaterThan(8);
+        expect(m.bottom, `bottom at ${x},${y}`).toBeLessThan(h - 8);
+      }
+    });
+  }
+  it("is a small sideways shift at every stop, in proportion to the distance to the look point", () => {
+    const sub = (a: number[], b: number[]) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    const len = (a: number[]) => Math.hypot(a[0], a[1], a[2]);
+    for (let i = 0; i <= STATION_COUNT; i++) {
+      const t = tourAt(progressFor(i), GAP);
+      const d = len(sub(t.look, t.camera));
+      for (const [x, y] of pointers.slice(1)) {
+        const o = parallax(t.camera, t.look, { x, y });
+        const toLook = sub(t.look, t.camera);
+        // across the view, not along it: the distance to the look point barely changes
+        expect(Math.abs(o[0] * toLook[0] + o[1] * toLook[1] + o[2] * toLook[2]) / d, `stop ${i}`).toBeLessThan(1e-9);
+        // slight, but enough to notice: a small share of the distance
+        expect(len(o) / d, `stop ${i}`).toBeLessThan(0.15);
+        expect(len(o) / d, `stop ${i}`).toBeGreaterThan(0.03);
+      }
+    }
+  });
+});
