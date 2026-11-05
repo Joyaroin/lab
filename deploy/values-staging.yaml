@@ -1,4 +1,4 @@
 # Written by the release workflow on each merge.
 nodeName: hermit
 image:
-  tag: ""
+  tag: "2278d105c5ed3a4ef30710df439b76c6c1fee3ab"
