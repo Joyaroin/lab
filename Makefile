@@ -1,12 +1,17 @@
-# CI runs these. Replace each with this project's real commands.
+# CI runs these.
 .PHONY: setup frontend backend integration browser
 setup:
 	git config core.hooksPath .githooks
 frontend:
-	@echo "No frontend checks yet"
+	npm ci
+	npm run typecheck
+	npm test
+	npm run build
 backend:
-	@echo "No backend checks yet"
-integration:
-	@echo "No integration tests yet"
+	@echo "Nothing to check: the site is static files served by nginx, with no server code."
+integration: frontend
+	node tests/integration.mjs
 browser:
-	@echo "No browser tests yet"
+	npm ci
+	npx playwright install --with-deps chromium
+	npx playwright test
