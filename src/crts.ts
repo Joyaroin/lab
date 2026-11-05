@@ -6,7 +6,9 @@
 import layout from "./room-layout.json";
 
 type V3 = [number, number, number];
-export type Crt = { id: string; screen: V3; yaw: number; camera: V3; look: V3 };
+/** `panel` is where the station's text is pinned: the CRT screen, unless the layout gives a
+ *  point beside it so the text leaves the station's subject in view (the home lab's rack). */
+export type Crt = { id: string; screen: V3; yaw: number; camera: V3; look: V3; panel: V3 };
 
 /** The glass on every CRT, in metres. */
 export const CRT_GLASS = { width: 0.46, height: 0.36 };
@@ -16,6 +18,7 @@ const v3 = (a: number[]): V3 => [a[0], a[1], a[2]];
 /** One entry per station, in tour order. Ids match the content module's station ids. */
 export const crts: Crt[] = layout.crts.map((c) => ({
   id: c.id, screen: v3(c.screen), yaw: c.yaw, camera: v3(c.camera), look: v3(c.look),
+  panel: v3((c as { panel?: number[] }).panel ?? c.screen),
 }));
 
 /** Where the camera stands at the entrance, which is not a station, and what it looks at. */

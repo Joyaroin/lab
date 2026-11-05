@@ -1,7 +1,9 @@
 // Where a station's HTML panel goes in the window, given where its CRT projects to.
 // The panel is centred on the CRT but kept fully inside the window and clear of the HUD (top)
 // and the meter (bottom), so every panel is readable at every station and window size.
-export const TOP_CLEAR = 128, BOTTOM_CLEAR = 150, SIDE = 8;
+// On a narrow window the panel spans the full width, so it takes at most half the free height
+// and scrolls, leaving the rest of the window to show the station in the room.
+export const TOP_CLEAR = 128, BOTTOM_CLEAR = 150, SIDE = 8, NARROW = 600;
 
 export type Fit = { left: number; top: number; width: number; maxHeight: number };
 
@@ -12,7 +14,8 @@ export type Fit = { left: number; top: number; width: number; maxHeight: number 
  */
 export function fitPanel(win: { width: number; height: number }, cx: number, cy: number, crtWidth: number, panelHeight: number): Fit {
   const width = Math.min(Math.max(crtWidth, 352), win.width - 2 * SIDE, 640);
-  const room = Math.max(120, win.height - TOP_CLEAR - BOTTOM_CLEAR);
+  const free = win.height - TOP_CLEAR - BOTTOM_CLEAR;
+  const room = Math.max(120, win.width < NARROW ? free / 2 : free);
   const maxHeight = Math.min(room, win.height - 2 * SIDE);
   const h = Math.min(panelHeight, maxHeight);
   const left = Math.min(Math.max(cx - width / 2, SIDE), win.width - width - SIDE);

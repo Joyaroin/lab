@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fitPanel } from "./pin";
+import { BOTTOM_CLEAR, fitPanel, TOP_CLEAR } from "./pin";
 
 const wins = [{ width: 1280, height: 800 }, { width: 390, height: 780 }, { width: 320, height: 500 }];
 
@@ -16,6 +16,12 @@ describe("fitPanel", () => {
             expect(f.top).toBeGreaterThanOrEqual(0);
             expect(f.top + h).toBeLessThanOrEqual(win.height);
           }
+  });
+  it("on a phone, leaves at least half the free height for the room, scrolling the text", () => {
+    const phone = { width: 390, height: 844 };
+    const free = phone.height - TOP_CLEAR - BOTTOM_CLEAR;
+    expect(fitPanel(phone, 195, 400, 200, 2000).maxHeight).toBeLessThanOrEqual(free / 2);
+    expect(fitPanel(wins[0], 640, 400, 400, 2000).maxHeight).toBe(wins[0].height - TOP_CLEAR - BOTTOM_CLEAR);
   });
   it("centres on the CRT when there is room", () => {
     const f = fitPanel(wins[0], 640, 400, 400, 200);
