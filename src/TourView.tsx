@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { POWER_ON_SECONDS, SHIFT_SECONDS, type MeterLink } from "./nixie";
 import { Tear } from "./Tear";
 import { stations } from "./content";
@@ -30,7 +30,17 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
   const [reduced] = useState(prefersReducedMotion);
   const [quietUntil] = useState(() => performance.now() + POWER_ON_SECONDS * 1000);
   const [shifts] = useState(() => createShifts(reduced, { startProgress: scrollProgress(), quietUntil }));
-  const [barShift, setBarShift] = useState<{ kind: ShiftKind; id: number; at: number } | null>(null);
+  const [barShift, setBarShift] = useState<{ kind: ShiftKind; id: number } | null>(null);
+
+  // The tear starts a frame or more after the shift fires (later on a slow device), and the text
+  // follows once it is over: say when it began, and ask the room for a frame to show the text.
+  const tearTimer = useRef(0);
+  const tearStarted = useCallback((kind: ShiftKind, nowMs: number) => {
+    shifts.tearStarted(kind, nowMs);
+    clearTimeout(tearTimer.current);
+    tearTimer.current = window.setTimeout(() => meter.redraw?.(), SHIFT_SECONDS[kind] * 1000 + SNAP_BACK_MS + 30);
+  }, [shifts, meter]);
+  useEffect(() => () => clearTimeout(tearTimer.current), []);
 
   useEffect(() => {
     gate.ready = shifts.ready;
@@ -38,10 +48,10 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
   }, [gate, shifts]);
 
   useEffect(() => {
-    let timer = 0, over = 0, id = 0;
+    let timer = 0, id = 0;
     let active: number | null = null; // the station whose shift is playing
     const stop = () => {
-      active = null; clearTimeout(over);
+      active = null;
       meter.shift = null; meter.shiftAt = null;
       setBarShift(null);
     };
@@ -53,9 +63,7 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
       if (kind) {
         active = shifts.station;
         meter.shift = kind; meter.shiftAt = null;
-        setBarShift({ kind, id: ++id, at: performance.now() });
-        clearTimeout(over);
-        over = window.setTimeout(() => { active = null; meter.redraw?.(); }, SHIFT_SECONDS[kind] * 1000 + SNAP_BACK_MS + 30); // one more frame, to show the text
+        setBarShift({ kind, id: ++id });
       }
       meter.redraw?.(); // the text's gate may have opened
     };
@@ -68,7 +76,7 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
       progress.current = scrollProgress(); setP(progress.current);
       if (restoring && progress.current > 0) { // the first move off the top, soon after mounting
         restoring = false;
-        if (performance.now() - mountedAt < 2000) shifts.restore(progress.current);
+        if (performance.now() - mountedAt < 5000) shifts.restore(progress.current);
       }
       check();
       clearTimeout(timer); // the visitor may have stopped
@@ -77,7 +85,7 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
-    return () => { clearTimeout(timer); clearTimeout(over); window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); };
+    return () => { clearTimeout(timer); window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); };
   }, [progress, shifts, meter, quietUntil]);
 
   const jump = useCallback((station: number) => {
@@ -96,7 +104,7 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
   return (
     <>
       <div aria-hidden style={{ height: `${SCROLL_SCREENS * 100}vh` }} />
-      <Tear shift={barShift} reduced={reduced} />
+      <Tear shift={barShift} reduced={reduced} onStart={tearStarted} />
       <ScreenPanels />
       <Hud current={t.station} onJump={jump} />
       <div style={{ position: "fixed", left: 0, right: 0, bottom: "1rem", zIndex: 10, display: "flex", justifyContent: "center", pointerEvents: "none" }}>

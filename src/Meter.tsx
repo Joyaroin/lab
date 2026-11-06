@@ -4,13 +4,13 @@ import { shiftDigits, type ShiftKind } from "./nixie";
 
 /** The digits the bar shows: the reading, except for a moment while a shift scrambles them. Frames
  *  run only during the shift. `shift.id` changes to start a new one. */
-function useShifted(digits: string, shift?: { kind: ShiftKind; id: number; at?: number } | null) {
+function useShifted(digits: string, shift?: { kind: ShiftKind; id: number } | null) {
   const [shown, setShown] = useState<string | null>(null);
   const now = useRef(digits); // read each frame, so the scramble lands on where the visitor is, not where they were
   now.current = digits;
   useEffect(() => {
     if (!shift) return;
-    const start = shift.at ?? performance.now();
+    const start = performance.now();
     let raf = 0;
     const tick = () => {
       const s = shiftDigits((performance.now() - start) / 1000, now.current, shift.kind);
@@ -31,7 +31,7 @@ function useShifted(digits: string, shift?: { kind: ShiftKind; id: number; at?: 
 // Clicking it calls `onClick` (the tour advances), as clicking the desk meter does.
 // `live` is false only once the live call has failed; `pending` is while it's in flight.
 export function Meter({ reading, label, live, pending = false, shift, onClick }: {
-  reading: number; label: string; live: boolean; pending?: boolean; shift?: { kind: ShiftKind; id: number; at?: number } | null; onClick?: () => void;
+  reading: number; label: string; live: boolean; pending?: boolean; shift?: { kind: ShiftKind; id: number } | null; onClick?: () => void;
 }) {
   const digits = formatReading(reading);
   const shown = useShifted(digits, shift);

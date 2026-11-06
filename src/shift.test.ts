@@ -93,6 +93,15 @@ describe("text resolving out of the shift", () => {
     expect(s.ready(1, mid(1), end - 1)).toBe(false);
     expect(s.ready(1, mid(1), end)).toBe(true);
   });
+  it("waits for a tear that began late, such as on a slow device", () => {
+    const s = createShifts();
+    s.observe(mid(1), 0);
+    expect(s.observe(mid(1), DWELL_MS)).toBe("full");
+    s.tearStarted("full", DWELL_MS + 300); // the view drew it 300 ms after it fired
+    const end = DWELL_MS + 300 + SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS;
+    expect(s.ready(1, mid(1), end - 1)).toBe(false);
+    expect(s.ready(1, mid(1), end)).toBe(true);
+  });
   it("shows sooner after a short flick", () => {
     const s = createShifts();
     settle(s, mid(1), 0);

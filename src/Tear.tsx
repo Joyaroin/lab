@@ -12,7 +12,7 @@ const BANDS = "0 .12 .86 .3 1 .5 0 .74 .95 .2 .6 .02 .9 .4";
  *  drawn through an SVG filter that slips horizontal bands sideways and splits a red and a cyan
  *  edge off them. It runs only for the length of the shift and takes the filter off afterwards, so
  *  at rest it costs nothing. A new `shift.id` starts one; `shift` null (or reduced motion) ends it. */
-export function Tear({ shift, reduced }: { shift: { kind: ShiftKind; id: number; at: number } | null; reduced: boolean }) {
+export function Tear({ shift, reduced, onStart }: { shift: { kind: ShiftKind; id: number } | null; reduced: boolean; onStart?: (kind: ShiftKind, nowMs: number) => void }) {
   const turb = useRef<SVGFETurbulenceElement>(null);
   const disp = useRef<SVGFEDisplacementMapElement>(null);
   const red = useRef<SVGFEOffsetElement>(null);
@@ -21,7 +21,8 @@ export function Tear({ shift, reduced }: { shift: { kind: ShiftKind; id: number;
   useEffect(() => {
     const canvas = document.querySelector<HTMLCanvasElement>("canvas");
     if (!shift || reduced || !canvas) return;
-    const start = shift.at; // the moment the shift fired, the same clock as the text's
+    const start = performance.now(); // the effect runs a frame or more after the shift fired; time it from here
+    onStart?.(shift.kind, start);
     let raf = 0;
     const tick = () => {
       const t = tearAt((performance.now() - start) / 1000, shift.kind);

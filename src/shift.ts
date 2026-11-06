@@ -58,6 +58,11 @@ export function createShifts(reduced = false, { startProgress = 0, quietUntil = 
     },
     /** The page put the visitor in this hold itself (it restored the scroll position after a
      *  reload): that is not an arrival, so no shift, and the text shows. */
+    /** The tear actually began (the view is drawn a moment after the shift fires, more on a slow
+     *  device): the text follows `kind`'s length after that, never before the tear is over. */
+    tearStarted(kind: ShiftKind, nowMs: number) {
+      readyAt = Math.max(readyAt, nowMs + SHIFT_SECONDS[kind] * 1000 + SNAP_BACK_MS);
+    },
     restore(progress: number) {
       at = stationAt(progress);
       fired = at !== 0;
