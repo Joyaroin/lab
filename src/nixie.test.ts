@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { POWER_ON_SECONDS, SHIFT_SECONDS, powerOn, shiftDigits, digitsToShow } from "./nixie";
+import { POWER_ON_SECONDS, SHIFT_SECONDS, powerOn, shiftDigits, lastLockSeconds, digitsToShow } from "./nixie";
 
 const digits = "0.000009";
 
@@ -55,5 +55,17 @@ describe("what the bar shows", () => {
     expect(digitsToShow("0000213", "2622044", true)).toBe("2622044");
     expect(digitsToShow("0000213", "2622044", false)).toBe("0000213"); // the shift just ended, the effect hasn't cleared it yet
     expect(digitsToShow("0000213", null, true)).toBe("0000213");
+  });
+});
+
+describe("lastLockSeconds", () => {
+  it("is when the last tube stops showing random digits in a shift", () => {
+    const digits = "0.123456", rand = () => 0.99; // never equals a real digit here
+    for (const kind of ["full", "short"] as const) {
+      const at = lastLockSeconds(kind, 7);
+      expect(shiftDigits(at - 0.001, digits, kind, rand).digits).not.toBe(digits);
+      expect(shiftDigits(at + 0.001, digits, kind, rand).digits).toBe(digits);
+    }
+    expect(lastLockSeconds("full", 7) * 1000).toBeCloseTo(651.4, 0);
   });
 });

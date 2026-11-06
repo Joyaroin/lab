@@ -30,12 +30,20 @@ export const SHIFT_SECONDS = { full: 0.8, short: 0.25 } as const;
 
 export type ShiftKind = keyof typeof SHIFT_SECONDS;
 
+// Where in a shift's run the tubes start locking (`from`) and how much of it they take (`spread`).
+const SHIFT_LOCK = { from: 0.3, spread: 0.6 } as const;
+
+/** Seconds into a shift when the last of `tubes` tubes locks on the reading: the visible scramble
+ *  ends there, not at the shift's end. */
+export const lastLockSeconds = (kind: ShiftKind, tubes: number) =>
+  (SHIFT_LOCK.from + (SHIFT_LOCK.spread * (tubes - 1)) / tubes) * SHIFT_SECONDS[kind];
+
 /** The digits to show `t` seconds into a shift. Past the end, always exactly `digits`. */
 export function shiftDigits(t: number, digits: string, kind: ShiftKind, rand: () => number = Math.random): { digits: string; done: boolean } {
   const len = SHIFT_SECONDS[kind];
   if (!(t < len)) return { digits, done: true };
   const u = Math.max(0, t) / len;
-  return { digits: scramble(u, digits, 0.3, 0.6, rand), done: false };
+  return { digits: scramble(u, digits, SHIFT_LOCK.from, SHIFT_LOCK.spread, rand), done: false };
 }
 
 /** What the bar shows: the scrambled digits only while a shift is on. The scramble is cleared in an

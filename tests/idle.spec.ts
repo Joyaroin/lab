@@ -4,7 +4,7 @@ import { countDraws, draws, frames } from "./lib/page";
 test.setTimeout(60_000); // several idle waits
 
 // Wait out the power-on (about 1.5 s) and the camera's glide, with a margin.
-const SETTLE_MS = 8_000;
+const SETTLE_SLEEP_MS = 8_000;
 
 async function bootDone(page: Page) {
   await page.goto("/");
@@ -13,7 +13,7 @@ async function bootDone(page: Page) {
 }
 async function powerOnSettled(page: Page) {
   await bootDone(page);
-  await page.waitForTimeout(SETTLE_MS);
+  await page.waitForTimeout(SETTLE_SLEEP_MS);
 }
 
 test("at rest the 3D scene draws no frames", async ({ page }) => {
@@ -38,7 +38,7 @@ test("scrolling and pointer movement still draw, and then it goes idle again", a
   await page.evaluate(() => window.scrollTo(0, (document.documentElement.scrollHeight - innerHeight) / 2));
   await expect.poll(() => draws(page)).toBeGreaterThan(before);
 
-  await page.waitForTimeout(SETTLE_MS); // the camera has arrived
+  await page.waitForTimeout(SETTLE_SLEEP_MS); // the camera has arrived
   before = await draws(page);
   await page.waitForTimeout(3_000);
   expect(await draws(page)).toBe(before);

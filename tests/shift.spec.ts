@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { holdSpan, progressFor } from "../src/hold";
-import { POWER_ON_SECONDS, SHIFT_SECONDS } from "../src/nixie";
+import { lastLockSeconds, POWER_ON_SECONDS, SHIFT_SECONDS } from "../src/nixie";
 import { busiestWindow, MAX_CHANGES_PER_SECOND, WAIT_MS, SNAP_BACK_MS } from "../src/shift";
 import { panelOf, scrollToProgress } from "./lib/page";
 
@@ -47,29 +47,39 @@ const sample = (page: Page, ms: number) => page.evaluate((ms) => new Promise<str
 test("arriving in a hold scrambles the meter for the length of the shift, and it ends on the true reading", async ({ page }) => {
   await boot(page);
   // Each time the bar changes, does it show the reading, or something else? Something else is the scramble.
-  // How many frames draw in the shift's 0.8 s depends on the machine (under heavy load one frame can take
-  // over a second), so the test counts none. It uses the page's own clock and the machine's slowest frame:
-  // the scramble must not be over before the shift's length has passed, less what the machine adds
-  // before the first scrambled frame shows (React renders it a frame or more after the shift starts).
-  // A scramble that showed once and stopped, or stopped early, settles too soon for that.
-  const seen = page.evaluate(() => new Promise<{ changes: { at: number; d: string }[]; slowest: number }>((res) => {
+  // The visible scramble ends when the last tube locks, (0.3 + 0.6 (n-1)/n) of the shift (about 651 ms
+  // for 7 tubes), not at the shift's end. How many frames draw by then depends on the machine (under
+  // heavy load one frame can take over a second), so the test counts none. It uses the page's own
+  // clock and the machine's slowest frame. The first scrambled frame shows up to a frame after the
+  // shift starts and the settle up to a frame after the last lock, so the observed length is at least
+  // the last lock's time less one slowest frame. The allowance is measured, so the margin does not
+  // shrink at a low frame rate. A scramble that showed once and stopped, or stopped early, settles too
+  // soon for that.
+  const seen = page.evaluate(() => new Promise<{ changes: { at: number; d: string }[]; frames: { at: number; gap: number }[] }>((res) => {
     const out: { at: number; d: string }[] = [];
     const t0 = performance.now();
     const mo = new MutationObserver(() => out.push({ at: performance.now() - t0, d: window.__meter.scramble() }));
     mo.observe(window.__meter.bar(), { childList: true, subtree: true, characterData: true });
-    let last = performance.now(), slowest = 0;
-    const frame = () => { const now = performance.now(); slowest = Math.max(slowest, now - last); last = now; requestAnimationFrame(frame); };
+    // Every frame, and how long it took to come after the one before.
+    const frames: { at: number; gap: number }[] = [];
+    let last = performance.now();
+    const frame = () => { const now = performance.now(); frames.push({ at: now - t0, gap: now - last }); last = now; requestAnimationFrame(frame); };
     frame();
-    setTimeout(() => { mo.disconnect(); res({ changes: out, slowest }); }, 6_000);
+    setTimeout(() => { mo.disconnect(); res({ changes: out, frames }); }, 6_000);
   }));
   await scrollToProgress(page, progressFor(1));
-  const { changes: shown, slowest } = await seen;
+  const { changes: shown, frames } = await seen;
   const scrambled = shown.filter((c) => c.d !== "true");
   expect(scrambled.length).toBeGreaterThan(0); // it scrambled
   const first = scrambled[0].at, last = scrambled[scrambled.length - 1].at;
   const settled = shown.find((c) => c.at > last && c.d === "true");
   expect(settled, "and settled on the reading").toBeDefined();
-  expect(settled!.at - first).toBeGreaterThan(SHIFT_SECONDS.full * 1000 - 2 * slowest - 150); // it lasted the shift's length
+  // The machine's slowest frame while the scramble was on (the frames from its first change to its
+  // settle), not the slowest of the whole run: the page's load and the tear's first draw can take much
+  // longer than the frames that show the digits, and a wide allowance would let an early stop pass.
+  const slowest = Math.max(0, ...frames.filter((f) => f.at >= first && f.at <= settled!.at).map((f) => f.gap));
+  const lastLock = lastLockSeconds("full", (await reading(page)).length) * 1000;
+  expect(settled!.at - first).toBeGreaterThan(lastLock - slowest); // it lasted until the last tube locks
   await expect.poll(async () => (await tubes(page)) === (await reading(page)), { timeout: 10_000 }).toBe(true);
 });
 
@@ -265,38 +275,62 @@ test("moving quickly between stations can't make more than the limit of sudden c
   expect(busiestWindow(changes)).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
 });
 
-test("leaving mid-shift ends on the true reading, with no late jump, and the tear plays out", async ({ page }) => {
-  await boot(page);
-  // Leave the hold the moment the tear starts, from inside the page, so no round trip delays it. Then
-  // look at the filter 200 ms later (a cut-short tear would be off by then; the full one lasts 0.8 s)
-  // and watch the bar for 2 s.
-  const away = holdSpan(1)[1] + 0.03;
-  const left = page.evaluate(([p]) => new Promise<{ seen: string[]; stillThere: boolean; onAfter: boolean; sinceStart: number }>((res) => {
-    const max = () => document.documentElement.scrollHeight - window.innerHeight;
-    const canvas = document.querySelector("canvas")!;
-    const seen: string[] = [];
-    new MutationObserver((_, mo) => {
-      if (!canvas.style.filter.includes("shift-tear")) return;
-      mo.disconnect();
-      const started = performance.now();
-      window.scrollTo(0, p * max()); window.dispatchEvent(new Event("scroll"));
-      setTimeout(() => {
-        const onAfter = canvas.style.filter.includes("shift-tear"), sinceStart = performance.now() - started;
-        const t0 = performance.now();
-        const tick = () => { seen.push(window.__meter.scramble()); performance.now() - t0 < 2000 ? requestAnimationFrame(tick) : res({ seen, stillThere: Math.abs(window.scrollY / max() - p) < 0.01, onAfter, sinceStart }); };
+// The tear is timed on performance.now() (TearView's useTear): it starts at one reading and comes off
+// at the first frame where 0.8 s have passed. A slow frame can only make it come off later, never
+// sooner. The only thing that shortens what we measure is the gap between the tear starting and our
+// observer running, so a small fixed allowance covers every frame rate. A tear cut short comes off
+// within a frame or two of the visitor leaving, far under this, however slow the frames are.
+const TEAR_ALLOWANCE_MS = 50;
+const WATCH_AFTER_LEAVING_MS = 2_000;
+
+// At 1x and under Chromium's CPU throttling, so the check is shown to hold at slow frame rates.
+for (const rate of [1, 10, 16]) {
+  test(`leaving mid-shift ends on the true reading, with no late jump, and the tear plays out (${rate}x)`, async ({ page }) => {
+    await boot(page);
+    if (rate > 1) await (await page.context().newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate });
+    // Leave the hold the moment the tear starts, from inside the page, so no round trip delays it. Time
+    // the tear on the page's own clock, from the filter going on to it coming off, and watch the bar
+    // for 2 s after leaving. Nothing here waits on a timer for its result.
+    const away = holdSpan(1)[1] + 0.03;
+    const left = page.evaluate(([p, watchMs]) => new Promise<{ seen: string[]; stillThere: boolean; length: number | null }>((res) => {
+      const max = () => document.documentElement.scrollHeight - window.innerHeight;
+      const canvas = document.querySelector("canvas")!;
+      const on = () => canvas.style.filter.includes("shift-tear");
+      const seen: string[] = [];
+      new MutationObserver((_, mo) => {
+        if (!on()) return;
+        mo.disconnect();
+        const started = performance.now();
+        window.scrollTo(0, p * max()); window.dispatchEvent(new Event("scroll"));
+        let length: number | null = null;
+        new MutationObserver((_, end) => {
+          if (on()) return;
+          end.disconnect();
+          length = performance.now() - started;
+        }).observe(canvas, { attributes: true, attributeFilter: ["style"] });
+        const bar = new MutationObserver(() => seen.push(window.__meter.scramble()));
+        bar.observe(window.__meter.bar(), { childList: true, subtree: true, characterData: true });
+        // Every frame until 2 s after leaving. A tear that was going to come off has done so by the
+        // first frame past that: its own frames run at the same rate as ours.
+        const tick = () => {
+          seen.push(window.__meter.scramble());
+          if (performance.now() - started < watchMs) return requestAnimationFrame(tick);
+          bar.disconnect();
+          res({ seen, stillThere: Math.abs(window.scrollY / max() - p) < 0.01, length: on() ? null : length });
+        };
         tick();
-      }, 200);
-    }).observe(canvas, { attributes: true, attributeFilter: ["style"] });
-  }), [away] as const);
-  await scrollToProgress(page, progressFor(1));
-  const { seen, stillThere, onAfter, sinceStart } = await left;
-  expect(stillThere).toBe(true);
-  // the tear is still on about 200 ms after leaving: it plays out its own length, never cut short
-  expect(sinceStart, "the check came within the tear's length").toBeLessThan(SHIFT_SECONDS.full * 1000);
-  expect(onAfter).toBe(true);
-  expect(seen.filter((d) => d !== "true")).toEqual([]); // never a scramble, and no jump to the reading at the end
-  expect(await filterOn(page)).toBe(false); // and it did snap back
-});
+      }).observe(canvas, { attributes: true, attributeFilter: ["style"] });
+    }), [away, WATCH_AFTER_LEAVING_MS] as const);
+    await scrollToProgress(page, progressFor(1));
+    const { seen, stillThere, length } = await left;
+    expect(stillThere).toBe(true);
+    expect(length, `the tear never came off in the ${WATCH_AFTER_LEAVING_MS} ms after leaving`).not.toBeNull();
+    // the tear plays out its own length after leaving, never cut short
+    expect(length!, "the tear's length after leaving").toBeGreaterThan(SHIFT_SECONDS.full * 1000 - TEAR_ALLOWANCE_MS);
+    expect(seen.filter((d) => d !== "true")).toEqual([]); // never a scramble, and no jump to the reading at the end
+    expect(await filterOn(page)).toBe(false); // and it did snap back
+  });
+}
 
 test("a shift that arrives during the power-on plays once it is over", async ({ page }) => {
   // When the tour (and the bar) appeared, on the page's clock: the power-on takes POWER_ON_SECONDS from about then.
