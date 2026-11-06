@@ -23,5 +23,6 @@ test("a test left at the default 30 s limit fails with the last values read, not
   const err = await waitUntilStill(async () => ({ n: n++ }), 50).then(() => null, (e: Error) => e);
   expect(err, "it failed").not.toBeNull();
   expect(Date.now() - t0, "before the test's own timeout").toBeLessThan(8_000);
-  expect(err!.message).toMatch(/still moving, last read .*n\D+\d+/);
+  const plain = err!.message.replace(/\u001b\[\d+m/g, ""); // Playwright colours the diff
+  expect(plain).toMatch(/still moving, last read \{.*n.*:\d+\}/);
 });
