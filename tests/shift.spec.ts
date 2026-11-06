@@ -279,32 +279,48 @@ test("moving quickly between stations can't make more than the limit of sudden c
 test("leaving mid-shift ends on the true reading, with no late jump, and the tear plays out", async ({ page }) => {
   await boot(page);
   // Leave the hold the moment the tear starts, from inside the page, so no round trip delays it. Then
-  // look at the filter 200 ms later (a cut-short tear would be off by then; the full one lasts 0.8 s)
-  // and watch the bar for 2 s.
+  // time the tear on the page's own clock, from the filter going on to it coming off, and watch the bar
+  // until a few frames after that. Nothing here waits on a timer, so a slow machine can't make the
+  // check late: a tear cut short when the visitor left comes off long before its 0.8 s, whenever we look.
   const away = holdSpan(1)[1] + 0.03;
-  const left = page.evaluate(([p]) => new Promise<{ seen: string[]; stillThere: boolean; onAfter: boolean; sinceStart: number }>((res) => {
+  const left = page.evaluate(([p]) => new Promise<{ seen: string[]; stillThere: boolean; length: number; slowest: number; leftAt: number }>((res) => {
     const max = () => document.documentElement.scrollHeight - window.innerHeight;
     const canvas = document.querySelector("canvas")!;
+    const on = () => canvas.style.filter.includes("shift-tear");
     const seen: string[] = [];
-    new MutationObserver((_, mo) => {
-      if (!canvas.style.filter.includes("shift-tear")) return;
+    // The machine's slowest frame, as the other tests allow for.
+    let slowest = 0, lastFrame = performance.now();
+    const frames = () => { const now = performance.now(); slowest = Math.max(slowest, now - lastFrame); lastFrame = now; requestAnimationFrame(frames); };
+    frames();
+    const start = new MutationObserver((_, mo) => {
+      if (!on()) return;
       mo.disconnect();
       const started = performance.now();
       window.scrollTo(0, p * max()); window.dispatchEvent(new Event("scroll"));
-      setTimeout(() => {
-        const onAfter = canvas.style.filter.includes("shift-tear"), sinceStart = performance.now() - started;
-        const t0 = performance.now();
-        const tick = () => { seen.push(window.__meter.scramble()); performance.now() - t0 < 2000 ? requestAnimationFrame(tick) : res({ seen, stillThere: Math.abs(window.scrollY / max() - p) < 0.01, onAfter, sinceStart }); };
+      const leftAt = performance.now() - started;
+      const bar = new MutationObserver(() => seen.push(window.__meter.scramble()));
+      bar.observe(window.__meter.bar(), { childList: true, subtree: true, characterData: true });
+      new MutationObserver((_, end) => {
+        if (on()) return;
+        end.disconnect();
+        const length = performance.now() - started;
+        // a few more frames, to catch a late jump to the reading at the end
+        let n = 0;
+        const tick = () => {
+          seen.push(window.__meter.scramble());
+          if (++n < 10) return requestAnimationFrame(tick);
+          bar.disconnect();
+          res({ seen, stillThere: Math.abs(window.scrollY / max() - p) < 0.01, length, slowest, leftAt });
+        };
         tick();
-      }, 200);
+      }).observe(canvas, { attributes: true, attributeFilter: ["style"] });
     }).observe(canvas, { attributes: true, attributeFilter: ["style"] });
   }), [away] as const);
   await scrollToProgress(page, progressFor(1));
-  const { seen, stillThere, onAfter, sinceStart } = await left;
+  const { seen, stillThere, length, slowest } = await left;
   expect(stillThere).toBe(true);
-  // the tear is still on about 200 ms after leaving: it plays out its own length, never cut short
-  expect(sinceStart, "the check came within the tear's length").toBeLessThan(SHIFT_SECONDS.full * 1000);
-  expect(onAfter).toBe(true);
+  // the tear plays out its own length after leaving, never cut short (give or take a frame at each end)
+  expect(length, "the tear's length after leaving").toBeGreaterThan(SHIFT_SECONDS.full * 1000 - slowest);
   expect(seen.filter((d) => d !== "true")).toEqual([]); // never a scramble, and no jump to the reading at the end
   expect(await filterOn(page)).toBe(false); // and it did snap back
 });
