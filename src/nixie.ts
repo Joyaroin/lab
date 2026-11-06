@@ -38,6 +38,12 @@ export function shiftDigits(t: number, digits: string, kind: ShiftKind, rand: ()
   return { digits: scramble(u, digits, 0.3, 0.6, rand), done: false };
 }
 
+/** What the bar shows: the scrambled digits only while a shift is on. The scramble is cleared in an
+ *  effect, which can run a frame or more after the render that ends the shift (late on a slow
+ *  device); until then a stale scramble must not show beside the new reading. */
+export const digitsToShow = (reading: string, scrambled: string | null, shifting: boolean) =>
+  shifting && scrambled !== null ? scrambled : reading;
+
 /** What the app and tour tell the room about the meter: the digits to show, what a click does,
  *  and whether the boot screen has gone (`on`), which starts the power-on. `redraw` and `onAt`
  *  are the room's. */

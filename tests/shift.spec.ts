@@ -102,9 +102,10 @@ const filterOn = (page: Page) => page.evaluate(() => document.querySelector("can
 
 // Watches the canvas's filter and the panel's opacity from inside the page, on its own clock.
 const watch = (page: Page, id: string) => page.evaluate((id) => {
-  const w = window as unknown as { __w: { starts: number[]; ends: number[]; shown: number | null; t0: number; litDuringTear: boolean; visibleDuringTear: boolean } };
+  const w = window as unknown as { __w: { starts: number[]; ends: number[]; shown: number | null; t0: number; litDuringTear: boolean; visibleDuringTear: boolean; slowestFrame: number } };
   const canvas = document.querySelector("canvas")!, el = document.querySelector<HTMLElement>(`[data-screen="${id}"]`)!;
-  const st = { starts: [] as number[], ends: [] as number[], shown: null as number | null, t0: performance.now(), litDuringTear: false, visibleDuringTear: true };
+  const st = { starts: [] as number[], ends: [] as number[], shown: null as number | null, t0: performance.now(), litDuringTear: false, visibleDuringTear: true, slowestFrame: 0 };
+  let last = performance.now();
   w.__w = st;
   let on = false;
   new MutationObserver(() => {
@@ -114,6 +115,8 @@ const watch = (page: Page, id: string) => page.evaluate((id) => {
     on = now;
   }).observe(canvas, { attributes: true, attributeFilter: ["style"] });
   const frame = () => {
+    const now = performance.now();
+    st.slowestFrame = Math.max(st.slowestFrame, now - last); last = now; // how slow this machine is drawing
     if (on) { // while the tear is on: is the text out yet, and is it still in the page for readers?
       if (Number(el.style.opacity) > 0.01) st.litDuringTear = true;
       if (el.style.visibility !== "visible") st.visibleDuringTear = false;
@@ -123,10 +126,18 @@ const watch = (page: Page, id: string) => page.evaluate((id) => {
   };
   frame();
 }, id);
-type Watched = { starts: number[]; ends: number[]; shown: number | null; litDuringTear: boolean; visibleDuringTear: boolean };
+type Watched = { starts: number[]; ends: number[]; shown: number | null; slowestFrame: number; litDuringTear: boolean; visibleDuringTear: boolean };
 const watched = (page: Page) => page.evaluate(() => (window as unknown as { __w: Watched }).__w);
 // the shift has played and the text is out
 const settled = (page: Page) => expect.poll(async () => { const w = await watched(page); return w.shown !== null && w.ends.length > 0; }, { timeout: 8_000 }).toBe(true);
+
+// When the text must be fully out, counted from arrival: the design (250 ms dwell + the tear + the
+// snap back, 1090 ms on a first visit and 540 ms on a return; the exact numbers are pinned in
+// shift.test.ts), plus the 220 ms the text takes to resolve, plus what this machine adds. The
+// machine's share is judged by its own slowest frame, because the dwell timer, React and the tear
+// each wait behind a frame: up to 4 of them, and 300 ms over. So a slow runner can't fail it, but
+// text that is really late (a second or more past that) does.
+const lateBy = (design: number, w: Watched) => design + 220 + 4 * w.slowestFrame + 300;
 
 test("a first visit tears the view for about 0.8 s, and the text resolves as it ends", async ({ page }) => {
   await boot(page);
@@ -140,10 +151,10 @@ test("a first visit tears the view for about 0.8 s, and the text resolves as it 
   expect(w.visibleDuringTear).toBe(true); // ...but never hidden from readers
   const len = w.ends[0] - w.starts[0];
   expect(len).toBeGreaterThan(600);
-  expect(len).toBeLessThan(1200);
+  expect(len).toBeLessThan(1200 + 2 * w.slowestFrame); // the filter comes off on the first frame after 0.8 s
   expect(w.shown! - w.starts[0]).toBeGreaterThan(len - 100); // not before the tear ends...
-  expect(w.shown! - w.starts[0]).toBeLessThan(len + 600); // ...and soon after
-  expect(w.shown!).toBeLessThan(4_000); // the design budget (about a second) is in shift.test.ts; this runner draws a few frames a second
+  expect(w.shown! - w.starts[0]).toBeLessThan(len + 600 + 2 * w.slowestFrame); // ...and soon after
+  expect(w.shown!).toBeLessThan(lateBy(1_090, w)); // see lateBy
   expect(await filterOn(page)).toBe(false);
 });
 
@@ -157,9 +168,9 @@ test("a return is a short flick, and its text is back almost at once", async ({ 
   await scrollTo(page, progressFor(1));
   await settled(page);
   const w = await watched(page);
-  expect(w.ends[0] - w.starts[0]).toBeLessThan(600);
-  expect(w.shown! - w.starts[0]).toBeLessThan(w.ends[0] - w.starts[0] + 600); // soon after the flick ends
-  expect(w.shown!).toBeLessThan(3_000); // the design budget is in shift.test.ts
+  expect(w.ends[0] - w.starts[0]).toBeLessThan(600 + 2 * w.slowestFrame);
+  expect(w.shown! - w.starts[0]).toBeLessThan(w.ends[0] - w.starts[0] + 600 + 2 * w.slowestFrame); // soon after the flick ends
+  expect(w.shown!).toBeLessThan(lateBy(540, w)); // see lateBy
 });
 
 test("reduced motion gets no tear, and the text is there straight away", async ({ browser }) => {
@@ -221,12 +232,24 @@ test("leaving mid-shift ends on the true reading, with no late jump", async ({ p
 });
 
 test("a shift that arrives during the power-on plays once it is over", async ({ page }) => {
+  // When the tour (and the bar) appeared, on the page's clock: the power-on takes 1.4 s from about then.
+  await page.addInitScript(() => {
+    new MutationObserver((_, mo) => {
+      if (document.querySelector("[data-meter-bar]")) { (window as unknown as { __barAt: number }).__barAt = performance.now(); mo.disconnect(); }
+    }).observe(document, { childList: true, subtree: true });
+  });
   await page.goto("/");
   await expect(page.locator("[data-meter-bar]")).toBeVisible();
   await watch(page, "work");
   await scrollTo(page, progressFor(1)); // the tubes are still warming up
   await page.waitForTimeout(500);
-  expect((await watched(page)).starts).toEqual([]); // not yet
+  // Not before the power-on is over. (A busy machine can take longer than this to get here, so the
+  // time is checked on the page's clock rather than assuming 500 ms is still inside the power-on.)
+  const early = await page.evaluate(() => {
+    const w = (window as unknown as { __w: { starts: number[]; t0: number }; __barAt: number });
+    return w.__w.starts.filter((s) => w.__w.t0 + s < w.__barAt + 1_400 - 50);
+  });
+  expect(early).toEqual([]);
   await expect.poll(async () => (await watched(page)).starts.length, { timeout: 6_000 }).toBe(1); // then it plays
   await expect.poll(async () => (await watched(page)).shown, { timeout: 5_000 }).not.toBeNull();
 });

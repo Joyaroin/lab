@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { formatReading } from "./gap";
-import { shiftDigits, type ShiftKind } from "./nixie";
+import { digitsToShow, shiftDigits, type ShiftKind } from "./nixie";
 
 /** The digits the bar shows: the reading, except for a moment while a shift scrambles them. Frames
  *  run only during the shift. `shift.id` changes to start a new one. */
@@ -21,7 +21,7 @@ function useShifted(digits: string, shift?: { kind: ShiftKind; id: number } | nu
     return () => { cancelAnimationFrame(raf); setShown(null); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shift?.id]);
-  return shown ?? digits;
+  return digitsToShow(digits, shown, !!shift);
 }
 
 // The meter's plain label, under the room. The meter itself is the nixie meter on the desk

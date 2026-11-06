@@ -123,7 +123,10 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
       if (link.shiftAt === null) link.shiftAt = clock.elapsedTime;
       const sh = shiftDigits(clock.elapsedTime - link.shiftAt, link.digits, link.shift);
       if (sh.done) { link.shift = null; link.shiftAt = null; } else { s.digits = sh.digits; shifting = true; }
-    } else if (link.shift) { link.shift = null; link.shiftAt = null; } // reduced motion, or the power-on is still running: drop the shift, show the plain reading
+    } else if (link.shift && reduced) { link.shift = null; link.shiftAt = null; } // reduced motion: no shift, show the plain reading
+    // (while the power-on is still running the shift stays pending and plays when it ends: the tour's
+    // quiet period is timed from when the tour mounts, the power-on from the first frame after, which
+    // on a slow device is later)
     const digits = s.digits.replace(".", "");
     tubes.forEach((tube, i) => {
       // an unlit tube shows no digit, so it needs no redraw as the random digits change

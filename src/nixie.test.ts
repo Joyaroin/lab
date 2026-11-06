@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { POWER_ON_SECONDS, SHIFT_SECONDS, powerOn, shiftDigits } from "./nixie";
+import { POWER_ON_SECONDS, SHIFT_SECONDS, powerOn, shiftDigits, digitsToShow } from "./nixie";
 
 const digits = "0.000009";
 
@@ -47,5 +47,13 @@ describe("meter shift", () => {
   it("the short one is a quick flick", () => {
     expect(SHIFT_SECONDS.short).toBeLessThanOrEqual(0.3);
     expect(SHIFT_SECONDS.short).toBeLessThan(SHIFT_SECONDS.full);
+  });
+});
+
+describe("what the bar shows", () => {
+  it("shows the scramble only while a shift is on, so a stale one never sits beside the new reading", () => {
+    expect(digitsToShow("0000213", "2622044", true)).toBe("2622044");
+    expect(digitsToShow("0000213", "2622044", false)).toBe("0000213"); // the shift just ended, the effect hasn't cleared it yet
+    expect(digitsToShow("0000213", null, true)).toBe("0000213");
   });
 });
