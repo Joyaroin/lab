@@ -6,7 +6,7 @@
 /** The size the screen is drawn at. */
 export const CARD_PX = { width: 640, height: 500 };
 
-const MONO = '"DejaVu Sans Mono", ui-monospace, monospace';
+export const MONO = '"DejaVu Sans Mono", ui-monospace, monospace';
 
 export function drawPhosphor(c: HTMLCanvasElement, card?: { worldLine: string; name: string }) {
   const g = c.getContext("2d")!, w = c.width, h = c.height;

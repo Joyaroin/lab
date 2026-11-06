@@ -5,7 +5,7 @@ import { textOnGlass } from "./tour";
 import { crts, CRT_GLASS, DESK_METER, NOTE_AT, PLATE_AT, type Crt } from "./crts";
 import { powerOn, shiftDigits, type MeterLink } from "./nixie";
 import { stations } from "./content";
-import { CARD_PX, drawPhosphor } from "./card";
+import { CARD_PX, MONO, drawPhosphor } from "./card";
 
 // The late-night look, drawn over the baked room (Room.tsx) without making it redraw nonstop.
 // Everything here is a few small textured planes drawn once. The only things that move are the
