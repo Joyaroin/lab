@@ -17,6 +17,11 @@ The language of this project: its terms, what each one means, and what it doesn'
   name, such as "World line 03 / Home lab", readable from across the room. The words come from the
   station's `worldLine` and `name` in the content module, nothing else. It clears when that station's
   text is showing. It never moves and never reads as a live status or result.
+- **Diagram**: a station's line drawing on its glass, a left-to-right chain of steps. It redraws facts
+  already in that station's copy and adds none, and never reads as a live status or result. Contact has none.
+- **Step**: one box in a diagram, such as "Argo CD".
+- **Hop**: the arrow between two steps, with an optional label such as "by hand". A diagram has one fewer
+  hop than steps.
 - **Meter**: the nixie tube display at the centre of the site. It is our own design, and it is both
   navigation and a live readout.
 - **Reading**: the number the meter shows. Each station has a fixed reading; the entrance shows the gap.

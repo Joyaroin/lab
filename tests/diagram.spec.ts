@@ -27,7 +27,7 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     await expect(fig).toBeVisible();
 
     // real text, in order, readable by a screen reader's description too
-    await expect(fig.locator("svg text")).toHaveText(["Git", "", "Argo CD", "automatic", "Staging", "by hand", "Production"]);
+    await expect(fig.locator("svg text")).toHaveText(["Git", "Argo CD", "automatically", "Staging", "by hand", "Production"]);
     await expect(fig.getByRole("img", { name: mediasafe.diagram!.description })).toBeVisible();
 
     // under the links, above the body, inside the panel and the window
@@ -62,3 +62,39 @@ test("phone: MediaSafe still shows its panel with the diagram not breaking the l
   await page.screenshot({ path: "test-results/diagram-390x844-mediasafe.png" });
   await ctx.close();
 });
+
+// Ticket 54: Home lab, Order Tracker and WC2026 get one too; Contact never does.
+for (const id of ["home-lab", "order-tracker", "wc2026-predictor", "contact"]) {
+  test(`desktop 1280x800: ${id} ${id === "contact" ? "has no diagram" : "shows its diagram, drawn from its copy, inside the panel"}`, async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/");
+    await expect(page.getByLabel("Boot log")).toBeHidden();
+    await page.getByRole("navigation", { name: "HUD" }).locator(`a[href="#${id}"]`).click();
+    const panel = page.locator(`[data-screen="${id}"]`);
+    await expect(panel).toHaveCSS("opacity", "1");
+    await page.waitForTimeout(800);
+    const d = stations.find((s) => s.id === id)!.diagram;
+    if (!d) {
+      await expect(panel.locator("figure")).toHaveCount(0);
+      await page.screenshot({ path: `test-results/diagram-1280x800-${id}.png` });
+      return;
+    }
+    const fig = panel.locator("figure[data-diagram]");
+    await expect(fig).toBeVisible();
+    // labels in order; an arrow with no label draws no text
+    await expect(fig.locator("svg text")).toHaveText(d.steps.flatMap((t, i) => (d.hops[i] ? [t, d.hops[i]] : [t])));
+    await expect(fig.getByRole("img", { name: d.description })).toBeVisible();
+    const pb = (await panel.boundingBox())!, fb = (await fig.boundingBox())!;
+    expect(fb.x).toBeGreaterThanOrEqual(pb.x);
+    expect(fb.x + fb.width).toBeLessThanOrEqual(pb.x + pb.width);
+    expect(await panel.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
+    // every label sits inside the drawing and is big enough to read
+    const bad = await fig.locator("svg text").evaluateAll((ts) => ts.filter((t) => {
+      const r = t.getBoundingClientRect(), s = (t as SVGTextElement).ownerSVGElement!.getBoundingClientRect();
+      return r.left < s.left - 0.5 || r.right > s.right + 0.5 || r.height < 9;
+    }).length);
+    expect(bad).toBe(0);
+    await page.screenshot({ path: `test-results/diagram-1280x800-${id}.png` });
+  });
+}
