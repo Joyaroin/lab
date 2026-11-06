@@ -74,6 +74,17 @@ export function fenced(text) {
 /** Inline code that the text can't break out of. */
 const code = (s) => "`" + s.replace(/[`\r\n]+/g, "'") + "`";
 
+/** The only fields of a gitleaks finding the comment uses. Match, Secret, Author, Email and Message are never read. */
+export function findingsFrom(reportText) {
+  if (!reportText?.trim()) return [];
+  const parsed = JSON.parse(reportText);
+  if (!Array.isArray(parsed)) return [];
+  const str = (v) => (typeof v === "string" ? v : "");
+  return parsed.map((f) => ({ rule: str(f.RuleID), file: str(f.File), line: Number(f.StartLine) || 0, commit: str(f.Commit).slice(0, 7) }));
+}
+
+const MAX_FINDINGS = 20;
+
 /**
  * The comment body. The first line must not start with verdict, pass, fail or rebuild: merge-pr reads those.
  * `i` holds job, sha, step (failed step id), cmd, exit, out (output text or undefined), tests (browser only),
@@ -82,7 +93,14 @@ const code = (s) => "`" + s.replace(/[`\r\n]+/g, "'") + "`";
 export function formatComment(i) {
   const lines = [`CI ${i.job} job output for ${i.sha.slice(0, 7)}`, ""];
   lines.push(`Job: ${i.job}`, `Failed step: ${i.step}`, `Took: ${formatDuration(i.seconds)}`, `Load average: ${i.load.map((n) => n.toFixed(2)).join(" ")}`, "");
-  if (i.tests?.length) {
+  if (i.findings?.length) {
+    lines.push(`Error: gitleaks found ${i.findings.length} possible secret(s). Values are redacted.`, "");
+    for (const f of i.findings.slice(0, MAX_FINDINGS)) lines.push(`- ${code(f.rule)} in ${code(`${f.file}:${f.line}`)}, commit ${code(f.commit)}`);
+    if (i.findings.length > MAX_FINDINGS) lines.push(`- … and ${i.findings.length - MAX_FINDINGS} more.`);
+    lines.push("");
+  } else if (i.job === "secret-scan") {
+    lines.push(`Error: step ${i.step} failed with exit code ${i.exit ?? "unknown"}.`, "");
+  } else if (i.tests?.length) {
     lines.push(`Error: ${i.tests.length} browser test(s) did not pass.`, "");
     for (const t of i.tests.slice(0, MAX_TESTS)) {
       const err = t.error.length > MAX_ERROR ? t.error.slice(0, MAX_ERROR) + "\n… (cut)" : t.error;
@@ -143,6 +161,14 @@ export async function main(input, env) {
   const failed = failedStep(input.steps) ?? input.job;
   const reportText = input.report && failed === input.runStep ? read(input.report) : undefined;
   let tests = [];
+  let findings;
+  if (input.leaksReport && failed === input.runStep) {
+    try {
+      findings = findingsFrom(read(input.leaksReport));
+    } catch {
+      console.log("Could not read the gitleaks report; using the step and exit code.");
+    }
+  }
   try {
     if (reportText) tests = failedTests(JSON.parse(reportText)).map((t) => ({ name: clean(t.name), error: clean(t.error) }));
   } catch {
@@ -152,7 +178,7 @@ export async function main(input, env) {
   const now = input.now ?? Date.now();
   const text = formatComment({
     job: input.job, sha: env.SHA, step: failed, cmd: clean(input.cmd ?? ""), exit: read(input.exitFile)?.trim(),
-    out, tests, seconds: start ? now / 1000 - start : 0, load: loadavg(),
+    out: input.leaksReport ? undefined : out, tests, findings, seconds: start ? now / 1000 - start : 0, load: loadavg(),
   });
   const marker = markerFor(input.job);
   const pr = await findPr(env);
@@ -166,14 +192,14 @@ export async function main(input, env) {
 
 /**
  * Reads the job's settings from env: JOB, STEPS ("id=outcome ..." for every step), RUN_STEP (id of the run step),
- * CMD, OUT_FILE, EXIT_FILE, START_FILE, REPORT, MASK_ENV (names of env vars whose values to hide), and
+ * CMD, OUT_FILE, EXIT_FILE, START_FILE, REPORT, LEAKS_REPORT (secret-scan: gitleaks JSON report), MASK_ENV (names of env vars whose values to hide), and
  * SERVER_URL, REPOSITORY, BRANCH, SHA, TOKEN. Posting is best effort: it says why it failed and returns normally.
  */
 export async function cli(e) {
   try {
     const secrets = (e.MASK_ENV ?? "").split(",").filter(Boolean).map((n) => e[n]);
     await main(
-      { job: e.JOB, steps: e.STEPS ?? "", runStep: e.RUN_STEP, cmd: e.CMD, outFile: e.OUT_FILE, exitFile: e.EXIT_FILE, startFile: e.START_FILE, report: e.REPORT, secrets },
+      { job: e.JOB, steps: e.STEPS ?? "", runStep: e.RUN_STEP, cmd: e.CMD, outFile: e.OUT_FILE, exitFile: e.EXIT_FILE, startFile: e.START_FILE, report: e.REPORT, leaksReport: e.LEAKS_REPORT, secrets },
       { SERVER_URL: e.SERVER_URL, REPOSITORY: e.REPOSITORY, BRANCH: e.BRANCH, SHA: e.SHA, TOKEN: e.TOKEN },
     );
   } catch (err) {

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { AUTHOR, cli, failedTests, failedStep, formatComment, main, markerFor, MARKER } from "./post-ci-failure.mjs";
+import { AUTHOR, cli, findingsFrom, failedTests, failedStep, formatComment, main, markerFor, MARKER } from "./post-ci-failure.mjs";
 
 const test = (status, message) => ({ status, results: [{ error: message && { message } }] });
 const report = {
@@ -34,6 +34,7 @@ describe("failedTests", () => {
 });
 
 const JOBS = ["frontend", "backend", "integration", "browser"];
+const ALL_JOBS = [...JOBS, "secret-scan"];
 const base = { sha: "abcdef1234", step: "run", cmd: "make frontend", exit: "2", seconds: 125, load: [0.5, 1, 1.5] };
 const out = Array.from({ length: 60 }, (_, i) => (i === 3 ? "src/a.ts: TypeError: bad" : `line ${i}`)).join("\n");
 
@@ -55,9 +56,13 @@ describe("formatComment", () => {
   it("keeps the old browser marker", () => {
     expect(MARKER).toBe("<!-- ci-browser-failure -->");
   });
-  it.each(JOBS)("%s comment does not start with a word merge-pr reads as a verdict", (job) => {
+  it.each(ALL_JOBS)("%s comment does not start with a word merge-pr reads as a verdict", (job) => {
     const first = formatComment({ ...base, job, out }).split("\n")[0];
     expect(first).toBe(`CI ${job} job output for abcdef1`);
+    expect(first).not.toMatch(/^\s*(verdict|pass|fail|rebuild)/i);
+  });
+  it.each(["download", "checksum"])("secret-scan %s comment does not start with a verdict word", (step) => {
+    const first = formatComment({ ...base, job: "secret-scan", step, out: undefined }).split("\n")[0];
     expect(first).not.toMatch(/^\s*(verdict|pass|fail|rebuild)/i);
   });
   it("uses the failed tests as the browser error", () => {
@@ -80,6 +85,52 @@ describe("formatComment", () => {
     const body = formatComment({ ...base, job: "browser", tests: many });
     expect(body.length).toBeLessThan(20000);
     expect(body).toMatch(/and 20 more/);
+  });
+});
+
+// What gitleaks 8.30.1 --redact writes per finding. Match and Secret hold REDACTED; the commit fields are never read.
+const LEAK = {
+  RuleID: "aws-access-token", Description: "AWS key", File: "src/a.ts", StartLine: 7, Commit: "1234567890abcdef",
+  Match: "key = REDACTED", Secret: "REDACTED", Author: "Some One", Email: "someone@example.test", Message: "oops a commit message",
+};
+const scanBase = { job: "secret-scan", sha: "abcdef1234", step: "scan", cmd: "gitleaks git", exit: "1", seconds: 65, load: [0.5, 1, 1.5] };
+const items = (body, job = "secret-scan") => {
+  expect(body.endsWith(markerFor(job))).toBe(true);
+  expect(body).toContain(`Job: ${job}`);
+  expect(body).toContain("Took: 1m 5s");
+  expect(body).toContain("Load average: 0.50 1.00 1.50");
+  expect(body).not.toMatch(/lines of output/);
+  expect(body).not.toContain("~~~");
+};
+
+describe("secret-scan comment", () => {
+  it("uses only the redacted report's rule, file, line and commit", () => {
+    expect(findingsFrom(JSON.stringify([LEAK]))).toEqual([{ rule: "aws-access-token", file: "src/a.ts", line: 7, commit: "1234567" }]);
+    const body = formatComment({ ...scanBase, findings: findingsFrom(JSON.stringify([LEAK])) });
+    for (const v of ["REDACTED", "Some One", "someone@example.test", "oops a commit message", "key ="]) expect(body).not.toContain(v);
+  });
+  it("findings version carries its marker and every item", () => {
+    const body = formatComment({ ...scanBase, findings: findingsFrom(JSON.stringify([LEAK])) });
+    items(body);
+    expect(body).toContain("Failed step: scan");
+    expect(body).toContain("`aws-access-token` in `src/a.ts:7`, commit `1234567`");
+  });
+  it.each(["download", "checksum"])("%s version has the step and exit code but no findings", (step) => {
+    const body = formatComment({ ...scanBase, step, exit: "22" });
+    items(body);
+    expect(body).toContain(`Failed step: ${step}`);
+    expect(body).toContain(`step ${step} failed with exit code 22`);
+    expect(body).not.toContain("possible secret");
+  });
+  it.each([["[]"], [""], [undefined]])("a scan failure with report %j uses the no-findings shape", (text) => {
+    const body = formatComment({ ...scanBase, findings: findingsFrom(text) });
+    items(body);
+    expect(body).toContain("step scan failed with exit code 1");
+    expect(body).not.toContain("possible secret");
+  });
+  it("cuts a long list", () => {
+    const body = formatComment({ ...scanBase, findings: findingsFrom(JSON.stringify(Array(30).fill(LEAK))) });
+    expect(body).toContain("and 10 more");
   });
 });
 
@@ -184,6 +235,41 @@ describe("main against a fake Forgejo", () => {
     expect(body).toContain("Failed step: checkout");
     expect(body).toContain("no output captured");
   });
+  describe("secret-scan end to end", () => {
+    const go = async ({ steps, reportText, comments = [] }) => {
+      const t = await run([pr(7, "ticket-66")], { job: "secret-scan", rep: null, output: null, comments });
+      const leaks = join(t.dir, "leaks.json");
+      if (reportText !== undefined) writeFileSync(leaks, reportText);
+      Object.assign(t.input, { steps, runStep: "scan", leaksReport: leaks });
+      await t.run();
+      return t.calls;
+    };
+    const ok = "start=success checkout=success download=success checksum=success";
+    it("reads the report when the scan step failed", async () => {
+      const calls = await go({ steps: `${ok} scan=failure`, reportText: JSON.stringify([LEAK]) });
+      expect(calls[0].body.body).toContain("`aws-access-token` in `src/a.ts:7`");
+      expect(calls[0].body.body).not.toContain("REDACTED");
+    });
+    it("ignores a report left over when the download step failed", async () => {
+      const calls = await go({ steps: "start=success checkout=success download=failure checksum=skipped scan=skipped", reportText: JSON.stringify([LEAK]) });
+      expect(calls[0].body.body).toContain("Failed step: download");
+      expect(calls[0].body.body).toContain("exit code 3");
+      expect(calls[0].body.body).not.toContain("src/a.ts");
+    });
+    it("uses the no-findings shape for a missing or unreadable report", async () => {
+      for (const reportText of [undefined, "", "[]", "{not json"]) {
+        const calls = await go({ steps: `${ok} scan=failure`, reportText });
+        expect(calls[0].body.body).toContain("step scan failed with exit code 3");
+      }
+    });
+    it("updates its earlier comment instead of adding one", async () => {
+      const earlier = [{ id: 21, body: `old\n\n${markerFor("secret-scan")}`, user: { login: AUTHOR } }];
+      const calls = await go({ steps: `${ok} scan=failure`, reportText: JSON.stringify([LEAK]), comments: earlier });
+      expect(calls).toHaveLength(1);
+      expect(calls[0].method).toBe("PATCH");
+      expect(calls[0].url).toMatch(/comments\/21$/);
+    });
+  });
   it("never lets a planted value into the comment", async () => {
     const planted = ["s3cr3t", "value"].join("-");
     const t = await run([pr(7, "ticket-66")], { job: "frontend", rep: null, output: `Error: auth ${planted} rejected\n${planted}`, secrets: [planted] });
@@ -238,7 +324,7 @@ describe("ci.yml", () => {
   const yml = readFileSync(new URL("../.forgejo/workflows/ci.yml", import.meta.url), "utf8");
   it("every post step has continue-on-error: true", () => {
     const posts = yml.split(/\n      - /).filter((b) => b.includes("post-ci-failure.mjs"));
-    expect(posts).toHaveLength(4);
+    expect(posts).toHaveLength(5);
     for (const p of posts) expect(p).toMatch(/continue-on-error: true/);
   });
 });
