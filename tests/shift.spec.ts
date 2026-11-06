@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { holdSpan, progressFor } from "../src/hold";
 import { POWER_ON_SECONDS, SHIFT_SECONDS } from "../src/nixie";
 import { DWELL_MS, SNAP_BACK_MS } from "../src/shift";
-import { panelOf as panel, scrollToProgress } from "./lib/page";
+import { panelOf, scrollToProgress } from "./lib/page";
 
 test.setTimeout(60_000);
 
@@ -157,7 +157,7 @@ test("a first visit tears the view for about 0.8 s, and the text resolves as it 
   await watch(page, "work");
   await scrollToProgress(page, progressFor(1));
   await settled(page);
-  expect(await panel(page, "work").innerText()).not.toBe(""); // in the page throughout, selectable and findable
+  expect(await panelOf(page, "work").innerText()).not.toBe(""); // in the page throughout, selectable and findable
   const w = await watched(page);
   expect(w.starts).toHaveLength(1);
   expect(w.litDuringTear).toBe(false); // the text was out of sight while the view tore...
@@ -302,5 +302,5 @@ test("reloading inside a hold is not an arrival: no shift, the meter never scram
   expect((await watched(page)).starts).toEqual([]);
   expect(await filterOn(page)).toBe(false);
   expect(await page.evaluate(() => (window as unknown as { __scrambles: string[] }).__scrambles)).toEqual([]);
-  expect(await panel(page, "work").evaluate((e) => (e as HTMLElement).style.opacity)).toBe("1");
+  expect(await panelOf(page, "work").evaluate((e) => (e as HTMLElement).style.opacity)).toBe("1");
 });

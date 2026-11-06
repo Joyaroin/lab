@@ -1,11 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
-import { stations } from "../src/content";
+import { pageSwitch, stations } from "../src/content";
 import { holdSpan } from "../src/hold";
+import { panelOf, waitForPanel } from "./lib/page";
 import { WORK_COPY } from "./fixtures/work-copy";
 
 // Ticket 55: Work is two pages on one TV, switched by a timeline of two buttons.
 const work = stations.find((s) => s.id === "work")!;
-const panel = (page: Page, id = "work") => page.locator(`[data-screen="${id}"]`);
+const panel = (page: Page, id = "work") => panelOf(page, id);
 const seg = (page: Page, id: string) => panel(page).locator(`button[data-page="${id}"]`);
 
 async function openWork(page: Page, w: number, h: number) {
@@ -27,8 +28,8 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     // opens on Solace, with its text only; the open page is marked in words and shape, not colour
     await expect(seg(page, "solace")).toHaveAttribute("aria-pressed", "true");
     await expect(seg(page, "barracuda")).toHaveAttribute("aria-pressed", "false");
-    await expect(seg(page, "solace")).toContainText("open");
-    await expect(seg(page, "barracuda")).not.toContainText("open");
+    await expect(seg(page, "solace")).toContainText(pageSwitch.open);
+    await expect(seg(page, "barracuda")).not.toContainText(pageSwitch.open);
     const widthOf = async (id: string) => (await seg(page, id).boundingBox())!;
     expect((await widthOf("barracuda")).x).toBeLessThan((await widthOf("solace")).x); // oldest on the left
     expect(await shown(page)).toEqual(expect.arrayContaining(solace.body));
@@ -39,8 +40,8 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     // a click on the other segment
     await seg(page, "barracuda").click();
     await expect(seg(page, "barracuda")).toHaveAttribute("aria-pressed", "true");
-    await expect(seg(page, "barracuda")).toContainText("open");
-    await expect(seg(page, "solace")).not.toContainText("open");
+    await expect(seg(page, "barracuda")).toContainText(pageSwitch.open);
+    await expect(seg(page, "solace")).not.toContainText(pageSwitch.open);
     expect(await shown(page)).toEqual(expect.arrayContaining(barracuda.body));
     expect(await shown(page)).not.toContain(solace.body[0]);
     await page.screenshot({ path: `test-results/work-${w}x${h}-barracuda.png` });
@@ -104,7 +105,7 @@ test("leaving Work, every wheel step over the panel moves the page on", async ({
   const to = (f: number) => page.evaluate((f) => { scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)); }, f);
   await panel(page).evaluate((e) => { e.scrollTop = 1e6; }); // read to the end first
   await to(end + 0.001); // just past the hold: inside it the panel takes the wheel on purpose
-  await page.waitForTimeout(800);
+  await waitForPanel(page, "work"); // the panel has finished shrinking with the camera
   const box = (await panel(page).boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 3 });
   let prev = await page.evaluate(() => scrollY), stuck: number[] = [], arrived = false;

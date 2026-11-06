@@ -18,7 +18,15 @@ The language of this project: its terms, what each one means, and what it doesn'
   station's `worldLine` and `name` in the content module, nothing else. It clears when that station's
   text is showing. It never moves and never reads as a live status or result.
 - **Diagram**: a station's line drawing on its glass, a left-to-right chain of steps. It redraws facts
-  already in that station's copy and adds none, and never reads as a live status or result. Contact has none.
+  already in that station's copy and adds none, and never reads as a live status or result. Contact has
+  none. Work's diagram is its timeline.
+- **Page**: one of the parts a station's text is split into, shown one at a time (only Work has pages:
+  Solace and Barracuda). Together the pages hold exactly the station's text, in order. The station
+  opens on its first page and scrolling never changes it.
+- **Timeline**: Work's diagram, and the switch between its pages. A row of segments drawn on the TV,
+  oldest job on the left, and the only way to turn a page.
+- **Segment**: one job on the timeline, a real button as wide as the months the job ran. It names the
+  page and its dates; the open one is marked in words and shape, not colour alone.
 - **Step**: one box in a diagram, such as "Argo CD".
 - **Hop**: the arrow between two steps, with an optional label such as "by hand". A diagram has one fewer
   hop than steps.

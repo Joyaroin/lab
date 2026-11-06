@@ -21,7 +21,7 @@ export type Station = {
   /** optional line drawing of facts already in `body` */
   diagram?: Diagram;
   /** optional split of `body` into pages the visitor switches between (Work). `body` stays the
-   *  whole text in order; the pages' paragraphs are the same strings, oldest job first. */
+   *  whole text in order; the pages' paragraphs are the same strings, in the same order. */
   pages?: Page[];
   /** words on the TV's bezel: the maker's plate and the sticky note. Neither may read as a status. */
   bezel: Bezel;
@@ -35,8 +35,9 @@ export type Bezel = { plate: string; note: string };
  *  ("" for none), so it has one entry fewer than `steps`. `description` is the plain-text version
  *  a screen reader gets. */
 export type Diagram = { description: string; steps: string[]; hops: string[] };
-/** The words on the timeline that switches a station's pages. */
-export const pageSwitch = { name: "Work pages", hint: "Click a job to read it", open: "open" };
+/** The words on the timeline that switches a station's pages. `openMark` and `closedMark` sit before
+ *  a segment's tag: the open page is `openMark open`, the others just `closedMark`. */
+export const pageSwitch = { name: "Pages", hint: "Click a job to read it", open: "open", openMark: "▸", closedMark: "›" };
 export type Content = {
   identity: { name: string; title: string; availability: string };
   links: Link[];
@@ -239,6 +240,7 @@ export function validateContent(c: Content): string[] {
     });
   };
 
+  for (const f of ["name", "hint", "open", "openMark", "closedMark"] as const) tvText(`pageSwitch.${f}`, pageSwitch[f]);
   text("identity.name", c.identity?.name);
   text("identity.title", c.identity?.title);
   text("identity.availability", c.identity?.availability);
@@ -256,16 +258,16 @@ export function validateContent(c: Content): string[] {
       if (!Array.isArray(s.pages) || s.pages.length < 2) problems.push(`${pp}: need at least two`);
       else {
         s.pages.forEach((pg, j) => {
-          for (const f of ["id", "label", "dates"] as const) text(`${pp}[${j}].${f}`, pg[f]);
+          text(`${pp}[${j}].id`, pg.id);
+          for (const f of ["label", "dates"] as const) tvText(`${pp}[${j}].${f}`, pg[f]);
           if (!Number.isInteger(pg.months) || pg.months <= 0) problems.push(`${pp}[${j}].months: missing`);
           paragraphs(`${pp}[${j}].body`, pg.body);
         });
+        const joined = s.pages.flatMap((pg) => (Array.isArray(pg.body) ? pg.body : []));
+        if (JSON.stringify(joined) !== JSON.stringify(s.body)) problems.push(`${pp}: paragraphs must be the same as ${p}.body, in order`);
       }
     }
-    for (const f of ["plate", "note"] as const) {
-      text(`${p}.bezel.${f}`, s.bezel?.[f]);
-      if (typeof s.bezel?.[f] === "string" && LIVE_STATUS.test(s.bezel[f])) problems.push(`${p}.bezel.${f}: reads as a live status`);
-    }
+    for (const f of ["plate", "note"] as const) tvText(`${p}.bezel.${f}`, s.bezel?.[f]);
     if (s.diagram) {
       const d = s.diagram, dp = `${p}.diagram`;
       tvText(`${dp}.description`, d.description);

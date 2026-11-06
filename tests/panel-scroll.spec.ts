@@ -152,3 +152,21 @@ test("phone-sized window: the real wheel over MediaSafe does not jump back", asy
   }
   expect(prev).toBeGreaterThanOrEqual((await panelOf(page, "mediasafe").evaluate((e) => e.scrollHeight - e.clientHeight)) - 2);
 });
+
+// The "more" cue follows its panel's visibility: marked as having more, it still must not count as
+// visible while the panel is hidden (at the entrance), and shows once the panel does.
+test("the more cue is visible only when its panel is", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openTour(page);
+  const cue = panelOf(page, "work").locator(".crt-more");
+  const visibility = () => cue.evaluate((e) => getComputedStyle(e).visibility);
+  await panelOf(page, "work").evaluate((e) => { e.dataset.more = "true"; }); // the entrance: panel hidden
+  expect(await panelOf(page, "work").evaluate((e) => getComputedStyle(e).visibility)).toBe("hidden");
+  expect(await visibility()).toBe("hidden");
+  await wheelToStop(page, 1);
+  await expect(panelOf(page, "work")).toBeVisible();
+  await waitForPanel(page, "work");
+  await panelOf(page, "work").evaluate((e) => { e.dataset.more = "true"; });
+  expect(await visibility()).toBe("visible");
+});

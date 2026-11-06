@@ -57,7 +57,7 @@ function Timeline({ pages, open, onOpen }: { pages: NonNullable<Station["pages"]
         {order.map((i) => (
           <button key={pages[i].id} type="button" className="crt-seg" data-page={pages[i].id} data-open={i === open}
             aria-pressed={i === open} onClick={() => onOpen(i)} style={{ flex: `${pages[i].months} 1 0`, minWidth: "5.5em" }}>
-            <span className="crt-seg-label"><span className="crt-seg-tag">{i === open ? `▸ ${pageSwitch.open}` : "›"}</span> {pages[i].label}</span>
+            <span className="crt-seg-label"><span className="crt-seg-tag">{i === open ? `${pageSwitch.openMark} ${pageSwitch.open}` : pageSwitch.closedMark}</span> {pages[i].label}</span>
             <span className="crt-seg-dates">{pages[i].dates}</span>
           </button>
         ))}
@@ -65,8 +65,8 @@ function Timeline({ pages, open, onOpen }: { pages: NonNullable<Station["pages"]
     </div>
   );
 }
-const timeline: CSSProperties = { margin: "0 0 0.7rem", padding: 0 };
-const hint: CSSProperties = { margin: "0 0 0.25rem", fontSize: "0.75em", letterSpacing: "0.08em", color: "#ffb347" };
+const timeline: CSSProperties = { margin: "0 0 0.7em", padding: 0 };
+const hint: CSSProperties = { margin: "0 0 0.33em", fontSize: "0.75em", letterSpacing: "0.08em", color: "#ffb347" };
 
 // A station's diagram as a line drawing. The labels are real SVG text (selectable, scaling with the
 // panel); the figure as a whole carries the plain description for a screen reader.
@@ -103,7 +103,7 @@ function DiagramFigure({ d }: { d: Diagram }) {
     </figure>
   );
 }
-const figure: CSSProperties = { margin: "0 0 0.7rem", padding: 0 };
+const figure: CSSProperties = { margin: "0 0 0.7em", padding: 0 };
 
 /** Marks a panel whose text runs on below its bottom edge, which shows the "more" cue. */
 export function markMore(el: HTMLElement) {
@@ -112,20 +112,20 @@ export function markMore(el: HTMLElement) {
 }
 
 const css = `
-.crt-panel { padding: 0.9rem 1rem; border: 1px solid #2f7a4d; border-radius: 14px;
+.crt-panel { padding: 0.9em 1em; border: 1px solid #2f7a4d; border-radius: 14px;
   box-shadow: inset 0 0 28px rgba(0,0,0,0.75), 0 0 22px rgba(60,255,140,0.18);
   background:
   repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.22) 2px 3px),
   radial-gradient(ellipse at 50% 45%, #10391f, #04140b 70%, #010804);
   background-attachment: local; }
 /* The cue adds nothing to the scrollable height (the negative top margin cancels its height), and is
-   hidden with visibility rather than display: otherwise showing and hiding it changes how far the
+   hidden with visibility (inherited, so it never counts as visible inside a hidden panel) rather than display: otherwise showing and hiding it changes how far the
    panel can scroll, and the browser moves the visitor's position when it hides at the end. */
-.crt-more { position: sticky; bottom: -0.9rem; margin: -2.6rem -1rem 0; height: 2.6rem; visibility: hidden; display: flex;
-  align-items: flex-end; justify-content: center; padding-bottom: 0.3rem; pointer-events: none;
+.crt-more { position: sticky; bottom: -0.9em; margin: -2.6em -1em 0; height: 2.6em; visibility: hidden; display: flex;
+  align-items: flex-end; justify-content: center; padding-bottom: 0.3em; pointer-events: none;
   background: linear-gradient(to bottom, rgba(4,20,11,0), rgba(4,20,11,0.97) 70%); }
 .crt-more span { font-size: 0.8em; letter-spacing: 0.1em; color: #ffb347; text-shadow: 0 0 6px rgba(255,140,30,0.6); }
-.crt-panel[data-more="true"] .crt-more { visibility: visible; }
+.crt-panel[data-more="true"] .crt-more { visibility: inherit; }
 .crt-seg { font: inherit; color: #b4ffd0; text-align: left; cursor: pointer; display: grid; padding: 0.2em 0.6em;
   background: rgba(10,40,22,0.6); border: 1px dashed #2f7a4d; border-top: 3px solid #2f7a4d; border-radius: 6px; text-shadow: inherit; }
 .crt-seg:hover, .crt-seg:focus-visible { background: #0f4a28; border-color: #7dffb0; box-shadow: 0 0 10px rgba(80,255,150,0.4); }
@@ -155,7 +155,7 @@ const panel: CSSProperties = {
   userSelect: "text", cursor: "auto", willChange: "transform",
 };
 const worldLine: CSSProperties = { margin: 0, fontSize: "0.75em", letterSpacing: "0.12em", textTransform: "uppercase", color: "#ffb347" };
-const heading: CSSProperties = { margin: "0.2rem 0 0.5rem", fontSize: "1.25em" };
-const para: CSSProperties = { margin: "0 0 0.6rem" };
-const linkRow: CSSProperties = { margin: "0 0 0.7rem", display: "flex", flexWrap: "wrap", gap: "0.3rem 1rem" };
+const heading: CSSProperties = { margin: "0.16em 0 0.4em", fontSize: "1.25em" };
+const para: CSSProperties = { margin: "0 0 0.6em" };
+const linkRow: CSSProperties = { margin: "0 0 0.7em", display: "flex", flexWrap: "wrap", gap: "0.3em 1em" };
 const link: CSSProperties = { color: "#7dffb0", textDecoration: "underline" };

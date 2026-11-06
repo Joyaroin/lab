@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { identity } from "./content";
 
@@ -9,7 +9,7 @@ it("index.html shows the same name and title as content, before any script runs"
   expect(root).toContain(identity.title.replace("&", "&amp;"));
 });
 
-import { validateContent, content } from "./content";
+import { validateContent, content, pageSwitch, type Diagram, type Station } from "./content";
 import { WORK_COPY } from "../tests/fixtures/work-copy";
 
 const good = () => structuredClone(content);
@@ -50,7 +50,7 @@ describe("validateContent", () => {
   describe("blocked content", () => {
     const withBody = (text: string) => {
       const c = good();
-      c.stations[0].body = [text];
+      c.stations[1].body = [text]; // not Work: its body must match its pages
       return validateContent(c).join("\n");
     };
     it.each([
@@ -141,13 +141,13 @@ describe("diagram", () => {
     }
   });
   // Whole words, so "automatic" does not pass for "automatically". Only plain connectives are free.
+  const diagramText = (d: Diagram) => [d.description, ...d.steps, ...d.hops];
   const FREE = new Set(["a", "an", "the", "to", "and", "by", "from", "is", "are", "with", "which"]);
   const words = (t: string) => t.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
   /** Words in a station's diagram that its copy doesn't have, as "word in text". */
-  const missingWords = (s: { body: string[]; heading: string; name: string; diagram?: { description: string; steps: string[]; hops: string[] } }) => {
+  const missingWords = (s: Pick<Station, "body" | "heading" | "name" | "diagram">) => {
     const copy = new Set(words(s.body.join(" ") + " " + s.heading + " " + s.name));
-    const d = s.diagram!;
-    return [d.description, ...d.steps, ...d.hops].flatMap((t) => words(t).filter((w) => !FREE.has(w) && !copy.has(w)).map((w) => `"${w}" in "${t}"`));
+    return diagramText(s.diagram!).flatMap((t) => words(t).filter((w) => !FREE.has(w) && !copy.has(w)).map((w) => `"${w}" in "${t}"`));
   };
   it.each(content.stations.filter((s) => s.diagram).map((s) => [s.id]))("%s: every word of its diagram, description included, is in its copy", (id) => {
     expect(missingWords(content.stations.find((x) => x.id === id)!)).toEqual([]);
@@ -161,15 +161,13 @@ describe("diagram", () => {
     expect(content.stations.filter((s) => s.diagram).map((s) => s.id)).toEqual(["mediasafe", "home-lab", "order-tracker", "wc2026-predictor"]);
   });
   describe.each(content.stations.filter((s) => s.diagram).map((s) => [s.id]))("%s", (id) => {
-    const text = (c: ReturnType<typeof good>) => { const d = c.stations.find((x) => x.id === id)!.diagram!; return [d.description, ...d.steps, ...d.hops]; };
-    it("shows nothing that reads as a live status, by the same check as the other copy", () => {
-      expect(validateContent(good()).filter((p) => p.includes("reads as a live status"))).toEqual([]);
+    it("is checked for live-status words like the other copy", () => {
       const c = good();
       c.stations.find((x) => x.id === id)!.diagram!.steps[0] = "passing";
       expect(validateContent(c).join("\n")).toMatch(/diagram\.steps\[0\]: reads as a live status/);
     });
     it("shows no score, leaderboard or result", () => {
-      expect(text(good()).join(" ")).not.toMatch(/score|leader|\d+\s*[-:–]\s*\d+|win|goal|result/i);
+      expect(diagramText(content.stations.find((x) => x.id === id)!.diagram!).join(" ")).not.toMatch(/score|leader|\d+\s*[-:–]\s*\d+|win|goal|result/i);
     });
   });
   it("a station without one is still valid", () => {
@@ -223,6 +221,19 @@ describe("Work's pages", () => {
     w.pages![1].body = [];
     expect(validateContent(c).join("\n")).toContain("pages[1].body");
   });
+  it("rejects pages whose paragraphs differ from the station's text, or are out of order", () => {
+    const { c, w } = work();
+    w.pages![0].body = [...w.pages![0].body].reverse().concat("An extra line.");
+    expect(validateContent(c).join("\n")).toContain("stations[0].pages: paragraphs must be the same");
+    const o = work();
+    o.w.pages!.reverse();
+    expect(validateContent(o.c).join("\n")).toContain("pages: paragraphs must be the same");
+  });
+  it.each(["label", "dates"] as const)("rejects a page %s that reads as a live status", (f) => {
+    const { c, w } = work();
+    w.pages![0][f] = "Synced";
+    expect(validateContent(c).join("\n")).toContain(`pages[0].${f}: reads as a live status`);
+  });
   it("rejects a page with a phone number in it", () => {
     const { c, w } = work();
     w.pages![0].body[0] = "Call 613-555-0142";
@@ -250,5 +261,17 @@ describe("bezel words", () => {
       const all = content.stations.map((s) => s.bezel[f]);
       expect(new Set(all).size).toBe(all.length);
     }
+  });
+});
+
+// The timeline's own words are drawn on a TV too, so they are checked like the rest.
+describe("page switch words", () => {
+  const original = { ...pageSwitch };
+  afterEach(() => Object.assign(pageSwitch, original));
+  it.each(Object.keys(original) as (keyof typeof original)[])("rejects a %s that is empty or reads as live", (f) => {
+    pageSwitch[f] = "";
+    expect(validateContent(content).join("\n")).toContain(`pageSwitch.${f}: missing`);
+    pageSwitch[f] = "Synced";
+    expect(validateContent(content).join("\n")).toContain(`pageSwitch.${f}: reads as a live status`);
   });
 });
