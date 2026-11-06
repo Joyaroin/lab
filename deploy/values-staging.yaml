@@ -1,4 +1,4 @@
-# Written by the release workflow on each merge.
+# The release workflow writes the real tag on the staging branch. This copy's tag is a placeholder.
 nodeName: hermit
 image:
   tag: "f4ab24a120e1b155c1fa492ca7f1fe69b33d50fd"

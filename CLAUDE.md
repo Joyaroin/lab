@@ -9,7 +9,8 @@
 `make frontend`, `make backend`, `make integration` and `make browser`.
 
 ## Deploys
-Merging to `main` deploys to staging. Production follows the `production` branch, which only the
+Merging to `main` deploys to staging. Staging follows the `staging` branch, which only `release.yml`
+moves. Production follows the `production` branch, which only the
 `promote` workflow moves. Adham runs it.
 Everything in `deploy/` is what Argo CD runs. Don't edit `image.tag` by hand: the workflows own it.
 

@@ -20,7 +20,11 @@ jobs:
         run: |
           version='${{ inputs.version }}'
           if [ -z "$version" ]; then
-            version=$(sed -nE 's/^\s*tag: *"?([^"]*)"?.*/\1/p' deploy/values-staging.yaml)
+            if ! git rev-parse --verify --quiet refs/remotes/origin/staging >/dev/null; then
+              echo "There is no staging branch yet, so there is no staging version. Give a version, or merge to main so release creates it." >&2
+              exit 1
+            fi
+            version=$(git show origin/staging:deploy/values-staging.yaml | sed -nE 's/^\s*tag: *"?([^"]*)"?.*/\1/p')
           fi
           test -n "$version"
           git checkout --detach "$version"

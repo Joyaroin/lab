@@ -1,11 +1,10 @@
-# A merge to main builds the image, then deploys it to staging by writing its tag.
-# Version commits don't trigger this again, because of paths-ignore.
+# A merge to main builds the image, then deploys it to staging: the staging job writes the tag into
+# deploy/values-staging.yaml on the staging branch, the way promote does for production. Nothing
+# here pushes to main, so a deploy adds no commit there and every merge to main runs this.
 name: release
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - deploy/values-*.yaml
 jobs:
   image:
     runs-on: docker
@@ -29,12 +28,26 @@ jobs:
   staging:
     needs: image
     runs-on: docker
+    # One staging push at a time. The tip-of-main check below is what stops an older run winning.
+    concurrency:
+      group: staging
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
-      - name: Write the version
+        with:
+          ref: ${{ github.sha }}
+      - name: Move the staging branch
+        env:
+          SHA: ${{ github.sha }}
         run: |
-          sed -i -E 's/^(\s*tag:).*/\1 "${{ github.sha }}"/' deploy/values-staging.yaml
+          # An older run must not overwrite a newer one: push only if this commit is still main's tip.
+          git fetch origin main
+          if [ "$(git rev-parse FETCH_HEAD)" != "$SHA" ]; then
+            echo "main has moved past $SHA, so a newer run owns staging. Not pushing."
+            exit 0
+          fi
+          sed -i -E "s/^(\s*tag:).*/\1 \"$SHA\"/" deploy/values-staging.yaml
           git config user.name forgejo-ci
           git config user.email ci@forgejo.local
-          git commit -am "Deploy ${{ github.sha }} to staging"
-          git push origin HEAD:main
+          git commit -am "Deploy $SHA to staging"
+          git push --force origin HEAD:refs/heads/staging
