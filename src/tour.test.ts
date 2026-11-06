@@ -1,11 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { tourAt, progressFor, holdSpan, panelStrength, PANEL_SHOWN, STATION_COUNT } from "./tour";
+import { tourAt as tourAtView, progressFor, holdSpan, panelStrength, PANEL_SHOWN, STATION_COUNT } from "./tour";
+// travelProgress is test-only (the app never asks where the middle of a travel is), so it lives in
+// tests/lib, where the browser specs share it; src already reaches into tests/ for room-mesh and fixtures.
 import { travelProgress } from "../tests/lib/travel";
 import { stations } from "./content";
 import { crts, panelPoint } from "./crts";
 import { squareStop } from "./stop";
 
 const GAP = 9;
+/** The tour in a window of the given aspect and height (1280 x 800 unless said), reduced motion off unless said. */
+const tourAt = (p: number, gap: number, aspect = 1280 / 800, height = 800, reduced = false) =>
+  tourAtView(p, gap, { width: aspect * height, height, reduced });
 const readings = stations.map((s) => s.reading);
 
 describe("tour", () => {
@@ -290,6 +295,7 @@ describe("entrance framing", () => {
 
 // --- mouse parallax: a slight sideways shift at every stop, never a zoom (ticket 29 review) ---
 import { parallax, parallaxStrength } from "./tour";
+const DESKTOP = 1280 / 800;
 
 /** The meter on screen at the entrance, with the pointer at (`x`, `y`). */
 function meterWithPointer(x: number, y: number, w: number, h: number) {
@@ -343,27 +349,31 @@ describe("mouse parallax", () => {
 });
 
 describe("parallax near a stop", () => {
+  it("stays full on a portrait window, even inside a hold", () => {
+    expect(parallaxStrength(progressFor(1), 390 / 780)).toBe(1);
+    expect(parallaxStrength(progressFor(1), DESKTOP)).toBe(0);
+  });
   it("is gone for the whole of every hold", () => {
     for (let i = 1; i <= STATION_COUNT; i++) {
       const [a, b] = holdSpan(i);
-      for (let k = 0; k <= 20; k++) expect(parallaxStrength(a + ((b - a) * k) / 20), `stop ${i}`).toBe(0);
+      for (let k = 0; k <= 20; k++) expect(parallaxStrength(a + ((b - a) * k) / 20, DESKTOP), `stop ${i}`).toBe(0);
     }
   });
   it("is full at the entrance and halfway through every travel", () => {
-    expect(parallaxStrength(0)).toBe(1);
-    for (let i = 1; i < STATION_COUNT; i++) expect(parallaxStrength((holdSpan(i)[1] + holdSpan(i + 1)[0]) / 2)).toBe(1);
+    expect(parallaxStrength(0, DESKTOP)).toBe(1);
+    for (let i = 1; i < STATION_COUNT; i++) expect(parallaxStrength((holdSpan(i)[1] + holdSpan(i + 1)[0]) / 2, DESKTOP)).toBe(1);
   });
   it("fades in between, without a jump, as the camera leaves a stop", () => {
     const [, end] = holdSpan(1);
     let prev = 0;
     for (let k = 1; k <= 100; k++) {
-      const s = parallaxStrength(end + (k / 200) * (holdSpan(2)[0] - end));
+      const s = parallaxStrength(end + (k / 200) * (holdSpan(2)[0] - end), DESKTOP);
       expect(s).toBeGreaterThanOrEqual(prev);
       expect(s - prev).toBeLessThan(0.1);
       prev = s;
     }
-    expect(parallaxStrength(end + 0.03)).toBeGreaterThan(0);
-    expect(parallaxStrength(end + 0.03)).toBeLessThan(1);
+    expect(parallaxStrength(end + 0.03, DESKTOP)).toBeGreaterThan(0);
+    expect(parallaxStrength(end + 0.03, DESKTOP)).toBeLessThan(1);
   });
   it("starts only once the text has faded away, so flat text never sits over tilting glass", () => {
     for (let i = 1; i < STATION_COUNT; i++) {
@@ -371,7 +381,7 @@ describe("parallax near a stop", () => {
       for (let k = 0; k <= 400; k++) {
         const p = end + ((start - end) * k) / 400; // leaving station i, and arriving at i + 1
         const leaving = panelStrength(p, i) >= PANEL_SHOWN, arriving = panelStrength(p, i + 1) >= PANEL_SHOWN;
-        if (leaving || arriving) expect(parallaxStrength(p), `p=${p}`).toBe(0);
+        if (leaving || arriving) expect(parallaxStrength(p, DESKTOP), `p=${p}`).toBe(0);
       }
     }
   });
@@ -387,15 +397,16 @@ describe("parallax strength", () => {
 });
 
 // --- arcs between stations: the camera pulls back through the room on one curve (ticket 51) ---
-import { ARCS } from "./crts";
+import { ARCS, glassCorners } from "./crts";
 import { nearestSurface } from "../tests/lib/room-mesh";
 type V3 = [number, number, number];
 
-// The camera must stay CLEAR metres from every surface in the baked room (the near plane is 0.1 m, react-three-fiber's
-// default, so a closer surface would be clipped). The surfaces are the room's real triangles, read from the committed
+// The camera must stay CLEAR metres from every surface in the baked room. The near plane is 0.1 m
+// (react-three-fiber's default), so a closer surface would be clipped; CLEAR keeps half that again
+// as margin, so a surface is never right at the edge of clipping. The surfaces are the room's real triangles, read from the committed
 // room.glb, so there is no second list of props to keep in step with tools/room/build.py: add a
 // prop near an arc, re-bake, and this fails if the camera would pass through it.
-const CLEAR = 0.1;
+const CLEAR = 0.15;
 const ROOM = { min: [-1.9, 0, -1.9], max: [1.9, 2.5, 1.9] };
 
 /** Why the camera at `c` is in the way of something, or null. */
@@ -432,9 +443,8 @@ describe("arcs between stations", () => {
     for (let k = 0; k <= n; k++) fn(tourAt(a + ((b - a) * k) / n, GAP, aspect));
   };
 
-  it("has one wide view for each of the five legs", () => {
-    expect(ARCS.length).toBe(5);
-    expect(STATION_COUNT - 1).toBe(5);
+  it("has one wide view for each leg between stations", () => {
+    expect(ARCS.length).toBe(STATION_COUNT - 1);
   });
   it("shows a wide view of the room at the midpoint of every leg", () => {
     for (const i of legs) {
@@ -448,7 +458,7 @@ describe("arcs between stations", () => {
       for (const crt of [crts[i - 1], crts[i]]) {
         const cam = new PerspectiveCamera(CAMERA_FOV, 16 / 10, 0.05, 50);
         cam.position.set(...t.camera); cam.lookAt(...t.look); cam.updateMatrixWorld();
-        const [l, r] = [-1, 1].map((s) => new Vector3(crt.screen[0] + s * 0.23 * Math.cos((crt.yaw * Math.PI) / 180), crt.screen[1], crt.screen[2] - s * 0.23 * Math.sin((crt.yaw * Math.PI) / 180)).project(cam));
+        const [l, r] = glassCorners(crt).filter((_, k) => k % 2 === 0).map((c) => new Vector3(...c).project(cam)); // the glass's left and right edges
         expect(Math.max(l.z, r.z), `${crt.id} is in front of the camera on leg ${i}`).toBeLessThan(1);
         expect(Math.abs(r.x - l.x) * 640, `${crt.id} on leg ${i}`).toBeLessThan(1280 * 0.21);
       }
@@ -526,7 +536,7 @@ describe("reduced motion", () => {
   it("differs from the arcs mid-travel, which are unchanged by default", () => {
     const p = (holdSpan(1)[1] + holdSpan(2)[0]) / 2;
     expect(on(p).camera).not.toEqual(tourAt(p, GAP).camera);
-    expect(tourAt(p, GAP, 16 / 9, 800, false)).toEqual(tourAt(p, GAP));
+    expect(tourAt(p, GAP, 16 / 9, 800, false)).toEqual(tourAt(p, GAP, 16 / 9, 800));
   });
 });
 

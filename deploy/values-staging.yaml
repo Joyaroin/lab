@@ -1,7 +1,7 @@
 # Written by the release workflow on each merge.
 nodeName: hermit
 image:
-  tag: "0a143e05616aea3df67e5ce5a946b86126249383"
+  tag: "89a8d5072aac625bc8f0109f27a7447ed4bc175a"
 tailnet:
   enabled: true
   hostname: lab-staging

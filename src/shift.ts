@@ -6,9 +6,12 @@ export type { ShiftKind } from "./nixie";
 import { SHIFT_SECONDS, type ShiftKind } from "./nixie";
 import { TEAR_POSES } from "./tear";
 
-/** How long the visitor must stay inside a hold before the shift fires, so scrolling quickly
- *  through a station doesn't trigger it. */
-export const DWELL_MS = 250;
+/** The wait: how long the visitor must stay inside a hold before the shift fires, so scrolling
+ *  quickly through a station doesn't trigger it. */
+export const WAIT_MS = 250;
+
+/** A shift that is playing, as the views are told of it. `id` changes for each new one. */
+export type Play = { kind: ShiftKind; id: number };
 
 const stationAt = (progress: number) => {
   for (let i = 1; i <= STATION_COUNT; i++) {
@@ -22,14 +25,20 @@ const stationAt = (progress: number) => {
  *  frame comes late. */
 export const SNAP_BACK_MS = 40;
 
-/** The most sudden changes (a jump in the view) in any one second. A shift held back by this still shows its text. */
+/** The most sudden changes (a jump in the view) in any window of a little over a second (see
+ *  FRAME_ALLOWANCE_MS). A shift held back by this still shows its text. */
 export const MAX_CHANGES_PER_SECOND = 3;
 
 /** Changes are drawn on the next frame, so two of them can land closer together than they were booked
  *  (a late start, an early next one). Every check counts over this much more than a second, so the
  *  real gaps still hold the limit on a slow device. One place for tears and page turns alike. */
-export const FRAME_ALLOWANCE_MS = 100;
+const FRAME_ALLOWANCE_MS = 100;
 const WINDOW_MS = 1000 + FRAME_ALLOWANCE_MS;
+
+/** The most changes (times in ms) in any window of `windowMs` that starts at one of them. This is the
+ *  one place the count is written: the tracker, the unit tests and the browser tests all use it. */
+export const busiestWindow = (times: number[], windowMs = 1000) =>
+  Math.max(0, ...times.map((a) => times.filter((b) => b >= a && b < a + windowMs).length));
 
 /** When a shift's tear jumps the view, in ms after it starts: the tear starting, each re-cut of the
  *  bands, and the snap back. The tear and this list both come from TEAR_POSES and SHIFT_SECONDS. */
@@ -38,14 +47,11 @@ export const changeOffsets = (kind: ShiftKind): number[] => {
   return [0, ...Array.from({ length: poses - 1 }, (_, k) => ((k + 1) / poses) * len), len + SNAP_BACK_MS];
 };
 
-/** Book `kind`'s changes from `nowMs` among the `booked` ones: the new list of booked changes (old ones
- *  dropped) and the plan, or null if some window would then hold more than the limit. */
-const book = (booked: number[], kind: ShiftKind, nowMs: number) => {
-  const kept = booked.filter((c) => c > nowMs - WINDOW_MS); // an older change can't share a window with a new one
-  const plan = changeOffsets(kind).map((o) => nowMs + o), all = [...kept, ...plan];
-  const fits = all.every((a) => all.filter((b) => b >= a && b < a + WINDOW_MS).length <= MAX_CHANGES_PER_SECOND);
-  return { kept, plan, fits };
-};
+/** How long after a full tear starts its text may show: the tear, then a moment for the snap back. */
+const fullTearMs = SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS;
+
+/** A booked change. Objects, so a plan is found again by identity, never by its time. */
+type Change = { at: number };
 
 /** What the room needs from the tracker: may station `i`'s text show at this progress and time. */
 export type TextGate = {
@@ -59,15 +65,33 @@ export type TextGate = {
  *  shift and its text shows). `quietUntil`: a time (ms) before which no shift starts, the meter's
  *  power-on; a visitor still in the hold afterwards gets it then.
  *
- *  Call `observe` on every scroll, and again `DWELL_MS` after the last one (the visitor may have
+ *  Call `observe` on every scroll, and again `WAIT_MS` after the last one (the visitor may have
  *  stopped). It returns the shift to play now, or null. `ready` says whether a station's text may
  *  show: on a first visit it is held back until the full tear ends, so it resolves out of it; on a
- *  return it shows as soon as the dwell ends and the flick plays over it. */
+ *  return it shows as soon as the wait ends and the flick plays over it. */
 export function createShifts(reduced = false, { startProgress = 0, quietUntil = 0 } = {}) {
   const visited = new Set<number>();
   const revealed = new Set<number>(); // stations whose text is out, until the visitor has left
   const resolving = new Set<number>(); // stations whose text is held for a full tear
-  let changes: number[] = [], lastPlan: number[] = []; // times (ms) of sudden changes, pending ones included
+  // Booked changes, pending ones included, and the last plan booked for each kind of play (the whole
+  // view's tear, a page turn's flick) so it can be re-timed when the view really draws it.
+  let changes: Change[] = [];
+  const plans = { whole: [] as Change[], page: [] as Change[] };
+  const plan = (kind: ShiftKind, nowMs: number): Change[] => changeOffsets(kind).map((o) => ({ at: nowMs + o }));
+  /** Books `kind` from `nowMs` if no window would then hold more than the limit; false if it doesn't fit. */
+  const book = (slot: keyof typeof plans, kind: ShiftKind, nowMs: number): boolean => {
+    const kept = changes.filter((c) => c.at > nowMs - WINDOW_MS); // an older change can't share a window with a new one
+    const added = plan(kind, nowMs);
+    changes = kept;
+    if (busiestWindow([...kept, ...added].map((c) => c.at), WINDOW_MS) > MAX_CHANGES_PER_SECOND) return false;
+    changes.push(...added); plans[slot] = added;
+    return true;
+  };
+  /** The play really began at `nowMs` (drawn a frame or more after it was booked): count from there. */
+  const rebook = (slot: keyof typeof plans, kind: ShiftKind, nowMs: number) => {
+    const added = plan(kind, nowMs);
+    changes = changes.filter((c) => !plans[slot].includes(c)); changes.push(...added); plans[slot] = added;
+  };
   let at = stationAt(startProgress), since = 0, fired = at !== 0, readyAt = 0;
   if (at) revealed.add(at);
   return {
@@ -76,39 +100,32 @@ export function createShifts(reduced = false, { startProgress = 0, quietUntil = 
     observe(progress: number, nowMs: number): ShiftKind | null {
       const here = stationAt(progress);
       if (here !== at) { at = here; since = nowMs; fired = false; }
-      if (reduced || here === 0 || fired || nowMs - since < DWELL_MS || nowMs < quietUntil) return null;
+      if (reduced || here === 0 || fired || nowMs - since < WAIT_MS || nowMs < quietUntil) return null;
       fired = true;
       const kind = visited.has(here) ? "short" : "full";
-      const { kept, plan, fits } = book(changes, kind, nowMs);
-      changes = kept;
-      if (!fits) { readyAt = nowMs; return null; }
-      changes.push(...plan); lastPlan = plan;
+      if (!book("whole", kind, nowMs)) { readyAt = nowMs; return null; }
       visited.add(here);
-      if (kind === "full") { resolving.add(here); readyAt = nowMs + SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS; }
+      if (kind === "full") { resolving.add(here); readyAt = nowMs + fullTearMs; }
       else { resolving.delete(here); readyAt = nowMs; } // a return: the text shows now, and the flick plays over it
       return kind;
     },
-    /** The page put the visitor in this hold itself (it restored the scroll position after a
-     *  reload): that is not an arrival, so no shift, and the text shows. */
     /** The tear actually began (the view is drawn a moment after the shift fires, more on a slow
-     *  device): the text follows `kind`'s length after that, never before the tear is over. */
+     *  device): its changes count from here, and the text follows `kind`'s length after that, never
+     *  before the tear is over. */
     tearStarted(kind: ShiftKind, nowMs: number) {
-      // the tear's jumps are from here, not from when it fired
-      const plan = changeOffsets(kind).map((o) => nowMs + o);
-      changes = changes.filter((c) => !lastPlan.includes(c)).concat(plan); lastPlan = plan;
-      if (kind === "full") readyAt = Math.max(readyAt, nowMs + SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS);
+      rebook("whole", kind, nowMs);
+      if (kind === "full") readyAt = Math.max(readyAt, nowMs + fullTearMs);
     },
     /** A Work page turn asks for the short flick on that TV. It plays unless reduced motion is on or
      *  it would put more than the limit of sudden changes in a second (quick clicks): the page turns
      *  either way. */
     turn(nowMs: number): boolean {
-      if (reduced) return false;
-      const { kept, plan, fits } = book(changes, "short", nowMs);
-      changes = kept;
-      if (!fits) return false;
-      changes.push(...plan);
-      return true;
+      return !reduced && book("page", "short", nowMs);
     },
+    /** The flick on the Work TV really began at `nowMs`: its changes count from here. */
+    turnStarted(nowMs: number) { rebook("page", "short", nowMs); },
+    /** The page put the visitor in this hold itself (it restored the scroll position after a
+     *  reload): that is not an arrival, so no shift, and the text shows. */
     restore(progress: number) {
       at = stationAt(progress);
       fired = at !== 0;

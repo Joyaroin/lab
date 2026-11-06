@@ -1,18 +1,28 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
-import { POWER_ON_SECONDS, SHIFT_SECONDS, type MeterLink } from "./nixie";
-import { Tear } from "./TearView";
+import { POWER_ON_SECONDS, SHIFT_SECONDS, setMeterShift, type MeterLink } from "./nixie";
+import { Tear, type PageTurn } from "./TearView";
 import { stations } from "./content";
 import { Hud } from "./Hud";
 import { ScreenPanels } from "./ScreenPanels";
 import { Meter } from "./Meter";
 import { formatReading, gapLabel, type Gap } from "./gap";
 import { pendingDeploys } from "./useGap";
-import { createShifts, DWELL_MS, SNAP_BACK_MS, type ShiftKind, type TextGate } from "./shift";
+import { createShifts, WAIT_MS, SNAP_BACK_MS, type Play, type ShiftKind, type TextGate } from "./shift";
 import { progressFor, STATION_COUNT, tourAt } from "./tour";
 
 // Page height in screens: how much scrolling the tour takes. 9 screens is 8 of scrolling, about
 // 0.8 of a screen per stretch of travel, plus half a screen of hold at each station.
 const SCROLL_SCREENS = 9;
+
+/** Timers are set a little past the moment they wait for (and a late timer is no problem), so that
+ *  when one fires the moment has really come: the wait is over, the tear has snapped back. */
+const TIMER_SLACK_MS = 30;
+
+/** After a reload the browser puts the scroll position back once the page is tall enough, which is
+ *  just after the tour mounts. The first move off the top within this long counts as that restore,
+ *  not an arrival. Long, because a slow device restores late; the cost is that a visitor who jumps
+ *  into a hold within this long of a reload gets no shift there, which is harmless. */
+const RESTORE_WINDOW_MS = 5000;
 
 export const prefersReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -30,17 +40,19 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
   const [reduced] = useState(prefersReducedMotion);
   const [quietUntil] = useState(() => performance.now() + POWER_ON_SECONDS * 1000);
   const [shifts] = useState(() => createShifts(reduced, { startProgress: scrollProgress(), quietUntil }));
-  const [barShift, setBarShift] = useState<{ kind: ShiftKind; id: number } | null>(null);
+  const [barShift, setBarShift] = useState<Play | null>(null);
   // The tear is kept apart from the bar's shift: leaving mid-shift ends the bar's, but the tear plays
   // out its own length, so its snap back is always where the flash limit counted it.
-  const [tearShift, setTearShift] = useState<{ kind: ShiftKind; id: number } | null>(null);
+  const [tearShift, setTearShift] = useState<Play | null>(null);
 
   // A Work page turn's flick, on that TV's screen only. The page turns whether or not it plays.
-  const [turn, setTurn] = useState<{ el: HTMLElement; id: number } | null>(null);
+  const [turn, setTurn] = useState<PageTurn | null>(null);
   const turnId = useRef(0);
   const pageTurned = useCallback((el: HTMLElement) => {
     if (shifts.turn(performance.now())) setTurn({ el, id: ++turnId.current });
   }, [shifts]);
+
+  const turnStarted = useCallback((nowMs: number) => shifts.turnStarted(nowMs), [shifts]);
 
   // The tear starts a frame or more after the shift fires (later on a slow device), and the text
   // follows once it is over: say when it began, and ask the room for a frame to show the text.
@@ -49,7 +61,7 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
     shifts.tearStarted(kind, nowMs);
     clearTimeout(tearTimer.current);
     if (kind === "short") return; // a return's text is already showing
-    tearTimer.current = window.setTimeout(() => meter.redraw?.(), SHIFT_SECONDS[kind] * 1000 + SNAP_BACK_MS + 30);
+    tearTimer.current = window.setTimeout(() => meter.redraw?.(), SHIFT_SECONDS[kind] * 1000 + SNAP_BACK_MS + TIMER_SLACK_MS);
   }, [shifts, meter]);
   useEffect(() => () => clearTimeout(tearTimer.current), []);
 
@@ -63,7 +75,7 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
     let active: number | null = null; // the station whose shift is playing
     const stop = () => {
       active = null;
-      meter.shift = null; meter.shiftAt = null;
+      setMeterShift(meter, null);
       setBarShift(null);
     };
     const check = () => {
@@ -73,8 +85,8 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
       if (active !== null && shifts.station !== active) stop();
       if (kind) {
         active = shifts.station;
-        meter.shift = kind; meter.shiftAt = null;
-        const next = { kind, id: ++id };
+        setMeterShift(meter, kind);
+        const next: Play = { kind, id: ++id };
         setBarShift(next); setTearShift(next);
       }
       meter.redraw?.(); // the text's gate may have opened
@@ -88,11 +100,11 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
       progress.current = scrollProgress(); setP(progress.current);
       if (restoring && progress.current > 0) { // the first move off the top, soon after mounting
         restoring = false;
-        if (performance.now() - mountedAt < 5000) shifts.restore(progress.current);
+        if (performance.now() - mountedAt < RESTORE_WINDOW_MS) shifts.restore(progress.current);
       }
       check();
       clearTimeout(timer); // the visitor may have stopped
-      timer = window.setTimeout(check, Math.max(DWELL_MS, quietUntil - performance.now()) + 20);
+      timer = window.setTimeout(check, Math.max(WAIT_MS, quietUntil - performance.now()) + TIMER_SLACK_MS);
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -106,7 +118,7 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
   }, []);
 
   const deploys = gap ? gap.deploys : pendingDeploys;
-  const t = tourAt(p, deploys);
+  const t = tourAt(p, deploys, { width: window.innerWidth, height: window.innerHeight });
   const label = gap ? gapLabel(gap) : "reading prod and staging…";
   const next = t.station >= STATION_COUNT ? 0 : t.station + 1;
   const digits = formatReading(Math.round(t.reading));
@@ -116,7 +128,7 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
   return (
     <>
       <div aria-hidden style={{ height: `${SCROLL_SCREENS * 100}vh` }} />
-      <Tear shift={tearShift} turn={turn} reduced={reduced} onStart={tearStarted} />
+      <Tear shift={tearShift} turn={turn} reduced={reduced} onStart={tearStarted} onTurnStart={turnStarted} />
       <ScreenPanels onTurn={pageTurned} />
       <Hud current={t.station} onJump={jump} />
       <div style={{ position: "fixed", left: 0, right: 0, bottom: "1rem", zIndex: 10, display: "flex", justifyContent: "center", pointerEvents: "none" }}>

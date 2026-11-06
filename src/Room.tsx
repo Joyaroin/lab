@@ -3,7 +3,7 @@ import { Suspense, useEffect, useMemo, type MutableRefObject } from "react";
 import { MeshBasicMaterial, Vector3, type Mesh, type MeshStandardMaterial } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import roomUrl from "./assets/room.glb?url";
-import { CAMERA_FOV, crts, ENTRANCE, glassEdge, isPortrait, panelPoint } from "./crts";
+import { CAMERA_FOV, crts, ENTRANCE, glassEdge, panelPoint } from "./crts";
 import { glassBox } from "./glass";
 import { fitPanel, glassFontSize } from "./pin";
 import { holdSpan } from "./hold";
@@ -14,7 +14,7 @@ import type { TextGate } from "./shift";
 import { markMore } from "./ScreenPanels";
 
 // Pins each station's HTML panel (a DOM element with data-screen="<id>") to its real CRT in the
-// baked room: every frame it projects the CRT's panel point (room-layout.json, via crts.ts) into
+// baked room: every frame it projects the CRT's panel point (the CRT's place in room-layout.json, via crts.ts) into
 // the window and places the panel there (on a phone, the station's phone pin if it has one), as
 // wide as the CRT looks, kept inside the window by fitPanel. The text stays real HTML, so it is
 // sharp at any size, selectable, and its links work. Only the current station's panel is shown.
@@ -27,9 +27,9 @@ function ScreenPins({ progress, gate }: { progress: MutableRefObject<number>; ga
     crts.forEach((crt, k) => {
       const el = document.querySelector<HTMLElement>(`[data-screen="${crt.id}"]`);
       if (!el) return;
-      // Full for the whole hold. Held back (but still in the page, for readers, selection and search)
+      // Full for the whole hold. Held back (but still in the page, for readers and selection)
       // from arrival until the shift ends, then (first visit) it resolves out of the effect. A return's
-      // text shows when the dwell ends and the flick plays over it.
+      // text shows when the wait ends and the flick plays over it.
       const strength = panelStrength(progress.current, k + 1);
       const out = gate.ready(k + 1, progress.current, performance.now());
       if (out && el.dataset.gated === "true") { // only a first visit's text resolves; a return's just appears
@@ -119,10 +119,10 @@ function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; 
     return () => { window.removeEventListener("scroll", redraw); window.removeEventListener("pointermove", redraw); };
   }, [invalidate]);
   useFrame(({ gl, camera, pointer, size }, dt) => {
-    const { camera: target, look } = tourAt(progress.current, 0, size.width / size.height, size.height, reduced);
+    const { camera: target, look } = tourAt(progress.current, 0, { width: size.width, height: size.height, reduced });
     // dt is large after an idle spell, so cap it: the first frame of a move still eases.
     const k = reduced ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 6);
-    const [px, py, pz] = reduced ? [0, 0, 0] : parallax(target, look, pointer, isPortrait(size.width / size.height) ? 1 : parallaxStrength(progress.current)); // phones are unchanged
+    const [px, py, pz] = reduced ? [0, 0, 0] : parallax(target, look, pointer, parallaxStrength(progress.current, size.width / size.height));
     const dx = target[0] + px - camera.position.x, dy = target[1] + py - camera.position.y, dz = target[2] + pz - camera.position.z;
     camera.position.x += dx * k;
     camera.position.y += dy * k;

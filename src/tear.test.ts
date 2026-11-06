@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tearAt, TEAR_POSES, TEAR_SLIP } from "./tear";
+import { tearAt, TEAR_POSES, TEAR_SEEDS, TEAR_SLIP } from "./tear";
 import { SHIFT_SECONDS } from "./nixie";
 
 const run = (kind: "full" | "short") => Array.from({ length: 201 }, (_, k) => tearAt((k / 200) * SHIFT_SECONDS[kind], kind));
@@ -32,6 +32,8 @@ describe("the tear", () => {
       return poses.filter((p, i) => i > 0 && p !== poses[i - 1]).length;
     };
     expect(TEAR_POSES).toEqual({ full: 2, short: 1 });
+    for (const kind of ["full", "short"] as const) expect(TEAR_SEEDS[kind]).toHaveLength(TEAR_POSES[kind]); // a seed for each pose
+    expect(new Set(TEAR_SEEDS.full).size).toBe(TEAR_SEEDS.full.length); // and the re-cut is a different cut
     expect(recuts("full")).toBe(1);
     expect(recuts("short")).toBe(0);
   });

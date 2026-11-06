@@ -7,8 +7,9 @@
 One small late-night home lab, modelled from primitives here so it is original (ADR-0002). The
 only light comes from things in the room: CRTs, the nixie meter, machine LEDs, a bench lamp and
 the city through the window. Lighting is baked into a few texture atlases (ADR-0004), one per
-group of surfaces, so close-up props get more texels than the walls. Where each CRT sits, and
-where the camera stops to face it, comes from src/room-layout.json, shared with the site.
+group of surfaces, so close-up props get more texels than the walls. Where each CRT sits comes
+from src/room-layout.json, shared with the site. The desktop camera stops are not in that file: the
+site works them out in src/stop.ts. The file's camera views serve phones and --preview.
 """
 import argparse, json, math, os, random, sys, time
 import bpy

@@ -1,8 +1,11 @@
 // The one list of CRTs in the baked room, shared by the tour and the screen panels. For each
-// station: where its CRT screen is, which way it faces, and where the camera stops to face it.
+// station: where its CRT screen is, which way it faces, and the camera views the layout holds for it
+// (used on phones and by build.py's --preview; the desktop stops come from stop.ts, not the layout).
 // The numbers live in room-layout.json, which tools/room/build.py also reads to place the CRTs,
-// so the room and the tour can't drift apart. Change them there, then re-bake (`make room`).
+// so the room and the tour can't drift apart. Change a CRT's place there, then re-bake (`make room`).
 // Positions are in site axes: x across, y up, +z toward the room's door.
+// `with { type: "json" }` so a Playwright test can import this file (and tour.ts) in plain Node,
+// which refuses a JSON import without it. useGap.ts imports its JSON bare: only Vite loads that one.
 import layout from "./room-layout.json" with { type: "json" };
 
 type V3 = [number, number, number];
@@ -19,11 +22,12 @@ type LayoutCrt = {
   phone?: { camera: number[]; look: number[]; panel?: number[] };
 };
 
-/** The glass on every CRT, in metres. */
 /** Where the maker's plate and the sticky note sit on a TV's bezel: metres right of and up from the
- *  glass centre. The note's spot is the baked note's (tools/room/build.py), which it covers. */
+ *  glass centre. The note sits near the baked note's spot (tools/room/build.py): it covers the part
+ *  left of the glass, and the glass hides the rest (see Effects.tsx). */
 export const PLATE_AT = [-0.2, -0.21] as const;
 export const NOTE_AT = [-0.258, 0.149] as const;
+/** The glass on every CRT, in metres. */
 export const CRT_GLASS = { width: 0.46, height: 0.36 };
 
 const v3 = (a: number[]): V3 => [a[0], a[1], a[2]];

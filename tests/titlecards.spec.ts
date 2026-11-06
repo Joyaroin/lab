@@ -26,7 +26,7 @@ const INTO_TRAVEL = 0.8;
 const GRID = { w: 64, h: 50 };
 
 /** The tour's camera at progress `p`, on the path the page flies with normal motion. */
-const viewAt = (p: number) => tourAt(p, 0, size.width / size.height, size.height);
+const viewAt = (p: number) => tourAt(p, 0, size);
 
 /** Scrolls to `p` and waits until the camera has arrived there: it eases toward the scroll position,
  *  so the glass is only where the test works it out to be once the canvas reports that position. */

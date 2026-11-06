@@ -1,20 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { createShifts, DWELL_MS, changeOffsets, MAX_CHANGES_PER_SECOND, SNAP_BACK_MS } from "./shift";
+import { busiestWindow, createShifts, WAIT_MS, changeOffsets, MAX_CHANGES_PER_SECOND, SNAP_BACK_MS } from "./shift";
 import { SHIFT_SECONDS } from "./nixie";
 import { holdSpan, progressFor, STATION_COUNT } from "./hold";
 
 const mid = (i: number) => progressFor(i);
 const settle = (s: ReturnType<typeof createShifts>, p: number, t: number) => {
   s.observe(p, t);
-  return s.observe(p, t + DWELL_MS);
+  return s.observe(p, t + WAIT_MS);
 };
 
 describe("the shift", () => {
   it("fires in full on arrival inside a hold, once the visitor stays", () => {
     const s = createShifts();
     expect(s.observe(mid(1), 0)).toBeNull(); // just arrived: not yet
-    expect(s.observe(mid(1), DWELL_MS)).toBe("full");
-    expect(s.observe(mid(1), DWELL_MS * 5)).toBeNull(); // only once per arrival
+    expect(s.observe(mid(1), WAIT_MS)).toBe("full");
+    expect(s.observe(mid(1), WAIT_MS * 5)).toBeNull(); // only once per arrival
   });
   it("is short on a return to a visited station", () => {
     const s = createShifts();
@@ -33,8 +33,8 @@ describe("the shift", () => {
     for (let i = 1; i <= STATION_COUNT; i++) {
       const [a, b] = holdSpan(i);
       expect(s.observe(a + 1e-6, i * 1000)).toBeNull();
-      expect(s.observe(b - 1e-6, i * 1000 + DWELL_MS / 4)).toBeNull();
-      expect(s.observe(b + 0.02, i * 1000 + DWELL_MS / 2)).toBeNull();
+      expect(s.observe(b - 1e-6, i * 1000 + WAIT_MS / 4)).toBeNull();
+      expect(s.observe(b + 0.02, i * 1000 + WAIT_MS / 2)).toBeNull();
     }
     // and passing through didn't count as a visit
     expect(settle(s, mid(1), 20000)).toBe("full");
@@ -65,22 +65,21 @@ describe("limiting flashes", () => {
     for (let t = 0, k = 0; t < seconds * 1000; t += hopMs, k++) {
       const st = (k % STATION_COUNT) + 1;
       s.observe(mid(st), t);
-      const kind = s.observe(mid(st), t + DWELL_MS);
-      if (kind) changes.push(...changeOffsets(kind).map((o) => t + DWELL_MS + o));
+      const kind = s.observe(mid(st), t + WAIT_MS);
+      if (kind) changes.push(...changeOffsets(kind).map((o) => t + WAIT_MS + o));
     }
     return changes;
   };
-  const busiest = (changes: number[]) => Math.max(...changes.map((a) => changes.filter((b) => b >= a && b < a + 1000).length));
   it("counts the start, the re-cut and the snap back of a tear", () => {
     expect(changeOffsets("full")).toEqual([0, 400, 800 + SNAP_BACK_MS]);
     expect(changeOffsets("short")).toEqual([0, 250 + SNAP_BACK_MS]);
   });
   it("never holds more than 3 sudden changes in any second, across back-to-back tears", () => {
-    // hop between the stations just past the dwell for 20 s, so one tear follows another
-    for (const hop of [DWELL_MS + 10, 400, 600, 777]) {
+    // hop between the stations just past the wait for 20 s, so one tear follows another
+    for (const hop of [WAIT_MS + 10, 400, 600, 777]) {
       const changes = run(hop, 20);
       expect(changes.length).toBeGreaterThan(10); // it still fires when it can
-      expect(busiest(changes)).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
+      expect(busiestWindow(changes)).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
     }
   });
   it("holds a second tear back until its changes fit", () => {
@@ -93,7 +92,7 @@ describe("limiting flashes", () => {
   it("counts from when the tear really began, if the view drew it late", () => {
     const s = createShifts();
     expect(settle(s, mid(1), 0)).toBe("full"); // planned 250, 650, 1090
-    s.tearStarted("full", DWELL_MS + 300); // drawn late: 550, 950, 1390
+    s.tearStarted("full", WAIT_MS + 300); // drawn late: 550, 950, 1390
     // Fired at 1100 it changes at 1100, 1500 and 1540. On the planned times that fits (650, 1090, 1100 and
     // 1090, 1100, 1500 are 3 each); on the drawn times 950, 1100, 1390, 1500 is 4 in a second.
     expect(settle(s, mid(2), 850)).toBeNull();
@@ -102,7 +101,7 @@ describe("limiting flashes", () => {
     const s = createShifts();
     expect(settle(s, mid(1), 0)).toBe("full");
     expect(settle(s, mid(2), 300)).toBeNull();
-    expect(s.ready(2, mid(2), 300 + DWELL_MS)).toBe(true);
+    expect(s.ready(2, mid(2), 300 + WAIT_MS)).toBe(true);
     expect(s.resolves(2)).toBe(false); // and it just appears
     s.observe(0, 3000); // away, then back
     expect(settle(s, mid(2), 5000)).toBe("full"); // later, still a first visit
@@ -114,48 +113,48 @@ describe("text resolving out of the shift", () => {
     const s = createShifts();
     s.observe(mid(1), 0);
     expect(s.ready(1, mid(1), 10)).toBe(false);
-    expect(s.observe(mid(1), DWELL_MS)).toBe("full");
-    const end = DWELL_MS + SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS; // after the tear has snapped back
+    expect(s.observe(mid(1), WAIT_MS)).toBe("full");
+    const end = WAIT_MS + SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS; // after the tear has snapped back
     expect(s.ready(1, mid(1), end - 1)).toBe(false);
     expect(s.ready(1, mid(1), end)).toBe(true);
   });
   it("waits for a tear that began late, such as on a slow device", () => {
     const s = createShifts();
     s.observe(mid(1), 0);
-    expect(s.observe(mid(1), DWELL_MS)).toBe("full");
-    s.tearStarted("full", DWELL_MS + 300); // the view drew it 300 ms after it fired
-    const end = DWELL_MS + 300 + SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS;
+    expect(s.observe(mid(1), WAIT_MS)).toBe("full");
+    s.tearStarted("full", WAIT_MS + 300); // the view drew it 300 ms after it fired
+    const end = WAIT_MS + 300 + SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS;
     expect(s.ready(1, mid(1), end - 1)).toBe(false);
     expect(s.ready(1, mid(1), end)).toBe(true);
   });
-  it("shows at once when the dwell ends on a return, without resolving; a first visit resolves", () => {
+  it("shows at once when the wait ends on a return, without resolving; a first visit resolves", () => {
     const s = createShifts();
     settle(s, mid(1), 0);
     expect(s.resolves(1)).toBe(true);
     s.observe(0, 5000);
     s.ready(1, 0, 5000); // the room sees the text go
     s.observe(mid(1), 6000);
-    expect(s.ready(1, mid(1), 6000 + DWELL_MS - 1)).toBe(false); // still waiting
-    expect(s.observe(mid(1), 6000 + DWELL_MS)).toBe("short");
-    expect(s.ready(1, mid(1), 6000 + DWELL_MS)).toBe(true);
+    expect(s.ready(1, mid(1), 6000 + WAIT_MS - 1)).toBe(false); // still waiting
+    expect(s.observe(mid(1), 6000 + WAIT_MS)).toBe("short");
+    expect(s.ready(1, mid(1), 6000 + WAIT_MS)).toBe(true);
     expect(s.resolves(1)).toBe(false);
-    s.tearStarted("short", 6000 + DWELL_MS + 200); // the flick drawn late does not hold the text
-    expect(s.ready(1, mid(1), 6000 + DWELL_MS)).toBe(true);
+    s.tearStarted("short", 6000 + WAIT_MS + 200); // the flick drawn late does not hold the text
+    expect(s.ready(1, mid(1), 6000 + WAIT_MS)).toBe(true);
   });
   it("is readable about a second after arrival on a first visit, and about 0.3 s on a return", () => {
     const s = createShifts();
     s.observe(mid(1), 0);
-    s.observe(mid(1), DWELL_MS);
+    s.observe(mid(1), WAIT_MS);
     let first = 0;
     while (!s.ready(1, mid(1), first)) first++;
     expect(first).toBeLessThanOrEqual(1200);
     s.observe(0, 5000);
     s.ready(1, 0, 5000); // the room sees the text go
     s.observe(mid(1), 6000);
-    s.observe(mid(1), 6000 + DWELL_MS);
+    s.observe(mid(1), 6000 + WAIT_MS);
     let back = 6000;
     while (!s.ready(1, mid(1), back)) back++;
-    expect(back - 6000).toBe(DWELL_MS);
+    expect(back - 6000).toBe(WAIT_MS);
   });
   it("stays through the fade out on leaving, and is held back again on the next arrival", () => {
     const s = createShifts();
@@ -178,7 +177,7 @@ describe("the power-on and a reload", () => {
   it("waits for the power-on, then plays the shift if the visitor is still there", () => {
     const s = createShifts(false, { quietUntil: 1400 });
     s.observe(mid(1), 0);
-    expect(s.observe(mid(1), DWELL_MS)).toBeNull(); // the tubes are still warming up
+    expect(s.observe(mid(1), WAIT_MS)).toBeNull(); // the tubes are still warming up
     expect(s.observe(mid(1), 1399)).toBeNull();
     expect(s.observe(mid(1), 1400)).toBe("full");
   });
@@ -221,13 +220,21 @@ describe("a Work page turn", () => {
     expect(played.length).toBeGreaterThan(0);
     expect(played.length).toBeLessThan(40); // not every click
     const times = played.flatMap((t) => changeOffsets("short").map((o) => t + o));
-    for (const a of times) expect(times.filter((b) => b >= a && b < a + 1000).length).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
+    expect(busiestWindow(times)).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
   });
   it("holds a click 0.7 s after a flick back, because the snap back is drawn a frame late", () => {
     const s = createShifts();
     expect(s.turn(0)).toBe(true);
     expect(s.turn(710)).toBe(false); // 0, 290, 710, 1000 would be 4 in a second once drawn late
     expect(s.turn(1100)).toBe(true);
+  });
+  it("counts from when the flick really began, if the page drew it late", () => {
+    const s = createShifts();
+    expect(s.turn(0)).toBe(true); // booked 0 and 290
+    s.turnStarted(200); // drawn late: 200 and 490
+    // A click at 900 adds 900 and 1190. On the booked times (0, 290, 900) and (290, 900, 1190) that fits;
+    // on the drawn times 200, 490, 900 and 1190 are 4 in a window of 1100 ms.
+    expect(s.turn(900)).toBe(false);
   });
   it("counts against the flash limit with a tear that is already playing", () => {
     const s = createShifts();

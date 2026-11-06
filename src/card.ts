@@ -3,12 +3,17 @@
 // same code in a page to draw the card they expect to see (tests/titlecards.spec.ts).
 // (Effects.tsx explains where the cards go and when they show.)
 
+import type { Station } from "./content";
+
 /** The size the screen is drawn at. */
 export const CARD_PX = { width: 640, height: 500 };
 
+/** The card's font size, as a share of the screen's height (the world line's cap; the name's is larger). */
+const LINE_CAP = { worldLine: 1 / 8, name: 1 / 5 };
+
 export const MONO = '"DejaVu Sans Mono", ui-monospace, monospace';
 
-export function drawPhosphor(c: HTMLCanvasElement, card?: { worldLine: string; name: string }) {
+export function drawPhosphor(c: HTMLCanvasElement, card?: Pick<Station, "worldLine" | "name">) {
   const g = c.getContext("2d")!, w = c.width, h = c.height;
   g.fillStyle = "#020a05"; g.fillRect(0, 0, w, h);
   const glow = g.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w * 0.62);
@@ -19,15 +24,15 @@ export function drawPhosphor(c: HTMLCanvasElement, card?: { worldLine: string; n
     g.shadowColor = "rgba(90,255,150,0.9)"; g.shadowBlur = 8;
     g.fillStyle = "#7dffb0";
     // Each line is as large as fits inside the visible part of the glass, up to a cap.
-    const fit = (text: string, cap: number) => {
+    // The one place the font is set: it measures at the cap, then draws at the size that fits.
+    const line = (text: string, cap: number, y: number) => {
       g.font = `bold ${cap}px ${MONO}`;
       const wide = g.measureText(text).width;
-      return Math.floor(wide > w * 0.8 ? (cap * w * 0.8) / wide : cap);
+      const size = Math.floor(wide > w * 0.8 ? (cap * w * 0.8) / wide : cap);
+      g.font = `bold ${size}px ${MONO}`; g.fillText(text, w / 2, y);
     };
-    const small = fit(card.worldLine, h / 8);
-    g.font = `bold ${small}px ${MONO}`; g.fillText(card.worldLine, w / 2, h * 0.34);
-    const big = fit(card.name, h / 5);
-    g.font = `bold ${big}px ${MONO}`; g.fillText(card.name, w / 2, h * 0.56);
+    line(card.worldLine, h * LINE_CAP.worldLine, h * 0.34);
+    line(card.name, h * LINE_CAP.name, h * 0.56);
     g.shadowBlur = 0;
     g.fillRect(w * 0.15, h * 0.44, w * 0.7, Math.max(2, h / 120)); // rule between the lines
   }

@@ -1,9 +1,9 @@
 import { useFrame, useThree } from "@react-three/fiber";
-import { createRef, useEffect, useMemo, useRef } from "react";
+import { createRef, useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { AdditiveBlending, CanvasTexture, CylinderGeometry, DoubleSide, SRGBColorSpace, Vector3, type Camera, type Mesh, type MeshBasicMaterial } from "three";
 import { textOnGlass } from "./tour";
 import { crts, CRT_GLASS, DESK_METER, NOTE_AT, PLATE_AT, type Crt } from "./crts";
-import { powerOn, shiftDigits, type MeterLink } from "./nixie";
+import { powerOn, setMeterShift, shiftDigits, type MeterLink } from "./nixie";
 import { stations } from "./content";
 import { CARD_PX, MONO, drawPhosphor } from "./card";
 
@@ -119,9 +119,9 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
     let shifting = false;
     if (link.shift && !reduced && s.done) {
       if (link.shiftAt === null) link.shiftAt = clock.elapsedTime;
-      const sh = shiftDigits(clock.elapsedTime - link.shiftAt, link.digits, link.shift);
-      if (sh.done) { link.shift = null; link.shiftAt = null; } else { s.digits = sh.digits; shifting = true; }
-    } else if (link.shift && reduced) { link.shift = null; link.shiftAt = null; } // reduced motion: no shift, show the plain reading
+      const step = shiftDigits(clock.elapsedTime - link.shiftAt, link.digits, link.shift);
+      if (step.done) setMeterShift(link, null); else { s.digits = step.digits; shifting = true; }
+    } else if (link.shift && reduced) setMeterShift(link, null); // reduced motion: no shift, show the plain reading
     // (while the power-on is still running the shift stays pending and plays when it ends: the tour's
     // quiet period is timed from when the tour mounts, the power-on from the first frame after, which
     // on a slow device is later)
@@ -187,13 +187,19 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
 
 /** How much smaller than the glass the phosphor plane is, so it stays inside the bezel. */
 const PLANE_INSET = 0.012;
+/** How far in front of the baked glass the screen layer stands (metres). The bezel layer and its
+ *  edge are measured from this. */
+const SCREEN_LAYER = 0.0062;
+/** How far in front of the screen layer the bezel layer stands. */
+const BEZEL_GAP = 0.0016;
 
 function phosphorFrame(crt: Crt) {
-  const a = (crt.yaw * Math.PI) / 180, d = 0.0062; // just in front of the baked glass
+  const a = (crt.yaw * Math.PI) / 180, d = SCREEN_LAYER; // just in front of the baked glass
   return { position: [crt.screen[0] + Math.sin(a) * d, crt.screen[1], crt.screen[2] + Math.cos(a) * d] as const, yaw: a };
 }
 
-export function Phosphor({ progress }: { progress: { current: number } }) {
+export function Phosphor({ progress }: { progress: MutableRefObject<number> }) {
+  const invalidate = useThree((s) => s.invalidate);
   const screens = useMemo(() => crts.map((crt) => {
     const station = stations.find((s) => s.id === crt.id);
     const c = canvas(CARD_PX.width, CARD_PX.height);
@@ -201,13 +207,31 @@ export function Phosphor({ progress }: { progress: { current: number } }) {
     // the same glass with no card, shown while the station's own text is on it
     const clear = canvas(CARD_PX.width, CARD_PX.height);
     drawPhosphor(clear);
-    return { crt, t: texture(c), clear: texture(clear), mats: createRef<MeshBasicMaterial>(), mesh: createRef<Mesh>() };
+    return { crt, t: texture(c), clear: texture(clear), mat: createRef<MeshBasicMaterial>(), mesh: createRef<Mesh>() };
   }), []);
+  // Which screens show the clear glass now. The swap is done in a frame (below), so a change that
+  // needs one is noticed here and asked for: it must not depend on the camera happening to move.
+  const clearNow = useRef<boolean[]>([]);
+  useEffect(() => {
+    let queued = 0;
+    // Looks after the scroll handlers have run (they are what move `progress`), then asks for a frame.
+    const look = () => {
+      cancelAnimationFrame(queued);
+      queued = requestAnimationFrame(() => {
+        const aspect = window.innerWidth / window.innerHeight;
+        if (screens.some((_, k) => textOnGlass(progress.current, k + 1, aspect) !== !!clearNow.current[k])) invalidate();
+      });
+    };
+    window.addEventListener("scroll", look, { passive: true });
+    window.addEventListener("resize", look);
+    return () => { cancelAnimationFrame(queued); window.removeEventListener("scroll", look); window.removeEventListener("resize", look); };
+  }, [screens, progress, invalidate]);
   useFrame(({ size }) => {
     screens.forEach((s, k) => {
-      const m = s.mats.current, mesh = s.mesh.current;
+      const m = s.mat.current, mesh = s.mesh.current;
       if (!m || !mesh) return;
       const clear = textOnGlass(progress.current, k + 1, size.width / size.height);
+      clearNow.current[k] = clear;
       const map = clear ? s.clear : s.t;
       if (m.map !== map) { m.map = map; m.needsUpdate = true; }
       // While the text is on the glass, the plane runs out to the glass edge: otherwise the flat
@@ -218,12 +242,12 @@ export function Phosphor({ progress }: { progress: { current: number } }) {
   });
   return (
     <>
-      {screens.map(({ crt, t, mats, mesh }) => {
+      {screens.map(({ crt, t, mat, mesh }) => {
         const f = phosphorFrame(crt);
         return (
           <mesh key={crt.id} ref={mesh} position={[...f.position]} rotation={[0, f.yaw, 0]} raycast={() => null}>
             <planeGeometry args={[CRT_GLASS.width - PLANE_INSET, CRT_GLASS.height - PLANE_INSET]} />
-            <meshBasicMaterial ref={mats} map={t} toneMapped={false} />
+            <meshBasicMaterial ref={mat} map={t} toneMapped={false} />
           </mesh>
         );
       })}
@@ -237,16 +261,20 @@ export function Phosphor({ progress }: { progress: { current: number } }) {
 // station's `bezel` in the content module. No re-bake and no new asset: the textures are painted
 // here, so the cost is code, not megabytes.
 const BEZEL = { width: 0.58, height: 0.48 }; // the baked bezel's face, from tools/room/build.py
-/** How far the edge's opening sits inside the glass. The clear screen layer stands 6.2 mm in front
- *  of the glass, so it reaches a little past the glass onto the bezel: the edge stands 1.6 mm in
- *  front of it and starts inside the glass edge, so that overhang is covered when the TV is seen
- *  from a stop. (At a steep angle the 1.6 mm gap stops covering it, but the clear layer only
+/** How far the edge's opening sits inside the glass. The clear screen layer stands SCREEN_LAYER in
+ *  front of the glass, so it reaches a little past the glass onto the bezel: the edge stands
+ *  BEZEL_GAP in front of it and starts inside the glass edge, so that overhang is covered when the
+ *  TV is seen from a stop. (At a steep angle the gap stops covering it, but the clear layer only
  *  shows near a stop.) */
-export const EDGE_OVERLAP = 0.003;
+const EDGE_OVERLAP = 0.003;
 const EDGE_WIDTH = 0.006;
-// The note covers the baked one (build.py: 70 mm square, centred 0.24 m left and 0.15 m up, no tilt)
-// with a margin, so no baked note shows round it. It is a tall note, 56 x 82 mm.
+// The baked note (build.py) is a 70 mm square centred 0.24 m left of and 0.15 m above the glass
+// centre, behind the glass's front face. This one sits near it, 56 x 82 mm: it covers the part of the
+// baked note that lies left of the glass and the glass hides the part inside the glass edge. A strip
+// of a few mm above the glass's top edge, right of this note, is covered by neither (worked out from
+// build.py's numbers, not seen in a render).
 const NOTE_SIZE = { width: 0.056, height: 0.082 };
+const PLATE_SIZE = { width: 0.13, height: 0.028 };
 // One tilt per TV, all different (radians). Small enough that the corners still cover the baked note.
 const NOTE_TILTS = [-0.06, 0.02, 0.05, -0.03, 0.06, -0.01];
 const NOTE_COLOURS = ["#f4e27a", "#f2a6b8", "#9fd8f0", "#b9e59a", "#f7c68b", "#d3b8f0"];
@@ -273,7 +301,7 @@ function drawBezel(c: HTMLCanvasElement, bezel: { plate: string; note: string },
   g.strokeStyle = "rgba(0,0,0,0.6)"; g.lineWidth = Math.max(1, 0.0008 * m);
   g.beginPath(); roundRect(g, cx - hx, cy - hy, hx * 2, hy * 2, r); g.stroke();
   // the maker's plate, bottom left of the bezel
-  const pw = 0.13 * m, ph = 0.028 * m, px = cx + PLATE_AT[0] * m - pw / 2, py = cy - PLATE_AT[1] * m - ph / 2;
+  const pw = PLATE_SIZE.width * m, ph = PLATE_SIZE.height * m, px = cx + PLATE_AT[0] * m - pw / 2, py = cy - PLATE_AT[1] * m - ph / 2;
   const metal = g.createLinearGradient(0, py, 0, py + ph);
   metal.addColorStop(0, "#d9d6cc"); metal.addColorStop(0.5, "#a9a69b"); metal.addColorStop(1, "#c4c1b6");
   g.fillStyle = metal; g.beginPath(); roundRect(g, px, py, pw, ph, 0.003 * m); g.fill();
@@ -308,7 +336,7 @@ export function Bezels() {
   return (
     <>
       {bezels.map(({ crt, t }) => {
-        const a = (crt.yaw * Math.PI) / 180, d = 0.0078; // in front of the clear screen layer (6.2 mm)
+        const a = (crt.yaw * Math.PI) / 180, d = SCREEN_LAYER + BEZEL_GAP; // in front of the clear screen layer
         return (
           <mesh key={crt.id} position={[crt.screen[0] + Math.sin(a) * d, crt.screen[1], crt.screen[2] + Math.cos(a) * d]}
             rotation={[0, a, 0]} renderOrder={2} raycast={() => null}>

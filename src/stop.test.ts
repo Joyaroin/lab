@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { PerspectiveCamera } from "three";
 import { CAMERA_FOV, crts } from "./crts";
-import { boxAround, glassOnScreen } from "./glass";
+import { glassBox, glassOnScreen } from "./glass";
 import { progressFor, tourAt } from "./tour";
 import { BOTTOM_CLEAR, SIDE, TOP_CLEAR } from "./pin";
 import { squareStop } from "./stop";
@@ -9,13 +9,14 @@ import { squareStop } from "./stop";
 /** The glass on screen at station `i`'s hold, through the code the app runs: the tour's camera
  *  (tourAt, as CameraRig sets it) and the projection Room.tsx pins the text with (glassOnScreen). */
 function glassAtHold(i: number, w: number, h: number) {
-  const t = tourAt(progressFor(i + 1), 0, w / h, h);
+  const t = tourAt(progressFor(i + 1), 0, { width: w, height: h });
   const cam = new PerspectiveCamera(CAMERA_FOV, w / h, 0.1, 1000); // react-three-fiber's default near and far
   cam.position.set(...t.camera);
   cam.lookAt(...t.look);
   cam.updateMatrixWorld();
-  const pts = glassOnScreen(crts[i], cam, { width: w, height: h });
-  const box = boxAround(pts);
+  const size = { width: w, height: h };
+  const pts = glassOnScreen(crts[i], cam, size);
+  const box = glassBox(crts[i], cam, size); // the call Room.tsx pins the text with
   return { left: box.left, right: box.left + box.width, top: box.top, bottom: box.top + box.height, pts, box };
 }
 
