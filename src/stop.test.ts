@@ -1,25 +1,22 @@
 import { describe, it, expect } from "vitest";
-import { PerspectiveCamera, Vector3 } from "three";
-import { CAMERA_FOV, CRT_GLASS, crts } from "./crts";
+import { PerspectiveCamera } from "three";
+import { CAMERA_FOV, crts } from "./crts";
+import { glassBox, glassOnScreen } from "./glass";
+import { progressFor, tourAt } from "./tour";
 import { BOTTOM_CLEAR, SIDE, TOP_CLEAR } from "./pin";
-import { glassRect, squareStop } from "./stop";
+import { squareStop } from "./stop";
 
-/** The glass's corners projected into a window, by three.js itself. */
-function glassOnScreen(i: number, w: number, h: number) {
-  const crt = crts[i], s = squareStop(crt, { width: w, height: h });
-  const cam = new PerspectiveCamera(CAMERA_FOV, w / h, 0.05, 50);
-  cam.position.set(...s.camera);
-  cam.lookAt(...s.look);
+/** The glass on screen at station `i`'s hold, through the code the app runs: the tour's camera
+ *  (tourAt, as CameraRig sets it) and the projection Room.tsx pins the text with (glassOnScreen). */
+function glassAtHold(i: number, w: number, h: number) {
+  const t = tourAt(progressFor(i + 1), 0, w / h, h);
+  const cam = new PerspectiveCamera(CAMERA_FOV, w / h, 0.1, 1000); // react-three-fiber's default near and far
+  cam.position.set(...t.camera);
+  cam.lookAt(...t.look);
   cam.updateMatrixWorld();
-  const a = (crt.yaw * Math.PI) / 180, right = [Math.cos(a), 0, -Math.sin(a)];
-  const pts = [-1, 1].flatMap((sx) => [-1, 1].map((sy) => {
-    const q = new Vector3(
-      crt.screen[0] + (right[0] * sx * CRT_GLASS.width) / 2, crt.screen[1] + (sy * CRT_GLASS.height) / 2,
-      crt.screen[2] + (right[2] * sx * CRT_GLASS.width) / 2).project(cam);
-    return { x: (q.x * 0.5 + 0.5) * w, y: (-q.y * 0.5 + 0.5) * h };
-  }));
+  const pts = glassOnScreen(crts[i], cam, { width: w, height: h });
   const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
-  return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys), pts };
+  return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys), pts, box: glassBox(crts[i], cam, { width: w, height: h }) };
 }
 
 const windows = [[1280, 800], [1920, 1080], [1440, 900], [1024, 768], [1366, 640], [2560, 1440]];
@@ -34,7 +31,7 @@ describe("square stops", () => {
   for (const [w, h] of windows) {
     it(`put the glass between the HUD and the meter at every station, ${w}x${h}`, () => {
       for (let i = 0; i < crts.length; i++) {
-        const g = glassOnScreen(i, w, h);
+        const g = glassAtHold(i, w, h);
         expect(g.top, crts[i].id).toBeGreaterThanOrEqual(TOP_CLEAR - 1);
         expect(g.bottom, crts[i].id).toBeLessThanOrEqual(h - BOTTOM_CLEAR + 1);
         expect(g.left, crts[i].id).toBeGreaterThanOrEqual(SIDE - 1);
@@ -46,7 +43,7 @@ describe("square stops", () => {
     });
     it(`face the glass straight on: its edges are square on screen, ${w}x${h}`, () => {
       for (let i = 0; i < crts.length; i++) {
-        const g = glassOnScreen(i, w, h);
+        const g = glassAtHold(i, w, h);
         const [bl, tl, br, tr] = g.pts; // x then y order from the loops
         expect(Math.abs(tl.x - bl.x), crts[i].id).toBeLessThan(0.01);
         expect(Math.abs(tr.x - br.x), crts[i].id).toBeLessThan(0.01);
@@ -54,13 +51,19 @@ describe("square stops", () => {
         expect(Math.abs(bl.y - br.y), crts[i].id).toBeLessThan(0.01);
       }
     });
-    it(`report the glass rectangle the text is pinned to, ${w}x${h}`, () => {
+    it(`give the text the glass's own box, which fills the band between the HUD and the meter, ${w}x${h}`, () => {
       for (let i = 0; i < crts.length; i++) {
-        const g = glassOnScreen(i, w, h), r = glassRect(crts[i], { width: w, height: h });
-        expect(r.left).toBeCloseTo(g.left, 3);
-        expect(r.top).toBeCloseTo(g.top, 3);
-        expect(r.width).toBeCloseTo(g.right - g.left, 3);
-        expect(r.height).toBeCloseTo(g.bottom - g.top, 3);
+        const { box } = glassAtHold(i, w, h);
+        const bandH = h - TOP_CLEAR - BOTTOM_CLEAR, bandW = w - 2 * SIDE;
+        // inside the band on every side...
+        expect(box.top, crts[i].id).toBeGreaterThanOrEqual(TOP_CLEAR - 1);
+        expect(box.top + box.height, crts[i].id).toBeLessThanOrEqual(h - BOTTOM_CLEAR + 1);
+        expect(box.left, crts[i].id).toBeGreaterThanOrEqual(SIDE - 1);
+        expect(box.left + box.width, crts[i].id).toBeLessThanOrEqual(w - SIDE + 1);
+        // ...and as big as the band allows, in the middle of it
+        expect(box.height >= bandH - 2 || box.width >= bandW - 2, crts[i].id).toBe(true);
+        expect(box.left + box.width / 2, crts[i].id).toBeCloseTo(w / 2, 0);
+        expect(box.top + box.height / 2, crts[i].id).toBeCloseTo(TOP_CLEAR + bandH / 2, 0);
       }
     });
   }

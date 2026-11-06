@@ -70,24 +70,30 @@ const hint: CSSProperties = { margin: "0 0 0.25rem", fontSize: "0.75em", letterS
 
 // A station's diagram as a line drawing. The labels are real SVG text (selectable, scaling with the
 // panel); the figure as a whole carries the plain description for a screen reader.
-const BOX_W = 92, BOX_H = 34, GAP = 72, H = 62, Y = 22;
+// Boxes and arrows size to their labels, so longer words never spill out of a box.
+const BOX_H = 34, H = 62, Y = 22;
+const boxWidth = (t: string) => Math.max(66, t.length * 7.4 + 18);
+const arrowLen = (t: string) => Math.max(48, t.length * 5.8 + 16);
 function DiagramFigure({ d }: { d: Diagram }) {
   const n = d.steps.length;
-  const w = n * BOX_W + (n - 1) * GAP;
+  const bw = d.steps.map(boxWidth), al = d.hops.map(arrowLen);
+  const xs: number[] = [];
+  let w = 0;
+  d.steps.forEach((_, i) => { xs.push(w); w += bw[i] + (al[i] ?? 0); });
   return (
     <figure data-diagram style={figure}>
       <svg viewBox={`0 0 ${w} ${H}`} role="img" aria-label={d.description} style={{ width: "100%", maxWidth: w * 1.6, display: "block" }}
         fill="none" stroke="#7dffb0" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
         {d.steps.map((t, i) => {
-          const x = i * (BOX_W + GAP);
+          const x = xs[i], mid = Y + BOX_H / 2;
           return (
             <g key={i}>
-              <rect x={x + 1} y={Y} width={BOX_W - 2} height={BOX_H} rx={4} />
-              <text x={x + BOX_W / 2} y={Y + BOX_H / 2 + 4} textAnchor="middle" fill="#b4ffd0" stroke="none" fontSize={13} fontFamily="inherit">{t}</text>
+              <rect x={x + 1} y={Y} width={bw[i] - 2} height={BOX_H} rx={4} />
+              <text x={x + bw[i] / 2} y={mid + 4} textAnchor="middle" fill="#b4ffd0" stroke="none" fontSize={13} fontFamily="inherit">{t}</text>
               {i < n - 1 && (
                 <>
-                  <path d={`M${x + BOX_W + 4} ${Y + BOX_H / 2} H${x + BOX_W + GAP - 5} m-5 -4 l5 4 l-5 4`} />
-                  <text x={x + BOX_W + GAP / 2} y={Y + BOX_H / 2 - 7} textAnchor="middle" fill="#ffb347" stroke="none" fontSize={10} fontFamily="inherit">{d.hops[i]}</text>
+                  <path d={`M${x + bw[i] + 4} ${mid} H${x + bw[i] + al[i] - 5} m-5 -4 l5 4 l-5 4`} />
+                  {d.hops[i] && <text x={x + bw[i] + al[i] / 2} y={mid - 7} textAnchor="middle" fill="#ffb347" stroke="none" fontSize={10} fontFamily="inherit">{d.hops[i]}</text>}
                 </>
               )}
             </g>
@@ -129,6 +135,15 @@ const css = `
 .crt-seg[data-open="true"] .crt-seg-tag { color: #02140a; }
 .crt-seg-label { font-size: 1.05em; }
 .crt-seg-dates { font-size: 0.8em; }
+/* The text resolves out of the shift: it comes in from a red and cyan split that closes up, in a few
+   steps like a signal locking, not a smooth fade. Until then the panel is held at opacity 0 by the
+   room (still in the page). Reduced motion never gets the attribute, so its text just appears. */
+.crt-panel[data-gated="resolving"] { animation: crt-resolve 0.22s steps(5, end); }
+@keyframes crt-resolve {
+  0% { opacity: 0; text-shadow: -4px 0 rgba(255,60,60,0.9), 4px 0 rgba(60,255,255,0.9); }
+  60% { opacity: 0.8; text-shadow: -2px 0 rgba(255,60,60,0.7), 2px 0 rgba(60,255,255,0.7); }
+  100% { opacity: 1; text-shadow: 0 0 5px rgba(80,255,150,0.45); }
+}
 .crt-panel[data-glass="true"] { background: repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.18) 2px 3px); border: 0; border-radius: 0; box-shadow: none; padding: 0.6em 1.2em; }
 .crt-panel[data-glass="true"] .crt-more { margin: -2.6em -1.2em 0; bottom: -0.6em; height: 2.6em;
   background: linear-gradient(to bottom, rgba(2,10,5,0), rgba(2,10,5,0.95) 70%); }

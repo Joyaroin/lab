@@ -3,11 +3,13 @@ import { Suspense, useEffect, useMemo, type MutableRefObject } from "react";
 import { MeshBasicMaterial, Vector3, type Mesh, type MeshStandardMaterial } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import roomUrl from "./assets/room.glb?url";
-import { CAMERA_FOV, crts, ENTRANCE, glassCorners, glassEdge, isPortrait, panelPoint } from "./crts";
+import { CAMERA_FOV, crts, ENTRANCE, glassEdge, isPortrait, panelPoint } from "./crts";
+import { glassBox } from "./glass";
 import { fitPanel, glassFontSize } from "./pin";
 import { holdSpan, PANEL_SHOWN, panelStrength, parallax, textOnGlass, parallaxStrength, tourAt } from "./tour";
-import { DeskMeter, Phosphor, Rain } from "./Effects";
+import { Bezels, DeskMeter, Phosphor, Rain } from "./Effects";
 import type { MeterLink } from "./nixie";
+import type { TextGate } from "./shift";
 import { markMore } from "./ScreenPanels";
 
 // Pins each station's HTML panel (a DOM element with data-screen="<id>") to its real CRT in the
@@ -15,7 +17,7 @@ import { markMore } from "./ScreenPanels";
 // the window and places the panel there (on a phone, the station's phone pin if it has one), as
 // wide as the CRT looks, kept inside the window by fitPanel. The text stays real HTML, so it is
 // sharp at any size, selectable, and its links work. Only the current station's panel is shown.
-function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
+function ScreenPins({ progress, gate }: { progress: MutableRefObject<number>; gate: TextGate }) {
   const c = useMemo(() => new Vector3(), []);
   const e = useMemo(() => new Vector3(), []);
   const p = useMemo(() => new Vector3(), []);
@@ -24,28 +26,28 @@ function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
     crts.forEach((crt, k) => {
       const el = document.querySelector<HTMLElement>(`[data-screen="${crt.id}"]`);
       if (!el) return;
-      const strength = panelStrength(progress.current, k + 1); // full for the whole hold
-      el.style.opacity = String(strength);
+      // Full for the whole hold. Held back (but still in the page, for readers, selection and search)
+      // from arrival until the shift ends, then it resolves out of the effect.
+      const strength = panelStrength(progress.current, k + 1);
+      const out = gate.ready(k + 1, progress.current, performance.now());
+      if (out && el.dataset.gated === "true") el.dataset.gated = "resolving";
+      else if (!out && strength >= PANEL_SHOWN) el.dataset.gated = "true";
+      else if (!out) delete el.dataset.gated;
+      el.style.opacity = String(out ? strength : 0);
       el.style.visibility = strength < PANEL_SHOWN ? "hidden" : "visible";
       // Only during the hold does the panel take the wheel. Outside it the panel is shrinking or
       // growing with the camera, so its text overflows differently every frame and would eat the
       // wheel steps that should move the tour on.
       const [h0, h1] = holdSpan(k + 1);
-      el.style.pointerEvents = progress.current >= h0 && progress.current <= h1 ? "auto" : "none";
+      el.style.pointerEvents = out && progress.current >= h0 && progress.current <= h1 ? "auto" : "none";
       if (strength < PANEL_SHOWN) return;
       if (textOnGlass(progress.current, k + 1, size.width / size.height)) {
         // Desktop: the camera is square to the glass, so the text is laid exactly over it.
-        const xs: number[] = [], ys: number[] = [];
-        for (const v of glassCorners(crt)) {
-          c.set(...v).project(camera);
-          xs.push((c.x * 0.5 + 0.5) * size.width);
-          ys.push((-c.y * 0.5 + 0.5) * size.height);
-        }
-        const left = Math.min(...xs), top = Math.min(...ys);
-        el.style.width = `${Math.max(...xs) - left}px`;
-        el.style.height = `${Math.max(...ys) - top}px`;
+        const { left, top, width, height } = glassBox(crt, camera, size);
+        el.style.width = `${width}px`;
+        el.style.height = `${height}px`;
         if (el.style.maxHeight !== "none") el.style.maxHeight = "none"; // the fixed height is the limit
-        el.style.fontSize = `${glassFontSize(Math.max(...xs) - left)}px`;
+        el.style.fontSize = `${glassFontSize(width)}px`;
         el.dataset.glass = "true";
         el.style.transform = `translate(${left}px, ${top}px)`;
         markMore(el);
@@ -98,7 +100,10 @@ function BakedRoom({ onLoaded, onProgress }: { onLoaded: () => void; onProgress:
 // Moves the camera along the tour. Eases toward the scroll position and adds slight mouse
 // parallax, unless the visitor prefers reduced motion: then it snaps, holds still, and travels in
 // a straight line between stations (the leg from the entrance still curves).
-// It writes the camera position to the canvas's data-camera, so tests can check the path.
+// It writes the camera position to the canvas's data-camera, so tests can check the path. That
+// ships in the live site on purpose: it is three numbers the visitor can already see, one attribute
+// write per drawn frame, and tests of the real build need it. (Keeping it out of production would
+// mean testing a different build from the one that ships.)
 // The room is drawn only on demand (see Room): this asks for the next frame until the camera
 // has arrived, and scrolling or moving the pointer starts it again.
 function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; reduced: boolean }) {
@@ -125,8 +130,8 @@ function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; 
   return null;
 }
 
-export default function Room({ onReady, onProgress, progress, reduced, meter }: {
-  onReady: () => void; onProgress: () => void; progress: MutableRefObject<number>; reduced: boolean; meter: MeterLink;
+export default function Room({ onReady, onProgress, progress, reduced, meter, gate }: {
+  onReady: () => void; onProgress: () => void; progress: MutableRefObject<number>; reduced: boolean; meter: MeterLink; gate: TextGate;
 }) {
   return (
     // Drawn on demand, not 60 times a second: the baked room is costly to draw (texture
@@ -138,11 +143,12 @@ export default function Room({ onReady, onProgress, progress, reduced, meter }: 
       camera={{ position: ENTRANCE.camera, fov: CAMERA_FOV }}
     >
       <CameraRig progress={progress} reduced={reduced} />
-      <ScreenPins progress={progress} />
+      <ScreenPins progress={progress} gate={gate} />
       <Suspense fallback={null}>
         <BakedRoom onLoaded={onReady} onProgress={onProgress} />
         <DeskMeter link={meter} reduced={reduced} />
         <Phosphor progress={progress} />
+        <Bezels />
         <Rain />
       </Suspense>
     </Canvas>

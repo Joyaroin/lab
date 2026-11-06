@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { tourAt, progressFor, holdSpan, panelStrength, STATION_COUNT } from "./tour";
+import { tourAt, progressFor, holdSpan, panelStrength, PANEL_SHOWN, STATION_COUNT } from "./tour";
+import { travelProgress } from "./hold";
 import { stations } from "./content";
 import { crts, panelPoint } from "./crts";
 import { squareStop } from "./stop";
@@ -361,8 +362,18 @@ describe("parallax near a stop", () => {
       expect(s - prev).toBeLessThan(0.1);
       prev = s;
     }
-    expect(parallaxStrength(end + 0.01)).toBeGreaterThan(0);
-    expect(parallaxStrength(end + 0.01)).toBeLessThan(1);
+    expect(parallaxStrength(end + 0.03)).toBeGreaterThan(0);
+    expect(parallaxStrength(end + 0.03)).toBeLessThan(1);
+  });
+  it("starts only once the text has faded away, so flat text never sits over tilting glass", () => {
+    for (let i = 1; i < STATION_COUNT; i++) {
+      const [, end] = holdSpan(i), [start] = holdSpan(i + 1);
+      for (let k = 0; k <= 400; k++) {
+        const p = end + ((start - end) * k) / 400; // leaving station i, and arriving at i + 1
+        const leaving = panelStrength(p, i) >= PANEL_SHOWN, arriving = panelStrength(p, i + 1) >= PANEL_SHOWN;
+        if (leaving || arriving) expect(parallaxStrength(p), `p=${p}`).toBe(0);
+      }
+    }
   });
 });
 
@@ -376,37 +387,42 @@ describe("parallax strength", () => {
 });
 
 // --- arcs between stations: the camera pulls back through the room on one curve (ticket 51) ---
-import { ARCS, CRT_GLASS } from "./crts";
+import { ARCS } from "./crts";
+import { nearestSurface } from "../tests/lib/room-mesh";
+type V3 = [number, number, number];
 
-type Box = { name: string; min: number[]; max: number[] };
-// Coarse boxes for the room's walls and props, from tools/room/build.py. The camera must stay
-// outside every one by CLEAR metres (the near plane is 5 cm; this leaves room to see).
+// The camera must stay CLEAR metres from every surface in the baked room (the near plane is 5 cm;
+// this leaves room to see). The surfaces are the room's real triangles, read from the committed
+// room.glb, so there is no second list of props to keep in step with tools/room/build.py: add a
+// prop near an arc, re-bake, and this fails if the camera would pass through it.
 const CLEAR = 0.1;
-const PROPS: Box[] = [
-  { name: "back desk", min: [-1.9, 0, -1.9], max: [0.62, 1.0, -1.15] },
-  { name: "left desk", min: [-1.9, 0, -1.15], max: [-1.15, 1.0, 0.32] },
-  { name: "bench", min: [1.2, 0, -0.92], max: [1.9, 1.17, 0.62] },
-  { name: "bench shelf", min: [1.6, 1.3, -0.92], max: [1.9, 2.0, 0.62] },
-  { name: "parts shelf", min: [1.32, 0, 0.95], max: [1.9, 2.15, 1.85] },
-  { name: "rack", min: [1.2, 0, -1.85], max: [1.7, 1.05, -1.4] },
-  { name: "chair", min: [-0.4, 0, 0.05], max: [0.2, 1.18, 0.65] },
-  { name: "left wall shelf", min: [-1.9, 1.6, -1.9], max: [-1.6, 1.8, -1.0] },
-];
 const ROOM = { min: [-1.9, 0, -1.9], max: [1.9, 2.5, 1.9] };
 
-/** Why the camera at `c` is in the way of something, or null. CRTs are boxes in their own frame:
- *  the glass is open in front, the body runs 0.5 m behind it. */
-function blockedAt(c: number[]): string | null {
-  for (let k = 0; k < 3; k++) if (c[k] < ROOM.min[k] + CLEAR || c[k] > ROOM.max[k] - CLEAR) return `wall (axis ${k})`;
-  for (const p of PROPS) if ([0, 1, 2].every((k) => c[k] > p.min[k] - CLEAR && c[k] < p.max[k] + CLEAR)) return p.name;
-  for (const crt of crts) {
-    const a = (crt.yaw * Math.PI) / 180, dx = c[0] - crt.screen[0], dz = c[2] - crt.screen[2];
-    const across = dx * Math.cos(a) - dz * Math.sin(a), out = dx * Math.sin(a) + dz * Math.cos(a);
-    if (Math.abs(across) < CRT_GLASS.width / 2 + 0.1 + CLEAR && Math.abs(c[1] - crt.screen[1]) < 0.27 + CLEAR && out > -0.5 - CLEAR && out < CLEAR)
-      return `CRT ${crt.id}`;
-  }
-  return null;
-}
+/** Why the camera at `c` is in the way of something, or null. */
+const blockedAt = (c: V3) => (nearestSurface(c, CLEAR) < Infinity ? `a surface within ${CLEAR} m` : null);
+
+describe("the room mesh used for clearance", () => {
+  it("sees solid things: a point just in front of a CRT's glass is close to it, and the middle of the room is clear", () => {
+    const c = crts[0], a = (c.yaw * Math.PI) / 180;
+    const front: V3 = [c.screen[0] + Math.sin(a) * 0.05, c.screen[1], c.screen[2] + Math.cos(a) * 0.05];
+    expect(nearestSurface(front, 0.3)).toBeLessThan(0.07);
+    expect(blockedAt([-0.5, 1.7, 0.2])).toBeNull();
+  });
+  it("sees the props the old hand-written boxes stood for: some point inside each is within reach of a surface", () => {
+    const regions: [string, number[], number[]][] = [
+      ["back desk", [-1.9, 0, -1.9], [0.62, 1.0, -1.15]], ["left desk", [-1.9, 0, -1.15], [-1.15, 1.0, 0.32]],
+      ["bench", [1.2, 0, -0.92], [1.9, 1.17, 0.62]], ["parts shelf", [1.32, 0, 0.95], [1.9, 2.15, 1.85]],
+      ["rack", [1.2, 0, -1.85], [1.7, 1.05, -1.4]], ["chair", [-0.4, 0, 0.05], [0.2, 1.18, 0.65]],
+    ];
+    for (const [name, lo, hi] of regions) {
+      let hits = 0;
+      for (let x = 0; x <= 4; x++) for (let y = 0; y <= 4; y++) for (let z = 0; z <= 4; z++)
+        if (blockedAt([0, 1, 2].map((k) => lo[k] + ((hi[k] - lo[k]) * [x, y, z][k]) / 4) as V3)) hits++;
+      expect(hits, name).toBeGreaterThan(5);
+    }
+    for (const w of [[1.88, 1.0, 0], [0, 1, -1.92], [-1.88, 1.2, 0.5], [0.3, 0.02, 0.3], [0.3, 2.45, 0.3]] as V3[]) expect(blockedAt(w), `wall at ${w}`).not.toBeNull();
+  });
+});
 
 describe("arcs between stations", () => {
   const legs = Array.from({ length: STATION_COUNT - 1 }, (_, k) => k + 1);
@@ -440,16 +456,11 @@ describe("arcs between stations", () => {
   });
   for (const aspect of [16 / 10, 390 / 780]) {
     it(`never takes the camera through a wall or prop, on any leg (aspect ${aspect.toFixed(2)})`, () => {
-      // On a phone some existing stops sit within 10 cm of the parts shelf; the stops are not
-      // this ticket's, so only the travel more than 30 cm from either end is held to the clearance.
-      const near = (c: number[], p: number[]) => Math.hypot(c[0] - p[0], c[1] - p[1], c[2] - p[2]) < 0.3;
-      for (const i of legs) {
-        const from = tourAt(holdSpan(i)[1], GAP, aspect).camera, to = tourAt(holdSpan(i + 1)[0], GAP, aspect).camera;
-        sweep(i, aspect, (t) => {
-          if (aspect < 1 && (near(t.camera, from) || near(t.camera, to))) return;
-          expect(blockedAt(t.camera), `leg ${i} at ${t.camera.map((v) => v.toFixed(2))}`).toBeNull();
-        });
-      }
+      // The room's real surfaces, the whole way along every leg and at both window shapes, with no
+      // exemptions: the stops themselves are held to it too.
+      for (const i of legs) sweep(i, aspect, (t) => {
+        expect(blockedAt(t.camera), `leg ${i} at ${t.camera.map((v) => v.toFixed(2))}`).toBeNull();
+      });
     });
   }
   it("keeps the look point inside the room, so the view is never of the void", () => {
@@ -516,5 +527,15 @@ describe("reduced motion", () => {
     const p = (holdSpan(1)[1] + holdSpan(2)[0]) / 2;
     expect(on(p).camera).not.toEqual(tourAt(p, GAP).camera);
     expect(tourAt(p, GAP, 16 / 9, 800, false)).toEqual(tourAt(p, GAP));
+  });
+});
+
+describe("travelProgress", () => {
+  it("runs from the end of the previous hold to the start of this one", () => {
+    for (let i = 2; i <= STATION_COUNT; i++) {
+      expect(travelProgress(i, 0)).toBeCloseTo(holdSpan(i - 1)[1], 12);
+      expect(travelProgress(i, 1)).toBeCloseTo(holdSpan(i)[0], 12);
+    }
+    expect(travelProgress(1, 0)).toBeCloseTo(0, 12);
   });
 });

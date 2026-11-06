@@ -5,6 +5,7 @@ import { browserWebGL, checkCapability, type FailureReason } from "./capability"
 import { Tour, prefersReducedMotion } from "./TourView";
 import { useGap } from "./useGap";
 import { meterLink } from "./nixie";
+import { textGate } from "./shift";
 import { watchForStall } from "./stall";
 import { Component, type ReactNode } from "react";
 
@@ -36,6 +37,7 @@ export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
   const progress = useRef(0);
   const [reduced] = useState(() => capability.ok && prefersReducedMotion());
   const [meter] = useState(meterLink);
+  const [gate] = useState(textGate);
   const [booted, setBooted] = useState(false); // the boot screen has faded out
 
   // Boot screen to meter is one moment: once the room is ready the boot screen fades out over
@@ -75,10 +77,10 @@ export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
       {!booted && <BootScreen steps={steps} fading={sceneReady} />}
       <SceneBoundary onFail={() => setFailed("scene-error")}>
         <Suspense fallback={null}>
-          {codeLoaded && <Room onReady={() => setSceneReady(true)} onProgress={onLoadProgress} progress={progress} reduced={reduced} meter={meter} />}
+          {codeLoaded && <Room onReady={() => setSceneReady(true)} onProgress={onLoadProgress} progress={progress} reduced={reduced} meter={meter} gate={gate} />}
         </Suspense>
       </SceneBoundary>
-      {sceneReady && <Tour gap={gap} progress={progress} meter={meter} />}
+      {sceneReady && <Tour gap={gap} progress={progress} meter={meter} gate={gate} />}
     </>
   );
 }

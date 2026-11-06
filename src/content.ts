@@ -23,10 +23,14 @@ export type Station = {
   /** optional split of `body` into pages the visitor switches between (Work). `body` stays the
    *  whole text in order; the pages' paragraphs are the same strings, oldest job first. */
   pages?: Page[];
+  /** words on the TV's bezel: the maker's plate and the sticky note. Neither may read as a status. */
+  bezel: Bezel;
 };
 /** One page of a station: `label` and `dates` name it on the timeline that switches pages, and
  *  `months` is how long the job ran, which sets its segment's width. */
 export type Page = { id: string; label: string; dates: string; months: number; body: string[] };
+/** `plate` is an invented maker and model (no real brand, nothing from the series, ADR-0002). */
+export type Bezel = { plate: string; note: string };
 /** A chain of steps drawn left to right. `hops[i]` labels the arrow from step i to step i+1
  *  ("" for none), so it has one entry fewer than `steps`. `description` is the plain-text version
  *  a screen reader gets. */
@@ -87,6 +91,7 @@ export const content: Content = {
         { id: "barracuda", label: "Barracuda", dates: "Sep 2025 to Aug 2026", months: 12, body: BARRACUDA },
       ],
       links: [LINKEDIN],
+      bezel: { plate: "HALDEN HX-101", note: "Call\nFriday" },
     },
     {
       id: "mediasafe", name: "MediaSafe", worldLine: "World line 02", reading: 377,
@@ -98,15 +103,16 @@ export const content: Content = {
         "As of November 2026: about 700 commits and 170+ merged pull requests since August 2026.",
       ],
       diagram: {
-        description: "Git feeds Argo CD, which syncs staging automatically. Production is promoted from staging by hand.",
+        description: "Argo CD syncs from Git. Merges ship to staging automatically. Production is promoted by hand.",
         steps: ["Git", "Argo CD", "Staging", "Production"],
-        hops: ["", "automatic", "by hand"],
+        hops: ["", "automatically", "by hand"],
       },
       links: [
         { label: "MediaSafe repo", href: "https://github.com/Joyaroin/MediaSafe" },
         { label: "Deploy repo", href: "https://github.com/Joyaroin/morioh-cho-gitops" },
         { label: "mediasafe.space (Google sign-in)", href: "https://mediasafe.space" },
       ],
+      bezel: { plate: "HALDEN HX-214", note: "Buy\ntape" },
     },
     {
       id: "home-lab", name: "Home lab", worldLine: "World line 03", reading: 512,
@@ -117,7 +123,13 @@ export const content: Content = {
         "Git hosting and CI runners run at home too, with the CI runner firewalled from the home network and cluster. Production and staging are pinned to separate nodes.",
         "This site runs on that cluster.",
       ],
+      diagram: {
+        description: "Traffic arrives only through a Cloudflare Tunnel. Two Proxmox hosts, jonathan and joseph, run the VMs hamon and hermit.",
+        steps: ["Cloudflare Tunnel", "jonathan and joseph", "hamon and hermit"],
+        hops: ["traffic", "VMs"],
+      },
       links: [SITE_SOURCE],
+      bezel: { plate: "HALDEN HX-330", note: "Water\nthe fern" },
     },
     {
       id: "order-tracker", name: "Order Tracker", worldLine: "World line 04", reading: 640,
@@ -128,7 +140,13 @@ export const content: Content = {
         "GitHub Actions pushes images to ECR with OIDC instead of static AWS keys. Pull requests against hotfix branches spin up isolated EKS environments.",
         "The repo is private, so there is no link.",
       ],
+      diagram: {
+        description: "GitHub Actions pushes images to ECR with OIDC. Argo CD ApplicationSets generate per-environment apps.",
+        steps: ["GitHub Actions", "ECR", "Argo CD", "per-environment apps"],
+        hops: ["OIDC", "", "ApplicationSets"],
+      },
       links: [],
+      bezel: { plate: "HALDEN HX-418", note: "Lamp\nbulb?" },
     },
     {
       id: "wc2026-predictor", name: "WC2026 Predictor", worldLine: "World line 05", reading: 733,
@@ -137,7 +155,13 @@ export const content: Content = {
         "A live score-prediction game for the 2026 FIFA World Cup: friends join a group, call scorelines and climb leaderboards that move as goals go in.",
         "React 19, TypeScript, Express 5, single-table DynamoDB, Terraform, Helm and Argo CD.",
       ],
+      diagram: {
+        description: "React 19, Express 5 and single-table DynamoDB.",
+        steps: ["React 19", "Express 5", "DynamoDB"],
+        hops: ["", ""],
+      },
       links: [{ label: "Repo", href: "https://github.com/Joyaroin/wc2026-predictor" }],
+      bezel: { plate: "HALDEN HX-552", note: "Lunch\nat 1" },
     },
     {
       id: "contact", name: "Contact", worldLine: "World line 06", reading: 861,
@@ -152,6 +176,7 @@ export const content: Content = {
         GITHUB,
         SITE_SOURCE,
       ],
+      bezel: { plate: "HALDEN HX-607", note: "Fix the\nshelf" },
     },
   ],
 };
@@ -201,6 +226,11 @@ export function validateContent(c: Content): string[] {
     if (!Array.isArray(list) || list.length === 0) return void problems.push(`${path}: missing`);
     list.forEach((b, i) => text(`${path}[${i}]`, b));
   };
+  // Text drawn on a TV (title card, diagram) is checked like other copy, and must not read as live.
+  const tvText = (path: string, v: unknown) => {
+    text(path, v);
+    if (typeof v === "string" && LIVE_STATUS.test(v)) problems.push(`${path}: reads as a live status`);
+  };
   const linkList = (path: string, list: unknown) => {
     if (!Array.isArray(list)) return void problems.push(`${path}: missing`);
     list.forEach((l: Partial<Link>, i) => {
@@ -216,10 +246,8 @@ export function validateContent(c: Content): string[] {
   if (!Array.isArray(c.stations) || c.stations.length === 0) problems.push("stations: missing");
   (c.stations ?? []).forEach((s, i) => {
     const p = `stations[${i}]`;
-    for (const f of ["id", "name", "worldLine", "heading"] as const) text(`${p}.${f}`, s[f]);
-    for (const f of ["name", "worldLine"] as const) {
-      if (typeof s[f] === "string" && LIVE_STATUS.test(s[f])) problems.push(`${p}.${f}: reads as a live status`);
-    }
+    for (const f of ["id", "heading"] as const) text(`${p}.${f}`, s[f]);
+    for (const f of ["name", "worldLine"] as const) tvText(`${p}.${f}`, s[f]);
     if (typeof s.reading !== "number" || !Number.isFinite(s.reading)) problems.push(`${p}.reading: missing`);
     paragraphs(`${p}.body`, s.body);
     linkList(`${p}.links`, s.links);
@@ -234,22 +262,20 @@ export function validateContent(c: Content): string[] {
         });
       }
     }
+    for (const f of ["plate", "note"] as const) {
+      text(`${p}.bezel.${f}`, s.bezel?.[f]);
+      if (typeof s.bezel?.[f] === "string" && LIVE_STATUS.test(s.bezel[f])) problems.push(`${p}.bezel.${f}: reads as a live status`);
+    }
     if (s.diagram) {
       const d = s.diagram, dp = `${p}.diagram`;
-      text(`${dp}.description`, d.description);
+      tvText(`${dp}.description`, d.description);
       if (!Array.isArray(d.steps) || d.steps.length === 0) problems.push(`${dp}.steps: missing`);
+      else d.steps.forEach((t, j) => tvText(`${dp}.steps[${j}]`, t));
+      if (!Array.isArray(d.hops)) problems.push(`${dp}.hops: must be a list`);
       else {
-        d.steps.forEach((t, j) => {
-          text(`${dp}.steps[${j}]`, t);
-          if (typeof t === "string" && LIVE_STATUS.test(t)) problems.push(`${dp}.steps[${j}]: reads as a live status`);
-        });
-        if (!Array.isArray(d.hops) || d.hops.length !== d.steps.length - 1) problems.push(`${dp}.hops: need one fewer than steps`);
+        if (Array.isArray(d.steps) && d.hops.length !== d.steps.length - 1) problems.push(`${dp}.hops: need one fewer than steps`);
+        d.hops.forEach((t, j) => { if (t !== "") tvText(`${dp}.hops[${j}]`, t); });
       }
-      (d.hops ?? []).forEach((t, j) => {
-        if (t === "") return;
-        text(`${dp}.hops[${j}]`, t);
-        if (typeof t === "string" && LIVE_STATUS.test(t)) problems.push(`${dp}.hops[${j}]: reads as a live status`);
-      });
     }
   });
   return problems;

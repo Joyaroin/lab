@@ -19,3 +19,23 @@ export const progressFor = (i: number) => {
   const [a, b] = holdSpan(i);
   return (a + b) / 2;
 };
+
+/** Scroll progress `f` (0..1) of the way through the travel into station `i`: 0 is where the travel
+ *  starts (the previous stop's hold ends, or the entrance), 1 is where this station's hold begins. */
+export const travelProgress = (i: number, f: number) => holdSpan(i)[0] - ((1 - f) * TRAVEL) / TOTAL;
+
+/** How much travel (as a share of one stretch) the text takes to fade out. It is gone before the
+ *  mouse parallax starts (`PARALLAX_FROM` in tour.ts), so flat text never sits over tilting glass. */
+export const TEXT_FADE = 0.18;
+
+/** How strongly station `i`'s text panel shows at scroll progress `progress`: full for the whole
+ *  hold, then fading out over the first stretch of travel away (`TEXT_FADE`). */
+export function panelStrength(progress: number, i: number): number {
+  const [a, b] = holdSpan(i);
+  const p = Math.min(Math.max(Number.isFinite(progress) ? progress : 0, 0), 1);
+  const away = p < a ? a - p : p > b ? p - b : 0; // scroll distance outside the hold
+  return Math.min(1, Math.max(0, 1.1 - (away * TOTAL) / TRAVEL * (1.05 / TEXT_FADE)));
+}
+
+/** Below this strength a panel is hidden. */
+export const PANEL_SHOWN = 0.05;

@@ -2,9 +2,10 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { createRef, useEffect, useMemo, useRef } from "react";
 import { AdditiveBlending, CanvasTexture, CylinderGeometry, DoubleSide, SRGBColorSpace, Vector3, type Camera, type Mesh, type MeshBasicMaterial } from "three";
 import { textOnGlass } from "./tour";
-import { crts, CRT_GLASS, DESK_METER, type Crt } from "./crts";
+import { crts, CRT_GLASS, DESK_METER, NOTE_AT, PLATE_AT, type Crt } from "./crts";
 import { powerOn, shiftDigits, type MeterLink } from "./nixie";
 import { stations } from "./content";
+import { CARD_PX, MONO, drawPhosphor } from "./card";
 
 // The late-night look, drawn over the baked room (Room.tsx) without making it redraw nonstop.
 // Everything here is a few small textured planes drawn once. The only things that move are the
@@ -120,7 +121,10 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
       if (link.shiftAt === null) link.shiftAt = clock.elapsedTime;
       const sh = shiftDigits(clock.elapsedTime - link.shiftAt, link.digits, link.shift);
       if (sh.done) { link.shift = null; link.shiftAt = null; } else { s.digits = sh.digits; shifting = true; }
-    } else if (link.shift) { link.shift = null; link.shiftAt = null; } // reduced motion, or the power-on is still running: drop the shift, show the plain reading
+    } else if (link.shift && reduced) { link.shift = null; link.shiftAt = null; } // reduced motion: no shift, show the plain reading
+    // (while the power-on is still running the shift stays pending and plays when it ends: the tour's
+    // quiet period is timed from when the tour mounts, the power-on from the first frame after, which
+    // on a slow device is later)
     const digits = s.digits.replace(".", "");
     tubes.forEach((tube, i) => {
       // an unlit tube shows no digit, so it needs no redraw as the random digits change
@@ -181,42 +185,6 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
 // Nothing on the card moves or reads as live. The station's own text is the HTML panel pinned on
 // top (Room.tsx), and the card is swapped for the clear glass while that text is showing.
 
-const MONO = '"DejaVu Sans Mono", ui-monospace, monospace';
-
-function drawPhosphor(c: HTMLCanvasElement, card?: { worldLine: string; name: string }) {
-  const g = c.getContext("2d")!, w = c.width, h = c.height;
-  g.fillStyle = "#020a05"; g.fillRect(0, 0, w, h);
-  const glow = g.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w * 0.62);
-  glow.addColorStop(0, "#0f3d22"); glow.addColorStop(0.6, "#082513"); glow.addColorStop(1, "#010603");
-  g.fillStyle = glow; g.fillRect(0, 0, w, h);
-  if (card) {
-    g.textAlign = "center"; g.textBaseline = "middle";
-    g.shadowColor = "rgba(90,255,150,0.9)"; g.shadowBlur = 8;
-    g.fillStyle = "#7dffb0";
-    // Each line is as large as fits inside the visible part of the glass, up to a cap.
-    const fit = (text: string, cap: number) => {
-      g.font = `bold ${cap}px ${MONO}`;
-      const wide = g.measureText(text).width;
-      return Math.floor(wide > w * 0.8 ? (cap * w * 0.8) / wide : cap);
-    };
-    const small = fit(card.worldLine, h / 8);
-    g.font = `bold ${small}px ${MONO}`; g.fillText(card.worldLine, w / 2, h * 0.34);
-    const big = fit(card.name, h / 5);
-    g.font = `bold ${big}px ${MONO}`; g.fillText(card.name, w / 2, h * 0.56);
-    g.shadowBlur = 0;
-    g.fillRect(w * 0.15, h * 0.44, w * 0.7, Math.max(2, h / 120)); // rule between the lines
-  }
-  g.fillStyle = "rgba(0,0,0,0.35)"; // scanlines
-  for (let y = 0; y < h; y += 3) g.fillRect(0, y, w, 1);
-  // the tube's curve: corners fall off into the bezel
-  const v = g.createRadialGradient(w / 2, h / 2, h * 0.35, w / 2, h / 2, w * 0.68);
-  v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,0.85)");
-  g.fillStyle = v; g.fillRect(0, 0, w, h);
-  const sheen = g.createLinearGradient(0, 0, w, h); // a faint reflection on the glass
-  sheen.addColorStop(0, "rgba(200,255,220,0.07)"); sheen.addColorStop(0.35, "rgba(200,255,220,0)");
-  g.fillStyle = sheen; g.fillRect(0, 0, w, h);
-}
-
 /** How much smaller than the glass the phosphor plane is, so it stays inside the bezel. */
 const PLANE_INSET = 0.012;
 
@@ -228,10 +196,10 @@ function phosphorFrame(crt: Crt) {
 export function Phosphor({ progress }: { progress: { current: number } }) {
   const screens = useMemo(() => crts.map((crt) => {
     const station = stations.find((s) => s.id === crt.id);
-    const c = canvas(640, 500);
+    const c = canvas(CARD_PX.width, CARD_PX.height);
     drawPhosphor(c, station);
     // the same glass with no card, shown while the station's own text is on it
-    const clear = canvas(640, 500);
+    const clear = canvas(CARD_PX.width, CARD_PX.height);
     drawPhosphor(clear);
     return { crt, t: texture(c), clear: texture(clear), mats: createRef<MeshBasicMaterial>(), mesh: createRef<Mesh>() };
   }), []);
@@ -256,6 +224,96 @@ export function Phosphor({ progress }: { progress: { current: number } }) {
           <mesh key={crt.id} ref={mesh} position={[...f.position]} rotation={[0, f.yaw, 0]} raycast={() => null}>
             <planeGeometry args={[CRT_GLASS.width - PLANE_INSET, CRT_GLASS.height - PLANE_INSET]} />
             <meshBasicMaterial ref={mats} map={t} toneMapped={false} />
+          </mesh>
+        );
+      })}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- the bezels
+// One thin plane per TV, drawn once, over the baked bezel (which is soft up close): a crisp edge
+// round the glass, a small maker's plate, and a sticky note of its own. The words come from the
+// station's `bezel` in the content module. No re-bake and no new asset: the textures are painted
+// here, so the cost is code, not megabytes.
+const BEZEL = { width: 0.58, height: 0.48 }; // the baked bezel's face, from tools/room/build.py
+/** How far the edge's opening sits inside the glass. The clear screen layer stands 6.2 mm in front
+ *  of the glass, so it reaches a little past the glass onto the bezel: the edge stands 1.6 mm in
+ *  front of it and starts inside the glass edge, so that overhang is covered when the TV is seen
+ *  from a stop. (At a steep angle the 1.6 mm gap stops covering it, but the clear layer only
+ *  shows near a stop.) */
+export const EDGE_OVERLAP = 0.003;
+const EDGE_WIDTH = 0.006;
+// The note covers the baked one (build.py: 70 mm square, centred 0.24 m left and 0.15 m up, no tilt)
+// with a margin, so no baked note shows round it. It is a tall note, 56 x 82 mm.
+const NOTE_SIZE = { width: 0.056, height: 0.082 };
+// One tilt per TV, all different (radians). Small enough that the corners still cover the baked note.
+const NOTE_TILTS = [-0.06, 0.02, 0.05, -0.03, 0.06, -0.01];
+const NOTE_COLOURS = ["#f4e27a", "#f2a6b8", "#9fd8f0", "#b9e59a", "#f7c68b", "#d3b8f0"];
+
+/** Adds a rounded rectangle to the current path (the caller starts the path). */
+function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
+
+function drawBezel(c: HTMLCanvasElement, bezel: { plate: string; note: string }, k: number) {
+  const g = c.getContext("2d")!, w = c.width, h = c.height, m = w / BEZEL.width; // pixels per metre
+  g.clearRect(0, 0, w, h);
+  const hx = (CRT_GLASS.width / 2 - EDGE_OVERLAP) * m, hy = (CRT_GLASS.height / 2 - EDGE_OVERLAP) * m, r = 0.01 * m;
+  const cx = w / 2, cy = h / 2, ew = EDGE_WIDTH * m;
+  // the edge: a dark lip round the glass, then a thin light line where it meets the bezel
+  g.save();
+  g.beginPath(); g.rect(0, 0, w, h); roundRect(g, cx - hx, cy - hy, hx * 2, hy * 2, r);
+  g.clip("evenodd");
+  g.fillStyle = "#17120c"; g.beginPath(); roundRect(g, cx - hx - ew, cy - hy - ew, (hx + ew) * 2, (hy + ew) * 2, r + ew); g.fill();
+  g.restore();
+  g.lineWidth = Math.max(1, 0.0006 * m); g.strokeStyle = "rgba(255,246,222,0.55)";
+  g.beginPath(); roundRect(g, cx - hx - ew, cy - hy - ew, (hx + ew) * 2, (hy + ew) * 2, r + ew); g.stroke();
+  g.strokeStyle = "rgba(0,0,0,0.6)"; g.lineWidth = Math.max(1, 0.0008 * m);
+  g.beginPath(); roundRect(g, cx - hx, cy - hy, hx * 2, hy * 2, r); g.stroke();
+  // the maker's plate, bottom left of the bezel
+  const pw = 0.13 * m, ph = 0.028 * m, px = cx + PLATE_AT[0] * m - pw / 2, py = cy - PLATE_AT[1] * m - ph / 2;
+  const metal = g.createLinearGradient(0, py, 0, py + ph);
+  metal.addColorStop(0, "#d9d6cc"); metal.addColorStop(0.5, "#a9a69b"); metal.addColorStop(1, "#c4c1b6");
+  g.fillStyle = metal; g.beginPath(); roundRect(g, px, py, pw, ph, 0.003 * m); g.fill();
+  g.strokeStyle = "rgba(40,36,28,0.7)"; g.lineWidth = Math.max(1, 0.0007 * m); g.stroke();
+  g.fillStyle = "#2a261e"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = `bold ${0.014 * m}px ${MONO}`; g.fillText(bezel.plate, px + pw / 2, py + ph / 2 + 0.0005 * m, pw * 0.92);
+  // the sticky note, at the bezel's top left corner, tilted differently on each TV
+  const nw = NOTE_SIZE.width * m, nh = NOTE_SIZE.height * m, tilt = NOTE_TILTS[k % NOTE_TILTS.length];
+  g.save();
+  g.translate(cx + NOTE_AT[0] * m, cy - NOTE_AT[1] * m); g.rotate(tilt);
+  g.shadowColor = "rgba(0,0,0,0.45)"; g.shadowBlur = 0.004 * m; g.shadowOffsetY = 0.002 * m;
+  g.fillStyle = NOTE_COLOURS[k % NOTE_COLOURS.length]; g.fillRect(-nw / 2, -nh / 2, nw, nh);
+  g.shadowColor = "transparent";
+  g.fillStyle = "rgba(255,255,255,0.25)"; g.fillRect(-nw / 2, -nh / 2, nw, nw * 0.16); // the sticky strip
+  g.fillStyle = "#3b2f6b"; g.font = `${0.0095 * m}px ${MONO}`;
+  const lines = bezel.note.split("\n");
+  lines.forEach((t, i) => g.fillText(t, 0, (i - (lines.length - 1) / 2) * 0.0115 * m + 0.005 * m, nw * 0.9));
+  g.restore();
+}
+
+export function Bezels() {
+  // Read once, on purpose: moving the window to another screen doesn't redraw the bezels.
+  const dense = typeof devicePixelRatio === "number" && devicePixelRatio >= 1.5;
+  const bezels = useMemo(() => crts.map((crt, k) => {
+    const station = stations.find((s) => s.id === crt.id)!;
+    // 1.5 px per mm, 2 on a high-density screen: about 6 MB a texture with mipmaps, 35 MB for six
+    const px = dense ? 2000 : 1500;
+    const c = canvas(Math.round(BEZEL.width * px), Math.round(BEZEL.height * px));
+    drawBezel(c, station.bezel, k);
+    return { crt, t: texture(c) };
+  }), [dense]);
+  return (
+    <>
+      {bezels.map(({ crt, t }) => {
+        const a = (crt.yaw * Math.PI) / 180, d = 0.0078; // in front of the clear screen layer (6.2 mm)
+        return (
+          <mesh key={crt.id} position={[crt.screen[0] + Math.sin(a) * d, crt.screen[1], crt.screen[2] + Math.cos(a) * d]}
+            rotation={[0, a, 0]} renderOrder={2} raycast={() => null}>
+            <planeGeometry args={[BEZEL.width, BEZEL.height]} />
+            <meshBasicMaterial map={t} transparent depthWrite={false} toneMapped={false} />
           </mesh>
         );
       })}
