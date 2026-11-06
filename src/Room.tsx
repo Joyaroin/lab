@@ -145,7 +145,7 @@ export default function Room({ onReady, onProgress, progress, reduced, meter, ga
       <Suspense fallback={null}>
         <BakedRoom onLoaded={onReady} onProgress={onProgress} />
         <DeskMeter link={meter} reduced={reduced} />
-        <Phosphor reduced={reduced} progress={progress} />
+        <Phosphor progress={progress} />
         <Rain />
       </Suspense>
     </Canvas>

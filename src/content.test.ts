@@ -110,35 +110,64 @@ it("has no placeholder copy left", () => {
   expect(JSON.stringify(content)).not.toMatch(/placeholder/i);
 });
 
-describe("CRT terminal text", () => {
-  it("every station has terminal lines", () => {
-    for (const s of content.stations) {
-      expect(s.terminal.length, s.id).toBeGreaterThan(0);
+// The title card on each TV is the station's worldLine and name. Nothing on a TV may read as live.
+describe("title card text", () => {
+  it.each(["name", "worldLine"] as const)("rejects a %s that reads as a live status", (field) => {
+    for (const line of ["hamon Ready", "Synced", "42 passing", "build OK", "3 pods Running"]) {
+      const c = good();
+      c.stations[0][field] = line;
+      expect(validateContent(c).join("\n")).toContain(`stations[0].${field}: reads as a live status`);
     }
   });
-  it("rejects a terminal line too long for the CRT", () => {
-    const c = good();
-    c.stations[0].terminal = ["x".repeat(21)];
-    expect(validateContent(c).join("\n")).toContain("stations[0].terminal[0]: longer than 20 characters");
+  it("the shipped cards read as no status", () => {
+    expect(validateContent(content)).toEqual([]);
   });
-  it("rejects a station with no terminal lines", () => {
+});
+
+// A station's optional diagram is held as data and checked like other copy.
+describe("diagram", () => {
+  const media = () => {
     const c = good();
-    c.stations[3].terminal = [];
-    expect(validateContent(c).join("\n")).toContain("stations[3].terminal");
+    return { c, d: c.stations.find((s) => s.id === "mediasafe")!.diagram! };
+  };
+  it("MediaSafe has one: Git to Argo CD to staging, then production by hand", () => {
+    const { d } = media();
+    expect(d.steps).toEqual(["Git", "Argo CD", "Staging", "Production"]);
+    expect(d.hops[2]).toMatch(/by hand/i);
   });
-  it("validates terminal lines like any other copy", () => {
+  it("uses only facts in the station's copy", () => {
+    const { d } = media();
+    const body = content.stations.find((s) => s.id === "mediasafe")!.body.join(" ").toLowerCase();
+    for (const t of [...d.steps, ...d.hops.filter(Boolean)]) {
+      for (const w of t.toLowerCase().split(/\s+/)) expect(body, w).toContain(w.slice(0, 5));
+    }
+  });
+  it("a station without one is still valid", () => {
     const c = good();
-    c.stations[0].terminal = ["$ ssh 192.168.1.5"];
-    expect(validateContent(c).join("\n")).toContain("stations[0].terminal[0]: contains a private address");
+    delete c.stations[0].diagram;
+    expect(validateContent(c)).toEqual([]);
   });
-  // Nothing on a CRT may read as a live result: these are what the old invented text claimed.
-  it.each(["hamon   Ready", "mediasafe-prd  Synced", "  42 passing", "group A ... ok", "build OK", "3 pods Running"])(
-    "rejects a line that reads as a live status: %s", (line) => {
-      const c = good();
-      c.stations[0].terminal = [line];
-      expect(validateContent(c).join("\n")).toContain("stations[0].terminal[0]: reads as a live status");
-    });
-  it("the shipped terminal lines hold no counts or statuses", () => {
-    for (const s of content.stations) for (const l of s.terminal) expect(l, s.id).not.toMatch(/\d+\s+(passing|failing|ok)/i);
+  it.each(["description", "step", "hop"])("checks the %s text like other copy", (what) => {
+    const { c, d } = media();
+    const bad = "Call 613-555-0142";
+    if (what === "description") d.description = bad;
+    if (what === "step") d.steps[1] = "10.0.0.5";
+    if (what === "hop") d.hops[2] = bad;
+    expect(validateContent(c).join("\n")).toMatch(/diagram/);
+  });
+  it("rejects a missing description, since a screen reader needs one", () => {
+    const { c, d } = media();
+    d.description = "";
+    expect(validateContent(c).join("\n")).toContain("diagram.description");
+  });
+  it("rejects hops that do not fit the steps", () => {
+    const { c, d } = media();
+    d.hops.pop();
+    expect(validateContent(c).join("\n")).toContain("diagram.hops");
+  });
+  it("rejects a step that reads as a live status", () => {
+    const { c, d } = media();
+    d.steps[2] = "Synced";
+    expect(validateContent(c).join("\n")).toContain("reads as a live status");
   });
 });

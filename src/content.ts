@@ -18,10 +18,13 @@ export type Station = {
   /** plain paragraphs shown on the CRT */
   body: string[];
   links: Link[];
-  /** dim terminal lines drawn on the CRT glass behind the text. Only facts that stay true:
-   *  names of hosts and tools. Never a status or result, which would read as live data. */
-  terminal: string[];
+  /** optional line drawing of facts already in `body` */
+  diagram?: Diagram;
 };
+/** A chain of steps drawn left to right. `hops[i]` labels the arrow from step i to step i+1
+ *  ("" for none), so it has one entry fewer than `steps`. `description` is the plain-text version
+ *  a screen reader gets. */
+export type Diagram = { description: string; steps: string[]; hops: string[] };
 export type Content = {
   identity: { name: string; title: string; availability: string };
   links: Link[];
@@ -32,9 +35,6 @@ export type Content = {
 const LINKEDIN: Link = { label: "LinkedIn", href: "https://www.linkedin.com/in/adham-sedik-971a57184/" };
 const GITHUB: Link = { label: "GitHub", href: "https://github.com/Joyaroin" };
 const SITE_SOURCE: Link = { label: "This site's source", href: "https://github.com/Joyaroin/lab" };
-
-/** The longest terminal line the CRT glass has room for, in characters. */
-export const TERMINAL_MAX = 20;
 
 export const content: Content = {
   identity: {
@@ -69,7 +69,6 @@ export const content: Content = {
         "Delivered C# and .NET services and React/TypeScript UI across some 60 tickets, and brought open-source license scanning into CI.",
       ],
       links: [LINKEDIN],
-      terminal: ["$ cat roles.txt", "solace     platform", "barracuda  platform"],
     },
     {
       id: "mediasafe", name: "MediaSafe", worldLine: "World line 02", reading: 377,
@@ -80,12 +79,16 @@ export const content: Content = {
         "Argo CD syncs the cluster from Git, and a commit is the only way it changes. Merges ship to staging automatically; production is promoted by hand. Secrets live in Vault with nightly snapshots to Cloudflare R2 and a scripted restore drill.",
         "As of November 2026: about 700 commits and 170+ merged pull requests since August 2026.",
       ],
+      diagram: {
+        description: "Git feeds Argo CD, which syncs staging automatically. Production is promoted from staging by hand.",
+        steps: ["Git", "Argo CD", "Staging", "Production"],
+        hops: ["", "automatic", "by hand"],
+      },
       links: [
         { label: "MediaSafe repo", href: "https://github.com/Joyaroin/MediaSafe" },
         { label: "Deploy repo", href: "https://github.com/Joyaroin/morioh-cho-gitops" },
         { label: "mediasafe.space (Google sign-in)", href: "https://mediasafe.space" },
       ],
-      terminal: ["$ cat stack.txt", "next.js 16", "postgres", "argo cd  vault"],
     },
     {
       id: "home-lab", name: "Home lab", worldLine: "World line 03", reading: 512,
@@ -97,7 +100,6 @@ export const content: Content = {
         "This site runs on that cluster.",
       ],
       links: [SITE_SOURCE],
-      terminal: ["$ cat hosts.txt", "jonathan  proxmox", "joseph    proxmox", "hamon  hermit  k3s"],
     },
     {
       id: "order-tracker", name: "Order Tracker", worldLine: "World line 04", reading: 640,
@@ -109,7 +111,6 @@ export const content: Content = {
         "The repo is private, so there is no link.",
       ],
       links: [],
-      terminal: ["$ cat stack.txt", "argo cd  kustomize", "terraform  eks", "github actions"],
     },
     {
       id: "wc2026-predictor", name: "WC2026 Predictor", worldLine: "World line 05", reading: 733,
@@ -119,7 +120,6 @@ export const content: Content = {
         "React 19, TypeScript, Express 5, single-table DynamoDB, Terraform, Helm and Argo CD.",
       ],
       links: [{ label: "Repo", href: "https://github.com/Joyaroin/wc2026-predictor" }],
-      terminal: ["$ cat stack.txt", "react 19  express 5", "dynamodb  terraform", "helm  argo cd"],
     },
     {
       id: "contact", name: "Contact", worldLine: "World line 06", reading: 861,
@@ -134,7 +134,6 @@ export const content: Content = {
         GITHUB,
         SITE_SOURCE,
       ],
-      terminal: ["$ cat contact.txt", "github.com/Joyaroin", "in/adham-sedik"],
     },
   ],
 };
@@ -166,7 +165,8 @@ const PRIVATE_HOST = /(?<![\w-])(localhost|[\w-]+(\.[\w-]+)*\.(ts\.net|local|lan
 const hasPrivateAddress = (s: string) =>
   hasPrivateIPv4(s) || PRIVATE_IPV6.test(s) || PRIVATE_HOST.test(s);
 
-// Words that make a terminal line read as a live result ("hamon Ready", "Synced", "42 passing").
+// Words that make a title card read as a live result ("hamon Ready", "Synced", "42 passing").
+// The card is drawn on a TV, and nothing on a TV may look like live data.
 const LIVE_STATUS = /\b(ready|synced|passing|failing|ok|healthy|running|failed|error|degraded|up to date)\b/i;
 
 const SAFE_HREF = /^(https:\/\/|mailto:|\/(?!\/))/i;
@@ -195,16 +195,30 @@ export function validateContent(c: Content): string[] {
   (c.stations ?? []).forEach((s, i) => {
     const p = `stations[${i}]`;
     for (const f of ["id", "name", "worldLine", "heading"] as const) text(`${p}.${f}`, s[f]);
+    for (const f of ["name", "worldLine"] as const) {
+      if (typeof s[f] === "string" && LIVE_STATUS.test(s[f])) problems.push(`${p}.${f}: reads as a live status`);
+    }
     if (typeof s.reading !== "number" || !Number.isFinite(s.reading)) problems.push(`${p}.reading: missing`);
     if (!Array.isArray(s.body) || s.body.length === 0) problems.push(`${p}.body: missing`);
     else s.body.forEach((b, j) => text(`${p}.body[${j}]`, b));
     linkList(`${p}.links`, s.links);
-    if (!Array.isArray(s.terminal) || s.terminal.length === 0) problems.push(`${p}.terminal: missing`);
-    else s.terminal.forEach((l, j) => {
-      text(`${p}.terminal[${j}]`, l);
-      if (typeof l === "string" && l.length > TERMINAL_MAX) problems.push(`${p}.terminal[${j}]: longer than ${TERMINAL_MAX} characters`);
-      if (LIVE_STATUS.test(l)) problems.push(`${p}.terminal[${j}]: reads as a live status`);
-    });
+    if (s.diagram) {
+      const d = s.diagram, dp = `${p}.diagram`;
+      text(`${dp}.description`, d.description);
+      if (!Array.isArray(d.steps) || d.steps.length === 0) problems.push(`${dp}.steps: missing`);
+      else {
+        d.steps.forEach((t, j) => {
+          text(`${dp}.steps[${j}]`, t);
+          if (typeof t === "string" && LIVE_STATUS.test(t)) problems.push(`${dp}.steps[${j}]: reads as a live status`);
+        });
+        if (!Array.isArray(d.hops) || d.hops.length !== d.steps.length - 1) problems.push(`${dp}.hops: need one fewer than steps`);
+      }
+      (d.hops ?? []).forEach((t, j) => {
+        if (t === "") return;
+        text(`${dp}.hops[${j}]`, t);
+        if (typeof t === "string" && LIVE_STATUS.test(t)) problems.push(`${dp}.hops[${j}]: reads as a live status`);
+      });
+    }
   });
   return problems;
 }
