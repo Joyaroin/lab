@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { PerspectiveCamera } from "three";
 import { CAMERA_FOV, crts } from "./crts";
-import { glassBox, glassOnScreen } from "./glass";
+import { boxAround, glassOnScreen } from "./glass";
 import { progressFor, tourAt } from "./tour";
 import { BOTTOM_CLEAR, SIDE, TOP_CLEAR } from "./pin";
 import { squareStop } from "./stop";
@@ -15,8 +15,8 @@ function glassAtHold(i: number, w: number, h: number) {
   cam.lookAt(...t.look);
   cam.updateMatrixWorld();
   const pts = glassOnScreen(crts[i], cam, { width: w, height: h });
-  const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
-  return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys), pts, box: glassBox(crts[i], cam, { width: w, height: h }) };
+  const box = boxAround(pts);
+  return { left: box.left, right: box.left + box.width, top: box.top, bottom: box.top + box.height, pts, box };
 }
 
 const windows = [[1280, 800], [1920, 1080], [1440, 900], [1024, 768], [1366, 640], [2560, 1440]];

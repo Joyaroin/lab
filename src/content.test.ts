@@ -143,23 +143,34 @@ describe("diagram", () => {
   // Whole words, so "automatic" does not pass for "automatically". Only plain connectives are free.
   const FREE = new Set(["a", "an", "the", "to", "and", "by", "from", "is", "are", "with", "which"]);
   const words = (t: string) => t.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
-  it.each(content.stations.filter((s) => s.diagram).map((s) => [s.id]))("%s: every word of its diagram, description included, is in its copy", (id) => {
-    const s = content.stations.find((x) => x.id === id)!;
+  /** Words in a station's diagram that its copy doesn't have, as "word in text". */
+  const missingWords = (s: { body: string[]; heading: string; name: string; diagram?: { description: string; steps: string[]; hops: string[] } }) => {
     const copy = new Set(words(s.body.join(" ") + " " + s.heading + " " + s.name));
     const d = s.diagram!;
-    for (const t of [d.description, ...d.steps, ...d.hops]) {
-      for (const w of words(t)) if (!FREE.has(w)) expect(copy.has(w), `"${w}" in "${t}"`).toBe(true);
-    }
+    return [d.description, ...d.steps, ...d.hops].flatMap((t) => words(t).filter((w) => !FREE.has(w) && !copy.has(w)).map((w) => `"${w}" in "${t}"`));
+  };
+  it.each(content.stations.filter((s) => s.diagram).map((s) => [s.id]))("%s: every word of its diagram, description included, is in its copy", (id) => {
+    expect(missingWords(content.stations.find((x) => x.id === id)!)).toEqual([]);
   });
   it("the word check does not pass a near miss", () => {
-    expect(words("automatically")).not.toContain("automatic");
+    const s = { body: ["It deploys automatically."], heading: "h", name: "n", diagram: { description: "It deploys", steps: ["automatic"], hops: [] } };
+    expect(missingWords({ ...s, diagram: { ...s.diagram, steps: ["automatically"] } })).toEqual([]);
+    expect(missingWords(s)).toEqual(['"automatic" in "automatic"']);
   });
   it("exactly Home lab, MediaSafe, Order Tracker and WC2026 have one; Work and Contact do not", () => {
     expect(content.stations.filter((s) => s.diagram).map((s) => s.id)).toEqual(["mediasafe", "home-lab", "order-tracker", "wc2026-predictor"]);
   });
-  it("no diagram shows a score, a leaderboard or a result", () => {
-    const wc = content.stations.find((s) => s.id === "wc2026-predictor")!.diagram!;
-    expect([wc.description, ...wc.steps, ...wc.hops].join(" ")).not.toMatch(/score|leader|\d+\s*[-:–]\s*\d+|win|goal|result/i);
+  describe.each(content.stations.filter((s) => s.diagram).map((s) => [s.id]))("%s", (id) => {
+    const text = (c: ReturnType<typeof good>) => { const d = c.stations.find((x) => x.id === id)!.diagram!; return [d.description, ...d.steps, ...d.hops]; };
+    it("shows nothing that reads as a live status, by the same check as the other copy", () => {
+      expect(validateContent(good()).filter((p) => p.includes("reads as a live status"))).toEqual([]);
+      const c = good();
+      c.stations.find((x) => x.id === id)!.diagram!.steps[0] = "passing";
+      expect(validateContent(c).join("\n")).toMatch(/diagram\.steps\[0\]: reads as a live status/);
+    });
+    it("shows no score, leaderboard or result", () => {
+      expect(text(good()).join(" ")).not.toMatch(/score|leader|\d+\s*[-:–]\s*\d+|win|goal|result/i);
+    });
   });
   it("a station without one is still valid", () => {
     const c = good();

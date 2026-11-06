@@ -12,6 +12,10 @@ import { openTour, panelOf, scrollToProgress, waitForPanel, wheelToStop } from "
 // frame's worth, after which a jump back would have happened. They cannot be "wait for X", because
 // the bug is the absence of a change.
 const FRAME_WAIT_MS = 150;
+// The gap between wheel ticks while carrying on to the next stop. This loop waits for something to
+// appear, not for the absence of a change, so the time only sets how often it looks: short enough
+// that it stops soon after the panel shows, long enough not to flood the page with wheel events.
+const NEXT_STOP_POLL_MS = 100;
 
 const panelScrollTop = (page: Page, id: string) => panelOf(page, id).evaluate((e) => e.scrollTop);
 const panelRoom = (page: Page, id: string) => panelOf(page, id).evaluate((e) => e.scrollHeight - e.clientHeight);
@@ -44,7 +48,7 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     // carrying on moves to the next stop
     for (let i = 0; i < 40; i++) {
       await page.mouse.wheel(0, 200);
-      await page.waitForTimeout(100);
+      await page.waitForTimeout(NEXT_STOP_POLL_MS);
       if (await panelOf(page, "mediasafe").evaluate((e) => getComputedStyle(e).visibility) === "visible") break;
     }
     await expect(panelOf(page, "mediasafe")).toBeVisible();

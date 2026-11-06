@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { holdSpan, progressFor } from "../src/hold";
 import { POWER_ON_SECONDS, SHIFT_SECONDS } from "../src/nixie";
 import { DWELL_MS, SNAP_BACK_MS } from "../src/shift";
-import { panelOf as panel, scrollToProgress as scrollTo } from "./lib/page";
+import { panelOf as panel, scrollToProgress } from "./lib/page";
 
 test.setTimeout(60_000);
 
@@ -52,7 +52,7 @@ test("arriving in a hold scrambles the meter, which ends on the true reading", a
     mo.observe(window.__meter.bar(), { childList: true, subtree: true, characterData: true });
     setTimeout(() => { mo.disconnect(); res(out); }, 6_000);
   }));
-  await scrollTo(page, progressFor(1));
+  await scrollToProgress(page, progressFor(1));
   const digitsSeen = await seen;
   expect(new Set(digitsSeen).size).toBeGreaterThan(2); // it scrambled
   await expect.poll(async () => (await tubes(page)) === (await reading(page)), { timeout: 10_000 }).toBe(true); // and settled on the reading
@@ -60,9 +60,9 @@ test("arriving in a hold scrambles the meter, which ends on the true reading", a
 
 test("scrolling quickly through a station does not scramble the meter", async ({ page }) => {
   await boot(page);
-  await scrollTo(page, progressFor(1));
+  await scrollToProgress(page, progressFor(1));
   await page.waitForTimeout(1500); // first visit, done
-  await scrollTo(page, progressFor(2) - 0.12);
+  await scrollToProgress(page, progressFor(2) - 0.12);
   await page.waitForTimeout(1200); // travelling: reading is fixed, no shift yet
 
   // The whole scroll-through happens in one task in the page, so it can't depend on the frame
@@ -99,7 +99,7 @@ test("scrolling quickly through a station does not scramble the meter", async ({
 test("reduced motion shows the plain reading with no scramble", async ({ browser }) => {
   const page = await (await browser.newContext({ reducedMotion: "reduce" })).newPage();
   await boot(page);
-  await scrollTo(page, progressFor(1));
+  await scrollToProgress(page, progressFor(1));
   await page.waitForTimeout(100);
   const seen = await sample(page, DWELL_MS + 1500);
   expect(new Set(seen).size).toBe(1);
@@ -155,7 +155,7 @@ const lateBy = (design: number, w: Watched, resolve = TEXT_RESOLVE_MS) => design
 test("a first visit tears the view for about 0.8 s, and the text resolves as it ends", async ({ page }) => {
   await boot(page);
   await watch(page, "work");
-  await scrollTo(page, progressFor(1));
+  await scrollToProgress(page, progressFor(1));
   await settled(page);
   expect(await panel(page, "work").innerText()).not.toBe(""); // in the page throughout, selectable and findable
   const w = await watched(page);
@@ -175,12 +175,12 @@ test("a first visit tears the view for about 0.8 s, and the text resolves as it 
 
 test("a return shows its text when the 250 ms wait ends, and the flick plays over it", async ({ page }) => {
   await boot(page);
-  await scrollTo(page, progressFor(1));
+  await scrollToProgress(page, progressFor(1));
   await page.waitForTimeout(2500);
-  await scrollTo(page, 0);
+  await scrollToProgress(page, 0);
   await page.waitForTimeout(500);
   await watch(page, "work");
-  await scrollTo(page, progressFor(1));
+  await scrollToProgress(page, progressFor(1));
   await settled(page);
   const w = await watched(page);
   const len = w.ends[0] - w.starts[0];
@@ -198,7 +198,7 @@ test("reduced motion gets no tear, and the text is there straight away", async (
   const page = await (await browser.newContext({ reducedMotion: "reduce" })).newPage();
   await boot(page);
   await watch(page, "work");
-  await scrollTo(page, progressFor(1));
+  await scrollToProgress(page, progressFor(1));
   await expect.poll(async () => (await watched(page)).shown, { timeout: 5_000 }).not.toBeNull();
   await page.waitForTimeout(DWELL_MS + 1500);
   const w = await watched(page);
@@ -237,7 +237,7 @@ test("moving quickly between stations can't make more than 3 sudden changes in a
 
 test("leaving mid-shift ends on the true reading, with no late jump", async ({ page }) => {
   await boot(page);
-  await scrollTo(page, progressFor(1));
+  await scrollToProgress(page, progressFor(1));
   await expect.poll(() => filterOn(page), { timeout: 5_000 }).toBe(true); // the shift is playing
   // leave the hold into travel, then watch the bar for 2 s
   const away = holdSpan(1)[1] + 0.03;
@@ -264,7 +264,7 @@ test("a shift that arrives during the power-on plays once it is over", async ({ 
   await page.goto("/");
   await expect(page.locator(METER_BAR)).toBeVisible();
   await watch(page, "work");
-  await scrollTo(page, progressFor(1)); // the tubes are still warming up
+  await scrollToProgress(page, progressFor(1)); // the tubes are still warming up
   await page.waitForTimeout(500);
   // Not before the power-on is over. (A busy machine can take longer than this to get here, so the
   // time is checked on the page's clock rather than assuming 500 ms is still inside the power-on.)
@@ -279,7 +279,7 @@ test("a shift that arrives during the power-on plays once it is over", async ({ 
 
 test("reloading inside a hold is not an arrival: no shift, the meter never scrambles, and the text shows", async ({ page }) => {
   await boot(page);
-  await scrollTo(page, progressFor(1));
+  await scrollToProgress(page, progressFor(1));
   await expect.poll(async () => (await tubes(page)) === (await reading(page)), { timeout: 10_000 }).toBe(true); // first visit played out
   await page.waitForTimeout(500);
   await page.reload();
@@ -296,7 +296,7 @@ test("reloading inside a hold is not an arrival: no shift, the meter never scram
   // Headless Chromium doesn't put the scroll position back here (the page is only tall once the room
   // is up), so do what browsers that do restore it do: scroll there, just after the tour mounts. The
   // app treats the first move off the top after a reload as that restore (TourView.tsx), not an arrival.
-  await scrollTo(page, progressFor(1));
+  await scrollToProgress(page, progressFor(1));
   await expect.poll(async () => (await watched(page)).shown, { timeout: 8_000 }).not.toBeNull();
   // Long enough for the shift to have played had it fired: past the power-on, the dwell and the tear.
   await page.waitForTimeout(POWER_ON_SECONDS * 1000 + DWELL_MS + SHIFT_SECONDS.full * 1000 + 500);

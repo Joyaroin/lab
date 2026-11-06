@@ -1,5 +1,6 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { stations } from "../src/content";
+import { waitForCamera } from "./lib/page";
 
 // Ticket 53: MediaSafe shows a line diagram under its links, drawn from data in the content module.
 // Other stations that have none look as they did.
@@ -22,7 +23,7 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     await hud.locator('a[href="#mediasafe"]').click();
     const panel = page.locator('[data-screen="mediasafe"]');
     await expect(panel).toHaveCSS("opacity", "1");
-    await page.waitForTimeout(800); // let the camera arrive
+    await waitForCamera(page);
     const fig = panel.locator("figure[data-diagram]");
     await expect(fig).toBeVisible();
 
@@ -54,7 +55,7 @@ test("phone: MediaSafe still shows its panel with the diagram not breaking the l
   await page.getByRole("navigation", { name: "HUD" }).locator('a[href="#mediasafe"]').click();
   const panel = page.locator('[data-screen="mediasafe"]');
   await expect(panel).toHaveCSS("opacity", "1");
-  await page.waitForTimeout(800);
+  await waitForCamera(page);
   const pb = (await panel.boundingBox())!;
   expect(pb.x).toBeGreaterThanOrEqual(0);
   expect(pb.x + pb.width).toBeLessThanOrEqual(390);
@@ -64,22 +65,22 @@ test("phone: MediaSafe still shows its panel with the diagram not breaking the l
 });
 
 // Ticket 54: Home lab, Order Tracker and WC2026 get one too; Contact never does.
-for (const id of ["home-lab", "order-tracker", "wc2026-predictor", "contact"]) {
-  test(`desktop 1280x800: ${id} ${id === "contact" ? "has no diagram" : "shows its diagram, drawn from its copy, inside the panel"}`, async ({ page }) => {
+async function goToStation(page: Page, id: string) {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  await expect(page.getByLabel("Boot log")).toBeHidden();
+  await page.getByRole("navigation", { name: "HUD" }).locator(`a[href="#${id}"]`).click();
+  const panel = page.locator(`[data-screen="${id}"]`);
+  await expect(panel).toHaveCSS("opacity", "1");
+  await waitForCamera(page);
+  return panel;
+}
+
+for (const id of ["home-lab", "order-tracker", "wc2026-predictor"]) {
+  test(`desktop 1280x800: ${id} shows its diagram, drawn from its copy, inside the panel`, async ({ page }) => {
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto("/");
-    await expect(page.getByLabel("Boot log")).toBeHidden();
-    await page.getByRole("navigation", { name: "HUD" }).locator(`a[href="#${id}"]`).click();
-    const panel = page.locator(`[data-screen="${id}"]`);
-    await expect(panel).toHaveCSS("opacity", "1");
-    await page.waitForTimeout(800);
-    const d = stations.find((s) => s.id === id)!.diagram;
-    if (!d) {
-      await expect(panel.locator("figure")).toHaveCount(0);
-      await page.screenshot({ path: `test-results/diagram-1280x800-${id}.png` });
-      return;
-    }
+    const panel = await goToStation(page, id);
+    const d = stations.find((s) => s.id === id)!.diagram!;
     const fig = panel.locator("figure[data-diagram]");
     await expect(fig).toBeVisible();
     // labels in order; an arrow with no label draws no text
@@ -98,3 +99,10 @@ for (const id of ["home-lab", "order-tracker", "wc2026-predictor", "contact"]) {
     await page.screenshot({ path: `test-results/diagram-1280x800-${id}.png` });
   });
 }
+
+test("desktop 1280x800: contact has no diagram", async ({ page }) => {
+  test.setTimeout(90_000);
+  const panel = await goToStation(page, "contact");
+  await expect(panel.locator("figure")).toHaveCount(0);
+  await page.screenshot({ path: "test-results/diagram-1280x800-contact.png" });
+});

@@ -12,9 +12,14 @@ export function glassOnScreen(crt: Crt, camera: Camera, size: { width: number; h
   });
 }
 
-/** The box around the glass's corners on screen. */
-export function glassBox(crt: Crt, camera: Camera, size: { width: number; height: number }) {
-  const pts = glassOnScreen(crt, camera, size), xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+/** The box around a set of points on screen. */
+export function boxAround(pts: { x: number; y: number }[]) {
+  const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
   const left = Math.min(...xs), top = Math.min(...ys);
   return { left, top, width: Math.max(...xs) - left, height: Math.max(...ys) - top };
+}
+
+/** The box around the glass's corners on screen. */
+export function glassBox(crt: Crt, camera: Camera, size: { width: number; height: number }) {
+  return boxAround(glassOnScreen(crt, camera, size));
 }

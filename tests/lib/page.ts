@@ -1,11 +1,12 @@
 import { expect, type Page } from "@playwright/test";
+import { stations } from "../../src/content";
 import { progressFor } from "../../src/hold";
 
 // Helpers the browser specs share. Specs that need a page to settle, scroll to a stop or read
 // pixels use these, so there is one way of doing each.
 
 /** Stations by id, in tour order. */
-export const stationIds = ["work", "mediasafe", "home-lab", "order-tracker", "wc2026-predictor", "contact"];
+export const stationIds = stations.map((s) => s.id);
 
 export const panelOf = (page: Page, id: string) => page.locator(`[data-screen="${id}"]`);
 

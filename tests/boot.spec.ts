@@ -6,7 +6,7 @@ import type { AddressInfo } from "node:net";
 import { stations } from "../src/content";
 import { GAP_TIMEOUT_MS } from "../src/gap";
 import { holdSpan, progressFor, STATION_COUNT } from "../src/hold";
-import { readShot, stationIds } from "./lib/page";
+import { readShot, stationIds, waitForCamera } from "./lib/page";
 
 const signalLost = async (page: Page, reason?: string) => {
   await expect(page.getByRole("alert")).toContainText("SIGNAL LOST");
@@ -297,7 +297,7 @@ test("moving the pointer at the entrance keeps the desk meter in view (desktop)"
   });
   for (const [x, y] of [[1, height / 2], [width - 2, height / 2], [1, 1], [width - 2, height - 2], [width / 2, height / 2]]) {
     await page.mouse.move(x, y, { steps: 4 });
-    await page.waitForTimeout(800); // the camera eases over well under this
+    await waitForCamera(page); // the camera has eased to where the pointer puts it
     expect(await page.evaluate(() => (window as unknown as { __seen: string[] }).__seen), `pointer at ${x},${y}`).toEqual([]);
     if (x === 1 && y === height / 2) await page.screenshot({ path: "test-results/entrance-pointer-left-desktop.png" });
   }

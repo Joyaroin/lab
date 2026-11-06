@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { tourAt, progressFor, holdSpan, panelStrength, PANEL_SHOWN, STATION_COUNT } from "./tour";
-import { travelProgress } from "./hold";
+import { travelProgress } from "../tests/lib/travel";
 import { stations } from "./content";
 import { crts, panelPoint } from "./crts";
 import { squareStop } from "./stop";
@@ -391,8 +391,8 @@ import { ARCS } from "./crts";
 import { nearestSurface } from "../tests/lib/room-mesh";
 type V3 = [number, number, number];
 
-// The camera must stay CLEAR metres from every surface in the baked room (the near plane is 5 cm;
-// this leaves room to see). The surfaces are the room's real triangles, read from the committed
+// The camera must stay CLEAR metres from every surface in the baked room (the near plane is 0.1 m, react-three-fiber's
+// default, so a closer surface would be clipped). The surfaces are the room's real triangles, read from the committed
 // room.glb, so there is no second list of props to keep in step with tools/room/build.py: add a
 // prop near an arc, re-bake, and this fails if the camera would pass through it.
 const CLEAR = 0.1;

@@ -6,7 +6,7 @@ import { PerspectiveCamera, Vector3 } from "three";
 import { stations } from "../src/content";
 import { CAMERA_FOV, crts } from "../src/crts";
 import { glassOnScreen } from "../src/glass";
-import { travelProgress } from "../src/hold";
+import { travelProgress } from "./lib/travel";
 import { tourAt } from "../src/tour";
 import { readCamera, readShot, scrollToProgress } from "./lib/page";
 
