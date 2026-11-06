@@ -5,7 +5,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import roomUrl from "./assets/room.glb?url";
 import { CAMERA_FOV, crts, ENTRANCE, glassCorners, glassEdge, isPortrait, panelPoint } from "./crts";
 import { fitPanel, glassFontSize } from "./pin";
-import { PANEL_SHOWN, panelStrength, parallax, textOnGlass, parallaxStrength, tourAt } from "./tour";
+import { holdSpan, PANEL_SHOWN, panelStrength, parallax, textOnGlass, parallaxStrength, tourAt } from "./tour";
 import { DeskMeter, Phosphor, Rain } from "./Effects";
 import type { MeterLink } from "./nixie";
 import { markMore } from "./ScreenPanels";
@@ -27,7 +27,11 @@ function ScreenPins({ progress }: { progress: MutableRefObject<number> }) {
       const strength = panelStrength(progress.current, k + 1); // full for the whole hold
       el.style.opacity = String(strength);
       el.style.visibility = strength < PANEL_SHOWN ? "hidden" : "visible";
-      el.style.pointerEvents = strength > 0.6 ? "auto" : "none";
+      // Only during the hold does the panel take the wheel. Outside it the panel is shrinking or
+      // growing with the camera, so its text overflows differently every frame and would eat the
+      // wheel steps that should move the tour on.
+      const [h0, h1] = holdSpan(k + 1);
+      el.style.pointerEvents = progress.current >= h0 && progress.current <= h1 ? "auto" : "none";
       if (strength < PANEL_SHOWN) return;
       if (textOnGlass(progress.current, k + 1, size.width / size.height)) {
         // Desktop: the camera is square to the glass, so the text is laid exactly over it.

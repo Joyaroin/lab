@@ -171,3 +171,20 @@ describe("diagram", () => {
     expect(validateContent(c).join("\n")).toContain("reads as a live status");
   });
 });
+
+// Work is two pages, Barracuda then Solace on the timeline, holding exactly the old text.
+describe("Work's pages", () => {
+  const work = () => { const c = good(); return { c, w: c.stations.find((s) => s.id === "work")! }; };
+  it("are Solace and Barracuda, and between them hold every paragraph of the body in order", () => {
+    const { w } = work();
+    expect(w.pages!.map((p) => p.label)).toEqual(["Solace", "Barracuda"]);
+    expect(w.pages!.map((p) => p.dates)).toEqual(["Sep to Dec 2026", "Sep 2025 to Aug 2026"]);
+    expect(w.pages!.flatMap((p) => p.body)).toEqual(w.body);
+    expect(w.body).toHaveLength(11);
+  });
+  it("rejects a page with a phone number in it", () => {
+    const { c, w } = work();
+    w.pages![0].body[0] = "Call 613-555-0142";
+    expect(validateContent(c).join("\n")).toContain("pages[0].body[0]");
+  });
+});

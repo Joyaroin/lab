@@ -20,11 +20,18 @@ export type Station = {
   links: Link[];
   /** optional line drawing of facts already in `body` */
   diagram?: Diagram;
+  /** optional split of `body` into pages the visitor switches between (Work). `body` stays the
+   *  whole text in order; the pages' paragraphs are the same strings, oldest job first. */
+  pages?: Page[];
 };
+/** One page of a station: `label` and `dates` name it on the timeline that switches pages. */
+export type Page = { id: string; label: string; dates: string; body: string[] };
 /** A chain of steps drawn left to right. `hops[i]` labels the arrow from step i to step i+1
  *  ("" for none), so it has one entry fewer than `steps`. `description` is the plain-text version
  *  a screen reader gets. */
 export type Diagram = { description: string; steps: string[]; hops: string[] };
+/** The words on the timeline that switches a station's pages. */
+export const pageSwitch = { name: "Work pages", hint: "Click a job to read it", open: "open" };
 export type Content = {
   identity: { name: string; title: string; availability: string };
   links: Link[];
@@ -35,6 +42,23 @@ export type Content = {
 const LINKEDIN: Link = { label: "LinkedIn", href: "https://www.linkedin.com/in/adham-sedik-971a57184/" };
 const GITHUB: Link = { label: "GitHub", href: "https://github.com/Joyaroin" };
 const SITE_SOURCE: Link = { label: "This site's source", href: "https://github.com/Joyaroin/lab" };
+
+// Work's two jobs, written once: the station shows them as two pages.
+const SOLACE = [
+  "Solace: Software Developer Co-op, Platform Engineering. Ottawa, Sep to Dec 2026.",
+  "Made the EC2 proxies behind CI/CD builds self-healing. CloudWatch alarms defined in Terraform reboot an out-of-memory instance, and a Lambda posts its status to Slack. A failure that sat unnoticed for hours became an unattended recovery, since proven on a real outage.",
+  "Provisioned an S3 artifact store in Terraform, with versioning and lifecycle rules, giving a customer-facing UI pinned releases that can be rolled back.",
+  "Wrote a Python check that fails any pull request where a pipeline drifts from its template.",
+  "Automated product offboarding in an internal security dashboard across UI, API, data model and scripts, ending 30 to 60 minutes of manual cleanup each time.",
+];
+const BARRACUDA = [
+  "Barracuda Networks: Software Engineer Co-op, BarracudaONE Platform. Ottawa, Sep 2025 to Aug 2026.",
+  "Built a GitHub Actions workflow that opens hotfix branches from the commit actually in production, serving 18 service repos and saving 5 to 10 minutes per ticket.",
+  "Authored Terraform for production AWS infrastructure: VPC, ALB, IAM, ECR and External Secrets.",
+  "Set up a Grafana dashboard with threshold alerts on SaaS metrics, used daily by the team.",
+  "Built a test-scenario generator on the Claude API and a Jira MCP server, adopted by all 15 developers, cutting test-note writing by roughly 40%.",
+  "Delivered C# and .NET services and React/TypeScript UI across some 60 tickets, and brought open-source license scanning into CI.",
+];
 
 export const content: Content = {
   identity: {
@@ -55,18 +79,11 @@ export const content: Content = {
     {
       id: "work", name: "Work", worldLine: "World line 01", reading: 214,
       heading: "Work experience",
-      body: [
-        "Solace: Software Developer Co-op, Platform Engineering. Ottawa, Sep to Dec 2026.",
-        "Made the EC2 proxies behind CI/CD builds self-healing. CloudWatch alarms defined in Terraform reboot an out-of-memory instance, and a Lambda posts its status to Slack. A failure that sat unnoticed for hours became an unattended recovery, since proven on a real outage.",
-        "Provisioned an S3 artifact store in Terraform, with versioning and lifecycle rules, giving a customer-facing UI pinned releases that can be rolled back.",
-        "Wrote a Python check that fails any pull request where a pipeline drifts from its template.",
-        "Automated product offboarding in an internal security dashboard across UI, API, data model and scripts, ending 30 to 60 minutes of manual cleanup each time.",
-        "Barracuda Networks: Software Engineer Co-op, BarracudaONE Platform. Ottawa, Sep 2025 to Aug 2026.",
-        "Built a GitHub Actions workflow that opens hotfix branches from the commit actually in production, serving 18 service repos and saving 5 to 10 minutes per ticket.",
-        "Authored Terraform for production AWS infrastructure: VPC, ALB, IAM, ECR and External Secrets.",
-        "Set up a Grafana dashboard with threshold alerts on SaaS metrics, used daily by the team.",
-        "Built a test-scenario generator on the Claude API and a Jira MCP server, adopted by all 15 developers, cutting test-note writing by roughly 40%.",
-        "Delivered C# and .NET services and React/TypeScript UI across some 60 tickets, and brought open-source license scanning into CI.",
+      // `body` is the whole text in order (Solace, then Barracuda); `pages` splits the same paragraphs.
+      body: [...SOLACE, ...BARRACUDA],
+      pages: [
+        { id: "solace", label: "Solace", dates: "Sep to Dec 2026", body: SOLACE },
+        { id: "barracuda", label: "Barracuda", dates: "Sep 2025 to Aug 2026", body: BARRACUDA },
       ],
       links: [LINKEDIN],
     },
@@ -202,6 +219,17 @@ export function validateContent(c: Content): string[] {
     if (!Array.isArray(s.body) || s.body.length === 0) problems.push(`${p}.body: missing`);
     else s.body.forEach((b, j) => text(`${p}.body[${j}]`, b));
     linkList(`${p}.links`, s.links);
+    if (s.pages) {
+      const pp = `${p}.pages`;
+      if (!Array.isArray(s.pages) || s.pages.length < 2) problems.push(`${pp}: need at least two`);
+      else {
+        s.pages.forEach((pg, j) => {
+          for (const f of ["id", "label", "dates"] as const) text(`${pp}[${j}].${f}`, pg[f]);
+          if (!Array.isArray(pg.body) || pg.body.length === 0) problems.push(`${pp}[${j}].body: missing`);
+          else pg.body.forEach((b, k) => text(`${pp}[${j}].body[${k}]`, b));
+        });
+      }
+    }
     if (s.diagram) {
       const d = s.diagram, dp = `${p}.diagram`;
       text(`${dp}.description`, d.description);
