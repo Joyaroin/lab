@@ -6,6 +6,7 @@ import type { AddressInfo } from "node:net";
 import { stations } from "../src/content";
 import { GAP_TIMEOUT_MS } from "../src/gap";
 import { holdSpan, progressFor, STATION_COUNT } from "../src/hold";
+import { readShot, stationIds } from "./lib/page";
 
 const signalLost = async (page: Page, reason?: string) => {
   await expect(page.getByRole("alert")).toContainText("SIGNAL LOST");
@@ -152,7 +153,11 @@ const recordScrolls = (page: Page) =>
     w.__scrolls = [];
     const orig = window.scrollTo.bind(window);
     window.scrollTo = ((o: ScrollToOptions) => { w.__scrolls.push(o?.behavior); return orig(o); }) as typeof window.scrollTo;
+    // and where the page actually was at each scroll event, so a glide can be told from a jump
+    (window as unknown as { __positions: number[] }).__positions = [];
+    window.addEventListener("scroll", () => (window as unknown as { __positions: number[] }).__positions.push(window.scrollY), { passive: true });
   });
+const scrollPositions = (page: Page) => page.evaluate(() => (window as unknown as { __positions: number[] }).__positions);
 const scrollBehaviors = (page: Page) => page.evaluate(() => (window as unknown as { __scrolls: unknown[] }).__scrolls);
 
 test("reduced motion: jumps are instant; otherwise they glide", async ({ page }) => {
@@ -162,6 +167,7 @@ test("reduced motion: jumps are instant; otherwise they glide", async ({ page })
   await page.getByRole("link", { name: "Contact" }).click();
   expect(await scrollBehaviors(page)).toEqual(["auto"]);
   expect(await scrollFraction(page)).toBeCloseTo(progressFor(STATION_COUNT), 2); // the middle of the hold
+  expect((await scrollPositions(page)).length, "a jump is one step").toBeLessThanOrEqual(1);
 
   const page2 = await page.context().newPage();
   await page2.emulateMedia({ reducedMotion: "no-preference" });
@@ -170,6 +176,11 @@ test("reduced motion: jumps are instant; otherwise they glide", async ({ page })
   await page2.getByRole("link", { name: "Contact" }).click();
   expect(await scrollBehaviors(page2)).toEqual(["smooth"]);
   await expect.poll(() => scrollFraction(page2)).toBeCloseTo(progressFor(STATION_COUNT), 2);
+  // ...and the page really did glide: it passed through places between the start and the end.
+  // (Scroll events come once per frame, so this counts the frames it moved in. A jump is one.)
+  const steps = await scrollPositions(page2);
+  const end = steps[steps.length - 1];
+  expect(steps.filter((y) => y > 0 && y < end - 1).length, "positions seen part-way along").toBeGreaterThanOrEqual(2);
 });
 
 // --- text on the CRT screens ---
@@ -212,7 +223,6 @@ for (const [name, size] of Object.entries(sizes)) {
 }
 
 // Every panel must be fully inside the window at every station, at both sizes.
-const stationIds = ["work", "mediasafe", "home-lab", "order-tracker", "wc2026-predictor", "contact"];
 for (const [name, size] of Object.entries(sizes)) {
   test(`each station's panel appears, fully inside the window (${name})`, async ({ page }) => {
     await page.setViewportSize(size);
@@ -296,12 +306,27 @@ test("moving the pointer at the entrance keeps the desk meter in view (desktop)"
   await expect(bar.getByTestId("tube").first()).not.toBeInViewport();
 });
 
+// A panel that overflows shows a "more" cue until its end. Which panel overflows depends on the copy,
+// so this makes one: it appends paragraphs to a panel until it is longer than its box, whatever
+// the copy says. (The app marks the cue on the next drawn frame, which the click and a wheel tick ask for.)
+const overflow = (page: Page, id: string) => page.locator(`[data-screen="${id}"]`).evaluate((e) => {
+  const clientHeight = e.clientHeight;
+  while (e.scrollHeight - clientHeight < clientHeight) {
+    const p = document.createElement("p");
+    p.textContent = "Filler paragraph added by the test so that this panel runs past its bottom edge. ".repeat(4);
+    e.insertBefore(p, e.querySelector(".crt-more"));
+  }
+});
+
 test("a panel that scrolls shows a 'more' cue until its end (phone)", async ({ page }) => {
   await page.setViewportSize(sizes.phone);
   await page.emulateMedia({ reducedMotion: "reduce" });
   await startTour(page);
-  await hud(page).locator('a[href="#work"]').click();
-  const panel = page.locator('[data-screen="work"]');
+  await hud(page).locator('a[href="#contact"]').click();
+  const panel = page.locator('[data-screen="contact"]');
+  await expect(panel).toHaveCSS("opacity", "1");
+  await overflow(page, "contact");
+  await panel.evaluate((e) => e.dispatchEvent(new Event("scroll"))); // the panel's own scroll handler marks the cue
   await expect(panel).toHaveAttribute("data-more", "true");
   await expect(panel.getByText("more ▾")).toBeVisible();
   await panel.evaluate((e) => e.scrollTo(0, e.scrollHeight));
@@ -462,34 +487,37 @@ for (const [name, size] of Object.entries(bigSizes)) {
       // bright green (150+); a clear phosphor stays dark (under ~90).
       const box = (await panel.boundingBox())!;
       const hide = await page.addStyleTag({ content: `[data-screen] * { visibility: hidden !important; }` });
-      const shot = await page.screenshot({ clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
-      await hide.evaluate((e) => (e as Element).remove());
-      const { inner, rim } = await page.evaluate(async (src) => {
-        const img = new Image(); img.src = src; await img.decode();
-        const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
-        const x = c.getContext("2d")!; x.drawImage(img, 0, 0);
-        const d = x.getImageData(0, 0, c.width, c.height).data;
+      let shot: Buffer;
+      try {
+        shot = await page.screenshot({ clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
+      } finally {
+        await hide.evaluate((tag) => (tag as Element).remove()); // by the handle addStyleTag gave back
+      }
+      const { inner, rim } = await readShot(page, shot, (img) => {
         const edge = 12; // px band along each side, where the rim showed
         let inner = 0, rim = 0;
-        for (let py = 0; py < c.height; py++) for (let px = 0; px < c.width; px++) {
-          const g = d[(py * c.width + px) * 4 + 1];
-          const onEdge = px < edge || py < edge || px >= c.width - edge || py >= c.height - edge;
+        for (let py = 0; py < img.height; py++) for (let px = 0; px < img.width; px++) {
+          const g = img.data[(py * img.width + px) * 4 + 1];
+          const onEdge = px < edge || py < edge || px >= img.width - edge || py >= img.height - edge;
           if (onEdge) rim = Math.max(rim, g); else inner = Math.max(inner, g);
         }
         return { inner, rim };
-      }, "data:image/png;base64," + shot.toString("base64"));
+      }, null);
       expect(inner, `${id}: title card shows behind the text`).toBeLessThan(90);
       expect(rim, `${id}: bright glass rim around the panel edge`).toBeLessThan(90);
       const fonts = await panel.evaluate((e) => ({ panel: parseFloat(getComputedStyle(e).fontSize), h2: parseFloat(getComputedStyle(e.querySelector("h2")!).fontSize) }));
       expect(fonts.h2, id).toBeGreaterThan(fonts.panel);
       expect(fonts.panel, `${id} type at ${name}`).toBeGreaterThanOrEqual(name === "1920x1080" ? 24 : 16);
-      // The "more" cue (shown where the text overflows) fades the cut-off line and scales with the type.
-      if (await panel.getAttribute("data-more") === "true") {
-        const cue = await panel.evaluate((e) => { const m = e.querySelector(".crt-more")!; return { bg: getComputedStyle(m).backgroundImage, font: parseFloat(getComputedStyle(m.querySelector("span")!).fontSize), panel: parseFloat(getComputedStyle(e).fontSize) }; });
-        expect(cue.bg, `${id}: the more cue fades the text under it`).toContain("linear-gradient");
-        expect(cue.font / cue.panel, `${id}: the more cue scales with the type`).toBeCloseTo(0.8, 1);
-      }
       await page.screenshot({ path: `test-results/glass-${id}-${name}.png` });
+      // The "more" cue (shown where the text overflows) fades the cut-off line and scales with the
+      // type. Every panel is made to overflow for this, so it is checked at every station, not only
+      // where today's copy happens to run long.
+      await overflow(page, id);
+      await panel.evaluate((e) => e.dispatchEvent(new Event("scroll")));
+      await expect(panel).toHaveAttribute("data-more", "true");
+      const cue = await panel.evaluate((e) => { const m = e.querySelector(".crt-more")!; return { bg: getComputedStyle(m).backgroundImage, font: parseFloat(getComputedStyle(m.querySelector("span")!).fontSize), panel: parseFloat(getComputedStyle(e).fontSize) }; });
+      expect(cue.bg, `${id}: the more cue fades the text under it`).toContain("linear-gradient");
+      expect(cue.font / cue.panel, `${id}: the more cue scales with the type`).toBeCloseTo(0.8, 1);
     }
   });
 }
