@@ -110,6 +110,20 @@ describe("text resolving out of the shift", () => {
     expect(s.observe(mid(1), 6000 + DWELL_MS)).toBe("short");
     expect(s.ready(1, mid(1), 6000 + DWELL_MS + SHIFT_SECONDS.short * 1000 + SNAP_BACK_MS)).toBe(true);
   });
+  it("is readable about a second after arrival on a first visit, and almost at once on a return", () => {
+    const s = createShifts();
+    s.observe(mid(1), 0);
+    s.observe(mid(1), DWELL_MS);
+    let first = 0;
+    while (!s.ready(1, mid(1), first)) first++;
+    expect(first).toBeLessThanOrEqual(1200);
+    s.observe(0, 5000);
+    s.observe(mid(1), 6000);
+    s.observe(mid(1), 6000 + DWELL_MS);
+    let back = 6000;
+    while (!s.ready(1, mid(1), back)) back++;
+    expect(back - 6000).toBeLessThanOrEqual(600);
+  });
   it("stays through the fade out on leaving, and is held back again on the next arrival", () => {
     const s = createShifts();
     settle(s, mid(1), 0);

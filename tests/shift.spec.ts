@@ -143,7 +143,7 @@ test("a first visit tears the view for about 0.8 s, and the text resolves as it 
   expect(len).toBeLessThan(1200);
   expect(w.shown! - w.starts[0]).toBeGreaterThan(len - 100); // not before the tear ends...
   expect(w.shown! - w.starts[0]).toBeLessThan(len + 600); // ...and soon after
-  expect(w.shown!).toBeLessThan(2_000); // readable about a second after arrival (frame rate on CI allowing)
+  expect(w.shown!).toBeLessThan(4_000); // the design budget (about a second) is in shift.test.ts; this runner draws a few frames a second
   expect(await filterOn(page)).toBe(false);
 });
 
@@ -158,7 +158,8 @@ test("a return is a short flick, and its text is back almost at once", async ({ 
   await settled(page);
   const w = await watched(page);
   expect(w.ends[0] - w.starts[0]).toBeLessThan(600);
-  expect(w.shown!).toBeLessThan(1_000);
+  expect(w.shown! - w.starts[0]).toBeLessThan(w.ends[0] - w.starts[0] + 600); // soon after the flick ends
+  expect(w.shown!).toBeLessThan(3_000); // the design budget is in shift.test.ts
 });
 
 test("reduced motion gets no tear, and the text is there straight away", async ({ browser }) => {
