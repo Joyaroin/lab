@@ -8,7 +8,7 @@ import { TEAR_POSES } from "./tear";
 
 /** The wait: how long the visitor must stay inside a hold before the shift fires, so scrolling
  *  quickly through a station doesn't trigger it. */
-export const DWELL_MS = 250;
+export const WAIT_MS = 250;
 
 /** A shift that is playing, as the views are told of it. `id` changes for each new one. */
 export type Play = { kind: ShiftKind; id: number };
@@ -65,7 +65,7 @@ export type TextGate = {
  *  shift and its text shows). `quietUntil`: a time (ms) before which no shift starts, the meter's
  *  power-on; a visitor still in the hold afterwards gets it then.
  *
- *  Call `observe` on every scroll, and again `DWELL_MS` after the last one (the visitor may have
+ *  Call `observe` on every scroll, and again `WAIT_MS` after the last one (the visitor may have
  *  stopped). It returns the shift to play now, or null. `ready` says whether a station's text may
  *  show: on a first visit it is held back until the full tear ends, so it resolves out of it; on a
  *  return it shows as soon as the wait ends and the flick plays over it. */
@@ -100,7 +100,7 @@ export function createShifts(reduced = false, { startProgress = 0, quietUntil = 
     observe(progress: number, nowMs: number): ShiftKind | null {
       const here = stationAt(progress);
       if (here !== at) { at = here; since = nowMs; fired = false; }
-      if (reduced || here === 0 || fired || nowMs - since < DWELL_MS || nowMs < quietUntil) return null;
+      if (reduced || here === 0 || fired || nowMs - since < WAIT_MS || nowMs < quietUntil) return null;
       fired = true;
       const kind = visited.has(here) ? "short" : "full";
       if (!book("whole", kind, nowMs)) { readyAt = nowMs; return null; }

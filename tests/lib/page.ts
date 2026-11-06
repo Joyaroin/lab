@@ -28,16 +28,23 @@ export async function wheelToStop(page: Page, k: number, x = 5, y = 5) {
   await page.mouse.wheel(0, delta);
 }
 
-/** Waits until `read()` returns the same thing twice, `every` ms apart. The scene is only drawn on
- *  demand and eases toward its target, so "the same twice" means the camera has arrived. */
-export async function waitUntilStill<T>(read: () => Promise<T>, every = 300) {
+/** How long `waitUntilStill` waits for things to stop moving: three times the 15 s `expect` limit,
+ *  because on a slow runner (software WebGL, a host under load) the camera eases in far fewer frames
+ *  and one 1920x1080 wheel test timed out at 15 s once. It is a ceiling, not a delay: it only costs
+ *  anything when something never settles, and then it still fails, with the last values it read. */
+export const SETTLE_MS = 45_000;
+
+/** Waits until `read()` returns the same thing twice, `every` ms apart, and fails if it hasn't
+ *  within `timeout` ms. The scene is only drawn on demand and eases toward its target, so "the same
+ *  twice" means the camera has arrived. */
+export async function waitUntilStill<T>(read: () => Promise<T>, every = 300, timeout = SETTLE_MS) {
   let last: string | undefined;
   await expect.poll(async () => {
     const now = JSON.stringify(await read());
     const still = now === last;
     last = now;
     return still;
-  }, { intervals: [every] }).toBe(true);
+  }, { intervals: [every], timeout }).toBe(true);
   return JSON.parse(last!) as T;
 }
 

@@ -9,7 +9,7 @@ import { squareStop } from "./stop";
 /** The glass on screen at station `i`'s hold, through the code the app runs: the tour's camera
  *  (tourAt, as CameraRig sets it) and the projection Room.tsx pins the text with (glassOnScreen). */
 function glassAtHold(i: number, w: number, h: number) {
-  const t = tourAt(progressFor(i + 1), 0, w / h, h);
+  const t = tourAt(progressFor(i + 1), 0, { width: w, height: h });
   const cam = new PerspectiveCamera(CAMERA_FOV, w / h, 0.1, 1000); // react-three-fiber's default near and far
   cam.position.set(...t.camera);
   cam.lookAt(...t.look);

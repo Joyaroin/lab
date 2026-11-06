@@ -268,8 +268,11 @@ const BEZEL = { width: 0.58, height: 0.48 }; // the baked bezel's face, from too
  *  shows near a stop.) */
 const EDGE_OVERLAP = 0.003;
 const EDGE_WIDTH = 0.006;
-// The baked note (build.py) is a 70 mm square near this spot. The glass hides the part of it that
-// this one doesn't cover. It is a tall note, 56 x 82 mm.
+// The baked note (build.py) is a 70 mm square centred 0.24 m left of and 0.15 m above the glass
+// centre, behind the glass's front face. This one sits near it, 56 x 82 mm: it covers the part of the
+// baked note that lies left of the glass and the glass hides the part inside the glass edge. A strip
+// of a few mm above the glass's top edge, right of this note, is covered by neither (worked out from
+// build.py's numbers, not seen in a render).
 const NOTE_SIZE = { width: 0.056, height: 0.082 };
 const PLATE_SIZE = { width: 0.13, height: 0.028 };
 // One tilt per TV, all different (radians). Small enough that the corners still cover the baked note.

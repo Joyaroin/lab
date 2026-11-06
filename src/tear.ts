@@ -5,7 +5,10 @@ import { SHIFT_SECONDS, type ShiftKind } from "./nixie";
 // view draws it with an SVG filter (TearView.tsx). The full version re-cuts the bands once (two
 // poses in 0.8 s); the short one is a single flick. The flash limit (shift.ts) counts every jump:
 // the start, the re-cut and the snap back.
-export const TEAR_POSES = { full: 2, short: 1 } as const;
+/** The noise seed of each pose's cut of the bands, per kind. The number of poses is the number of
+ *  seeds, so the two cannot drift apart. */
+export const TEAR_SEEDS = { full: [11, 4], short: [11] } as const satisfies Record<ShiftKind, readonly number[]>;
+export const TEAR_POSES = { full: TEAR_SEEDS.full.length, short: TEAR_SEEDS.short.length } as const;
 /** Largest slip and edge width, as a share of the window width. */
 export const TEAR_SLIP = 0.06, TEAR_EDGE = 0.008;
 

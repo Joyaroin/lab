@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { holdSpan, progressFor } from "../src/hold";
 import { POWER_ON_SECONDS, SHIFT_SECONDS } from "../src/nixie";
-import { busiestWindow, DWELL_MS, SNAP_BACK_MS } from "../src/shift";
+import { busiestWindow, MAX_CHANGES_PER_SECOND, WAIT_MS, SNAP_BACK_MS } from "../src/shift";
 import { panelOf as panel, scrollToProgress } from "./lib/page";
 
 test.setTimeout(60_000);
@@ -44,23 +44,33 @@ const sample = (page: Page, ms: number) => page.evaluate((ms) => new Promise<str
   tick();
 }), ms);
 
-test("arriving in a hold scrambles the meter, which ends on the true reading", async ({ page }) => {
+test("arriving in a hold scrambles the meter for the length of the shift, and it ends on the true reading", async ({ page }) => {
   await boot(page);
   // Each time the bar changes, does it show the reading, or something else? Something else is the scramble.
-  // (This used to count distinct values and expect more than 2. That depends on how many frames the page
-  // draws in the shift's 0.8 s: under heavy load a frame can take over a second, so one scrambled frame
-  // is all there is, and the count was 2. The first scrambled frame is drawn as the shift starts, whatever
-  // the frame rate, so one is what must always be there.)
-  const seen = page.evaluate(() => new Promise<string[]>((res) => {
-    const out: string[] = [];
-    const mo = new MutationObserver(() => out.push(window.__meter.scramble()));
+  // How many frames draw in the shift's 0.8 s depends on the machine (under heavy load one frame can take
+  // over a second), so the test counts none. It uses the page's own clock and the machine's slowest frame:
+  // the scramble must not be over before the shift's length has passed, less what the machine adds
+  // before the first scrambled frame shows (React renders it a frame or more after the shift starts).
+  // A scramble that showed once and stopped, or stopped early, settles too soon for that.
+  const seen = page.evaluate(() => new Promise<{ changes: { at: number; d: string }[]; slowest: number }>((res) => {
+    const out: { at: number; d: string }[] = [];
+    const t0 = performance.now();
+    const mo = new MutationObserver(() => out.push({ at: performance.now() - t0, d: window.__meter.scramble() }));
     mo.observe(window.__meter.bar(), { childList: true, subtree: true, characterData: true });
-    setTimeout(() => { mo.disconnect(); res(out); }, 6_000);
+    let last = performance.now(), slowest = 0;
+    const frame = () => { const now = performance.now(); slowest = Math.max(slowest, now - last); last = now; requestAnimationFrame(frame); };
+    frame();
+    setTimeout(() => { mo.disconnect(); res({ changes: out, slowest }); }, 6_000);
   }));
   await scrollToProgress(page, progressFor(1));
-  const shown = await seen;
-  expect(shown.filter((d) => d !== "true").length).toBeGreaterThan(0); // it scrambled
-  await expect.poll(async () => (await tubes(page)) === (await reading(page)), { timeout: 10_000 }).toBe(true); // and settled on the reading
+  const { changes: shown, slowest } = await seen;
+  const scrambled = shown.filter((c) => c.d !== "true");
+  expect(scrambled.length).toBeGreaterThan(0); // it scrambled
+  const first = scrambled[0].at, last = scrambled[scrambled.length - 1].at;
+  const settled = shown.find((c) => c.at > last && c.d === "true");
+  expect(settled, "and settled on the reading").toBeDefined();
+  expect(settled!.at - first).toBeGreaterThan(SHIFT_SECONDS.full * 1000 - 2 * slowest - 150); // it lasted the shift's length
+  await expect.poll(async () => (await tubes(page)) === (await reading(page)), { timeout: 10_000 }).toBe(true);
 });
 
 test("scrolling quickly through a station does not scramble the meter", async ({ page }) => {
@@ -80,8 +90,8 @@ test("scrolling quickly through a station does not scramble the meter", async ({
   const away = (progressFor(2) + progressFor(3)) / 2;
   expect(away).toBeGreaterThan(holdSpan(2)[1]);
   expect(away).toBeLessThan(holdSpan(3)[0]);
-  const stay = DWELL_MS / 5;
-  expect(stay).toBeLessThan(DWELL_MS);
+  const stay = WAIT_MS / 5;
+  expect(stay).toBeLessThan(WAIT_MS);
   const { seen, stillThere } = await page.evaluate(([p2, p3, stay]) => new Promise<{ seen: string[]; stillThere: boolean }>((res) => {
     const max = () => document.documentElement.scrollHeight - window.innerHeight;
     const to = (p: number) => { window.scrollTo(0, p * max()); window.dispatchEvent(new Event("scroll")); };
@@ -106,7 +116,7 @@ test("reduced motion shows the plain reading with no scramble", async ({ browser
   await boot(page);
   await scrollToProgress(page, progressFor(1));
   await page.waitForTimeout(100);
-  const seen = await sample(page, DWELL_MS + 1500);
+  const seen = await sample(page, WAIT_MS + 1500);
   expect(new Set(seen).size).toBe(1);
   expect(seen[0]).toBe(await reading(page));
 });
@@ -115,11 +125,15 @@ test("reduced motion shows the plain reading with no scramble", async ({ browser
 
 const filterOn = (page: Page) => page.evaluate(() => document.querySelector("canvas")!.style.filter.includes("shift-tear"));
 
+/** What `watch` records, in ms on the page's own clock from `t0`: when the tear started, re-cut and
+ *  ended, when the panel was fully out, and what the machine's slowest frame was. */
+type Watched = { cuts: number[]; starts: number[]; ends: number[]; shown: number | null; t0: number; litDuringTear: boolean; visibleDuringTear: boolean; slowestFrame: number; resolved: boolean };
+
 // Watches the canvas's filter and the panel's opacity from inside the page, on its own clock.
 const watch = (page: Page, id: string) => page.evaluate((id) => {
-  const w = window as unknown as { __w: { cuts: number[]; starts: number[]; ends: number[]; shown: number | null; t0: number; litDuringTear: boolean; visibleDuringTear: boolean; slowestFrame: number; resolved: boolean } };
+  const w = window as unknown as { __w: Watched };
   const canvas = document.querySelector("canvas")!, el = document.querySelector<HTMLElement>(`[data-screen="${id}"]`)!;
-  const st = { cuts: [] as number[], starts: [] as number[], ends: [] as number[], shown: null as number | null, t0: performance.now(), litDuringTear: false, visibleDuringTear: true, slowestFrame: 0, resolved: false };
+  const st: Watched = { cuts: [], starts: [], ends: [], shown: null, t0: performance.now(), litDuringTear: false, visibleDuringTear: true, slowestFrame: 0, resolved: false };
   let last = performance.now();
   w.__w = st;
   let on = false;
@@ -157,7 +171,6 @@ const watch = (page: Page, id: string) => page.evaluate((id) => {
   };
   frame();
 }, id);
-type Watched = { cuts: number[]; resolved: boolean; starts: number[]; ends: number[]; shown: number | null; slowestFrame: number; litDuringTear: boolean; visibleDuringTear: boolean };
 const watched = (page: Page) => page.evaluate(() => (window as unknown as { __w: Watched }).__w);
 // the shift has played and the text is out
 const settled = (page: Page) => expect.poll(async () => { const w = await watched(page); return w.shown !== null && w.ends.length > 0; }, { timeout: 8_000 }).toBe(true);
@@ -211,7 +224,7 @@ test("a return shows its text when the 250 ms wait ends, and the flick plays ove
   expect(w.shown! - w.starts[0]).toBeLessThan(2 * w.slowestFrame + 100); // out as the flick starts, not after it
   // The design is about 0.3 s from arrival (the wait, 250 ms; the camera's arrival is already done),
   // against 0.54 s before. lateBy allows for a slow machine.
-  expect(w.shown!).toBeLessThan(lateBy(DWELL_MS, w, 0));
+  expect(w.shown!).toBeLessThan(lateBy(WAIT_MS, w, 0));
 });
 
 test("reduced motion gets no tear, and the text is there straight away", async ({ browser }) => {
@@ -220,18 +233,18 @@ test("reduced motion gets no tear, and the text is there straight away", async (
   await watch(page, "work");
   await scrollToProgress(page, progressFor(1));
   await expect.poll(async () => (await watched(page)).shown, { timeout: 5_000 }).not.toBeNull();
-  await page.waitForTimeout(DWELL_MS + 1500);
+  await page.waitForTimeout(WAIT_MS + 1500);
   const w = await watched(page);
   expect(w.starts).toEqual([]);
   expect(await filterOn(page)).toBe(false);
   expect(w.shown!).toBeLessThan(700); // no held-back text: only the camera arriving
 });
 
-test("moving quickly between stations can't make more than 3 sudden changes in a second, tear after tear", async ({ page }) => {
+test("moving quickly between stations can't make more than the limit of sudden changes in a second, tear after tear", async ({ page }) => {
   await boot(page);
   await watch(page, "work");
   // Hop between the stations, spending a little over the wait at each, for 6 s.
-  await page.evaluate(([stops, dwell]) => new Promise<void>((res) => {
+  await page.evaluate(([stops, wait]) => new Promise<void>((res) => {
     const max = () => document.documentElement.scrollHeight - window.innerHeight;
     let k = 0;
     const hop = () => {
@@ -239,9 +252,9 @@ test("moving quickly between stations can't make more than 3 sudden changes in a
       window.dispatchEvent(new Event("scroll"));
     };
     hop();
-    const id = setInterval(hop, dwell + 60);
+    const id = setInterval(hop, wait + 60);
     setTimeout(() => { clearInterval(id); res(); }, 6_000);
-  }), [[1, 2, 3, 4, 5, 6].map(progressFor), DWELL_MS] as const);
+  }), [[1, 2, 3, 4, 5, 6].map(progressFor), WAIT_MS] as const);
   await page.waitForTimeout(1500);
   // A sudden change is the tear starting, each re-cut (watched: the noise seed changing) and the snap back.
   const { starts, ends, cuts } = await watched(page);
@@ -249,12 +262,11 @@ test("moving quickly between stations can't make more than 3 sudden changes in a
   expect(cuts.length).toBeGreaterThan(0); // and the re-cut was seen, not assumed
   const changes = [...starts, ...cuts, ...ends];
   // The real times, in a full second: the limit's own padding covers the frames, the test doesn't shrink the window.
-  expect(busiestWindow(changes)).toBeLessThanOrEqual(3);
+  expect(busiestWindow(changes)).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
 });
 
 test("leaving mid-shift ends on the true reading, with no late jump, and the tear plays out", async ({ page }) => {
   await boot(page);
-  await watch(page, "work");
   // Leave the hold the moment the tear starts, from inside the page, so no round trip delays it. Then
   // look at the filter 200 ms later (a cut-short tear would be off by then; the full one lasts 0.8 s)
   // and watch the bar for 2 s.
@@ -301,7 +313,7 @@ test("a shift that arrives during the power-on plays once it is over", async ({ 
   // Not before the power-on is over. (A busy machine can take longer than this to get here, so the
   // time is checked on the page's clock rather than assuming 500 ms is still inside the power-on.)
   const early = await page.evaluate((powerOnMs) => {
-    const w = (window as unknown as { __w: { starts: number[]; t0: number }; __barAt: number });
+    const w = (window as unknown as { __w: Watched; __barAt: number });
     return w.__w.starts.filter((s) => w.__w.t0 + s < w.__barAt + powerOnMs - 50);
   }, POWER_ON_SECONDS * 1000);
   expect(early).toEqual([]);
@@ -331,7 +343,7 @@ test("reloading inside a hold is not an arrival: no shift, the meter never scram
   await scrollToProgress(page, progressFor(1));
   await expect.poll(async () => (await watched(page)).shown, { timeout: 8_000 }).not.toBeNull();
   // Long enough for the shift to have played had it fired: past the power-on, the wait and the tear.
-  await page.waitForTimeout(POWER_ON_SECONDS * 1000 + DWELL_MS + SHIFT_SECONDS.full * 1000 + 500);
+  await page.waitForTimeout(POWER_ON_SECONDS * 1000 + WAIT_MS + SHIFT_SECONDS.full * 1000 + 500);
   expect((await watched(page)).starts).toEqual([]);
   expect(await filterOn(page)).toBe(false);
   expect(await page.evaluate(() => (window as unknown as { __scrambles: string[] }).__scrambles)).toEqual([]);

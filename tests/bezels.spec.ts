@@ -13,7 +13,7 @@ import { tourAt } from "../src/tour";
 const size = { width: 1280, height: 800 };
 const WIDE = 0.6; // far enough into the travel that the whole bezel is in frame
 
-const cameraAt = (p: number) => tourAt(p, 0, size.width / size.height, size.height).camera;
+const cameraAt = (p: number) => tourAt(p, 0, size).camera;
 
 async function scrollToProgress(page: Page, p: number) {
   await page.evaluate((p) => scrollTo(0, p * (document.documentElement.scrollHeight - innerHeight)), p);
@@ -27,7 +27,7 @@ async function scrollToProgress(page: Page, p: number) {
 
 /** Window-pixel position of the point `x` metres right and `y` up from TV `i`'s glass centre. */
 function onBezel(i: number, p: number, x: number, y: number): [number, number] {
-  const s = tourAt(p, 0, size.width / size.height, size.height);
+  const s = tourAt(p, 0, size);
   const cam = new PerspectiveCamera(CAMERA_FOV, size.width / size.height, 0.01, 50);
   cam.position.set(...s.camera); cam.lookAt(new Vector3(...s.look)); cam.updateMatrixWorld();
   const c = crts[i], a = (c.yaw * Math.PI) / 180;

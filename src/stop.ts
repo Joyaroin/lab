@@ -14,7 +14,7 @@ function band(win: Win) {
 
 /** How far the camera stands from the glass so it fills the band, whichever of height and width
  *  runs out first. One rule for every station: 0.53 m at 1280x800. */
-export function stopDistance(win: Win): number {
+function stopDistance(win: Win): number {
   const { free, wide } = band(win);
   const px = win.height / (2 * TAN); // pixels per metre at one metre
   return Math.max((CRT_GLASS.height * px) / free, (CRT_GLASS.width * px) / wide);

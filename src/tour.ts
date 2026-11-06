@@ -2,6 +2,8 @@ import { stations } from "./content";
 import { ARCS, crts, ENTRANCE, isPortrait } from "./crts";
 import { squareStop } from "./stop";
 import { holdSpan, panelStrength, PANEL_SHOWN, progressFor, STATION_COUNT, TOTAL, TRAVEL, PER_STATION, TEXT_FADE } from "./hold";
+// Re-exported so the rest of the app, and its tests, take the tour's timing from "./tour" alone;
+// the numbers live in hold.ts so shift.ts can read them without importing the camera code.
 export { panelStrength, PANEL_SHOWN, TEXT_FADE };
 
 /** Where the mouse parallax begins and reaches full, in travel away from a stop (a share of one stretch). */
@@ -32,9 +34,6 @@ const portraitStops: V3[] = stops.map((c, i) => {
 });
 const portraitLooks: V3[] = looks.map((l, i) => phones[i]?.look ?? l);
 
-/** Camera position at stop `i` (0 is the entrance). */
-export const stopPosition = (i: number) => stops[Math.min(Math.max(i, 0), STATION_COUNT)];
-
 export type TourState = { station: number; camera: V3; look: V3; reading: number };
 
 /** True while station `i`'s text is laid over its glass (desktop, panel showing). The pin and the
@@ -54,8 +53,10 @@ const line = (a: V3, b: V3, f: number): V3 => [0, 1, 2].map((k) => a[k] + (b[k] 
 
 /** How much mouse parallax applies at scroll progress `progress`: none for the whole hold and until
  *  the text has faded (`PARALLAX_FROM`), so the glass stays square behind the flat text, then rising
- *  to full by `PARALLAX_FULL` of the way through travel, and full through the rest. */
-export function parallaxStrength(progress: number): number {
+ *  to full by `PARALLAX_FULL` of the way through travel, and full through the rest. On a portrait
+ *  window (`aspect` below 1) it is always full. */
+export function parallaxStrength(progress: number, aspect: number): number {
+  if (isPortrait(aspect)) return 1; // phones are unchanged
   const p = Math.min(Math.max(Number.isFinite(progress) ? progress : 0, 0), 1);
   let away = Infinity;
   for (let i = 1; i <= STATION_COUNT; i++) {
@@ -65,13 +66,15 @@ export function parallaxStrength(progress: number): number {
   return Math.min(1, Math.max(0, ((away * TOTAL) / TRAVEL - PARALLAX_FROM) / (PARALLAX_FULL - PARALLAX_FROM)));
 }
 
-/** `aspect` is the window's width over height; below 1 (portrait) the portrait stops are used.
- *  On a landscape window each station's stop is worked out from the window's `height` (px) and
- *  aspect, so the glass fills the space between the HUD and the meter at any size.
- *  With `straight` (reduced motion) travel between stations is a straight line, not an arc. The
- *  leg from the entrance stays curved: the entrance isn't a station, and the wide view of the room
- *  on the way in is kept for everyone. */
-export function tourAt(progress: number, gap: number, aspect = 16 / 9, height = 800, straight = false): TourState {
+/** The window the tour is laid out for, in px. `reduced` (reduced motion) makes travel between
+ *  stations a straight line, not an arc. The leg from the entrance stays curved: the entrance isn't
+ *  a station, and the wide view of the room on the way in is kept for everyone. */
+export type TourView = { width: number; height: number; reduced?: boolean };
+
+/** A window wider than tall uses each station's square stop, worked out from the window's size so
+ *  the glass fills the space between the HUD and the meter at any size. Below an aspect of 1
+ *  (portrait) the portrait stops are used. */
+export function tourAt(progress: number, gap: number, view: TourView): TourState {
   const p = Math.min(Math.max(Number.isFinite(progress) ? progress : 0, 0), 1);
   const u = p * TOTAL;
   const i = Math.min(Math.floor(u / PER_STATION), STATION_COUNT - 1); // travel i leads to station i+1
@@ -80,18 +83,18 @@ export function tourAt(progress: number, gap: number, aspect = 16 / 9, height = 
   const x = i + f;
   const readingAt = (s: number) => (s === 0 ? gap : stations[s - 1].reading);
   const lerp = (a: number, b: number) => (f === 1 ? b : a + (b - a) * f);
-  const portrait = isPortrait(aspect);
-  const square = portrait ? undefined : crts.map((c) => squareStop(c, { width: aspect * height, height }));
-  const path = portrait ? portraitStops : [stops[0], ...square!.map((s) => s.camera)];
-  const aims = portrait ? portraitLooks : [looks[0], ...square!.map((s) => s.look)];
+  const square = isPortrait(view.width / view.height) ? undefined : crts.map((c) => squareStop(c, view));
+  const path = square ? [stops[0], ...square.map((s) => s.camera)] : portraitStops;
+  const aims = square ? [looks[0], ...square.map((s) => s.look)] : portraitLooks;
   const a = path[i], b = path[i + 1], la = aims[i], lb = aims[i + 1];
   // Leaving the entrance, the camera pulls back from the meter through the wide view of the room
   // (ENTRANCE.reveal) on one smooth curve. Between stations it does the same through that leg's
-  // wide view of the room (ARCS), so the room shows halfway between two TVs, unless `straight`
-  // (reduced motion) asks for a straight line there. The entrance leg always curves.
+  // wide view of the room (ARCS), so the room shows halfway between two TVs, unless reduced motion
+  // asks for a straight line there. The entrance leg always curves.
   const mid = i === 0 ? ENTRANCE.reveal : ARCS[i - 1];
-  const move = straight && i > 0 ? line : curveThrough(mid.camera);
-  const turn = straight && i > 0 ? line : curveThrough(mid.look);
+  const straight = view.reduced && i > 0;
+  const move = straight ? line : curveThrough(mid.camera);
+  const turn = straight ? line : curveThrough(mid.look);
   // In a hold the camera is exactly on the stop, not a lerp that lands within rounding of it.
   return {
     station: Math.round(x),

@@ -2,8 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 import { stations } from "../src/content";
 import { holdSpan } from "../src/hold";
 import { SHIFT_SECONDS } from "../src/nixie";
-import { busiestWindow, SNAP_BACK_MS } from "../src/shift";
-import { countDraws, draws, frames } from "./lib/page";
+import { busiestWindow, MAX_CHANGES_PER_SECOND, SNAP_BACK_MS } from "../src/shift";
+import { countDraws, draws, frames, waitForCamera, waitUntilStill } from "./lib/page";
 import { WORK_COPY } from "./fixtures/work-copy";
 
 // Ticket 55: Work is two pages on one TV, switched by a timeline of two buttons.
@@ -17,7 +17,7 @@ async function openWork(page: Page, w: number, h: number) {
   await expect(page.getByLabel("Boot log")).toBeHidden();
   await page.getByRole("navigation", { name: "HUD" }).locator('a[href="#work"]').click();
   await expect(panel(page)).toHaveCSS("opacity", "1");
-  await page.waitForTimeout(1000); // let the camera arrive
+  await waitForCamera(page); // the camera has arrived
 }
 const shown = (page: Page) => panel(page).locator("p").allInnerTexts();
 
@@ -181,7 +181,7 @@ test("after a page turn the scene draws no frames at rest", async ({ page }) => 
   await flicksOver(page);
   // The camera has been still since arriving, so anything drawn now would be the flick's doing. An absence
   // can't be waited for, so as idle.spec.ts does: let a few seconds pass and compare.
-  await page.waitForTimeout(1_000); // a frame the page turn may have asked for
+  await waitUntilStill(() => frames(page), 500); // a frame the page turn may have asked for has been drawn
   const before = { draws: await draws(page), frames: await frames(page) };
   await page.waitForTimeout(3_000);
   expect({ draws: await draws(page), frames: await frames(page) }).toEqual(before);
@@ -230,7 +230,7 @@ for (const every of [700, 715, 730]) {
     const f = await filters(page);
     expect(f.on.length).toBeGreaterThan(1); // it flicks more than once
     expect(f.off.length).toBe(f.on.length);
-    expect(busiestWindow([...f.on, ...f.off])).toBeLessThanOrEqual(3);
+    expect(busiestWindow([...f.on, ...f.off])).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
     await expect(seg(page, "solace")).toHaveAttribute("aria-pressed", "true"); // 8 clicks, ends on the last one
   });
 }

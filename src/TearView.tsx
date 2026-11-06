@@ -1,12 +1,11 @@
 import { useEffect, useRef } from "react";
 import type { ShiftKind } from "./nixie";
 import type { Play } from "./shift";
-import { tearAt } from "./tear";
+import { tearAt, TEAR_SEEDS } from "./tear";
 
 const FILTER = "shift-tear", TURN_FILTER = "shift-tear-page"; // the whole view's, and a Work page turn's
-// Different cuts of the bands, one per pose. The map is noise that varies only down the screen,
-// stepped into flat bands, so each band slips its own distance (left or right) as a whole.
-const SEEDS = [11, 4]; // one per pose (TEAR_POSES)
+// The map is noise that varies only down the screen, stepped into flat bands, so each band slips
+// its own distance (left or right) as a whole. Each pose is a different cut (TEAR_SEEDS).
 const BANDS = "0 .12 .86 .3 1 .5 0 .74 .95 .2 .6 .02 .9 .4";
 
 /** A Work page turn's flick: the screen's element, and an `id` that changes for each turn. */
@@ -22,9 +21,9 @@ export type OnTearStart = (kind: ShiftKind, nowMs: number) => void;
  *  at rest it costs nothing. A new `shift.id` starts one; `shift` null (or reduced motion) ends it.
  *  `turn` is a Work page turn: the same short flick, on that TV's screen only, through its own copy of
  *  the filter so it never fights a tear of the whole view. */
-export function Tear({ shift, turn, reduced, onStart, onTurnStart }: { shift: Play | null; turn?: PageTurn | null; reduced: boolean; onStart?: OnTearStart; onTurnStart?: OnTearStart }) {
+export function Tear({ shift, turn, reduced, onStart, onTurnStart }: { shift: Play | null; turn?: PageTurn | null; reduced: boolean; onStart?: OnTearStart; onTurnStart?: (nowMs: number) => void }) {
   const whole = useTear(FILTER, () => document.querySelector<HTMLElement>("canvas"), shift, reduced, onStart);
-  const page = useTear(TURN_FILTER, () => turn?.el ?? null, turn ? { kind: "short", id: turn.id } : null, reduced, onTurnStart);
+  const page = useTear(TURN_FILTER, () => turn?.el ?? null, turn ? { kind: "short", id: turn.id } : null, reduced, onTurnStart && ((_, nowMs) => onTurnStart(nowMs)));
   return (
     <svg aria-hidden="true" focusable="false" width="0" height="0" style={{ position: "absolute" }}>
       <TearFilter id={FILTER} refs={whole} />
@@ -51,7 +50,7 @@ function useTear(filter: string, target: () => HTMLElement | null, shift: Play |
       const t = tearAt((performance.now() - start) / 1000, shift.kind);
       if (t.done || reducedNow.current) { el.style.filter = ""; return; }
       const w = window.innerWidth;
-      refs.turb.current?.setAttribute("seed", String(SEEDS[t.pose]));
+      refs.turb.current?.setAttribute("seed", String(TEAR_SEEDS[shift.kind][t.pose]));
       refs.disp.current?.setAttribute("scale", String(t.slip * w * 2)); // the map spans ±half the scale
       refs.red.current?.setAttribute("dx", String(t.edge * w));
       refs.cyan.current?.setAttribute("dx", String(-t.edge * w));

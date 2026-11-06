@@ -7,7 +7,7 @@ import { ScreenPanels } from "./ScreenPanels";
 import { Meter } from "./Meter";
 import { formatReading, gapLabel, type Gap } from "./gap";
 import { pendingDeploys } from "./useGap";
-import { createShifts, DWELL_MS, SNAP_BACK_MS, type Play, type ShiftKind, type TextGate } from "./shift";
+import { createShifts, WAIT_MS, SNAP_BACK_MS, type Play, type ShiftKind, type TextGate } from "./shift";
 import { progressFor, STATION_COUNT, tourAt } from "./tour";
 
 // Page height in screens: how much scrolling the tour takes. 9 screens is 8 of scrolling, about
@@ -52,7 +52,7 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
     if (shifts.turn(performance.now())) setTurn({ el, id: ++turnId.current });
   }, [shifts]);
 
-  const turnStarted = useCallback((_: ShiftKind, nowMs: number) => shifts.turnStarted(nowMs), [shifts]);
+  const turnStarted = useCallback((nowMs: number) => shifts.turnStarted(nowMs), [shifts]);
 
   // The tear starts a frame or more after the shift fires (later on a slow device), and the text
   // follows once it is over: say when it began, and ask the room for a frame to show the text.
@@ -104,7 +104,7 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
       }
       check();
       clearTimeout(timer); // the visitor may have stopped
-      timer = window.setTimeout(check, Math.max(DWELL_MS, quietUntil - performance.now()) + TIMER_SLACK_MS);
+      timer = window.setTimeout(check, Math.max(WAIT_MS, quietUntil - performance.now()) + TIMER_SLACK_MS);
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -118,7 +118,7 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
   }, []);
 
   const deploys = gap ? gap.deploys : pendingDeploys;
-  const t = tourAt(p, deploys);
+  const t = tourAt(p, deploys, { width: window.innerWidth, height: window.innerHeight });
   const label = gap ? gapLabel(gap) : "reading prod and staging…";
   const next = t.station >= STATION_COUNT ? 0 : t.station + 1;
   const digits = formatReading(Math.round(t.reading));
