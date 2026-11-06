@@ -38,23 +38,15 @@ export const STILL_LIMIT_MS = 45_000;
  *  values) is what gets reported and not the test's plain timeout. */
 const TEST_MARGIN_MS = 3_000;
 
-/** When each running test started, by test id: Playwright doesn't expose it. A spec file that imports
- *  this module gets the hook for its tests. */
-const startedAt = new Map<string, number>();
-test.beforeEach(() => { startedAt.set(test.info().testId, Date.now()); });
-
-/** How long a poll may run in the test that is running: the limit, or what is left of the test's own
- *  time less a margin, whichever is shorter. A test left at Playwright's 30 s default would otherwise
- *  time out first and never show what the poll last read. */
+/** How long a poll may run in the test that is running: the limit, or the test's timeout less a margin,
+ *  whichever is shorter. A test left at Playwright's 30 s default would otherwise time out first, with
+ *  a plain timeout and not what the poll last read. This counts the test's whole timeout, not what is
+ *  left of it (TestInfo has no start time to subtract). If a test has already used most of its time when
+ *  the poll starts, Playwright cuts the poll off at the test's deadline instead. */
 function pollBudget(limit: number) {
   try {
-    const info = test.info();
-    // Time left is the test's timeout less the time since it started. TestInfo has no public start
-    // time and its `duration` reads 0 mid-test, so the start is recorded by the hook above. Never below
-    // 1 ms (0 would mean no limit): a test with less than the margin left gets a poll that fails at
-    // once, showing what it last read.
-    const used = Date.now() - (startedAt.get(info.testId) ?? Date.now());
-    if (info.timeout > 0) return Math.max(1, Math.min(limit, info.timeout - used - TEST_MARGIN_MS));
+    const { timeout } = test.info();
+    if (timeout > 0) return Math.max(1, Math.min(limit, timeout - TEST_MARGIN_MS));
   } catch { /* outside a test: no test clock to respect */ }
   return limit;
 }
