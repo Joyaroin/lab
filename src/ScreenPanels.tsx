@@ -67,7 +67,8 @@ function Timeline({ pages, open, onOpen }: { pages: NonNullable<Station["pages"]
   );
 }
 const timeline: CSSProperties = { margin: "0 0 0.7em", padding: 0 };
-const hint: CSSProperties = { margin: "0 0 0.25em", fontSize: "0.75em", letterSpacing: "0.08em", color: "#ffb347" };
+// 0.3333em of the hint's own size (0.75em) is 0.25 of the panel's em.
+const hint: CSSProperties = { margin: "0 0 0.3333em", fontSize: "0.75em", letterSpacing: "0.08em", color: "#ffb347" };
 
 // A station's diagram as a line drawing. The labels are real SVG text (selectable, scaling with the
 // panel); the figure as a whole carries the plain description for a screen reader.

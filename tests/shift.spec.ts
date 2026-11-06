@@ -53,11 +53,12 @@ test("arriving in a hold scrambles the meter for the length of the shift, and it
   // clock and the machine's slowest frame. The first scrambled frame shows up to a frame after the
   // shift starts and the settle up to a frame after the last lock, so the observed length is at least
   // the last lock's time less one slowest frame. In the frame before the last lock only the last tube
-  // is random, and it shows its true digit 1 time in 10, so the settle can come a frame early; the
-  // floor also gives up one tube's slot (the gap between the last two locks), which still catches a
-  // scramble that stops a tube or more early. The allowance is measured, so the margin does not
-  // shrink at a low frame rate. A scramble that showed once and stopped, or stopped early, settles too
-  // soon for that.
+  // is random, and it shows its true digit 1 time in 10, so the settle can come a frame early: the
+  // floor gives up a second frame for that, but never more than one tube's slot (the gap between the
+  // last two locks), so a fast machine does not get a wider margin than the scramble's own spacing.
+  // What it caught, measured by making the bar's clock run fast in a scratch copy on a machine whose
+  // slowest frame was about 90 ms: a scramble ending 33% early failed, ones ending 18% early or less
+  // passed. A slower machine has a wider floor and catches less.
   const seen = page.evaluate(() => new Promise<{ changes: { at: number; d: string }[]; frames: { at: number; gap: number }[] }>((res) => {
     const out: { at: number; d: string }[] = [];
     const t0 = performance.now();
@@ -83,7 +84,7 @@ test("arriving in a hold scrambles the meter for the length of the shift, and it
   const slowest = Math.max(0, ...frames.filter((f) => f.at >= first && f.at <= settled!.at).map((f) => f.gap));
   const locks = lockTimesMs("full", (await reading(page)).length);
   const lastLock = locks[locks.length - 1], slot = lastLock - locks[locks.length - 2];
-  expect(settled!.at - first).toBeGreaterThan(lastLock - slowest - slot); // it lasted until the last tube locks
+  expect(settled!.at - first).toBeGreaterThan(lastLock - slowest - Math.min(slot, slowest)); // it lasted until the last tube locks
   await expect.poll(async () => (await tubes(page)) === (await reading(page)), { timeout: 10_000 }).toBe(true);
 });
 

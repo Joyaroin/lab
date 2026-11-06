@@ -543,7 +543,8 @@ describe("reduced motion", () => {
   it("differs from the arcs mid-travel, which are unchanged by default", () => {
     const p = (holdSpan(1)[1] + holdSpan(2)[0]) / 2;
     expect(on(p).camera).not.toEqual(tourAt(p, GAP, win()).camera);
-    expect(tourAt(p, GAP, win(16 / 9))).toEqual(tourAt(p, GAP, { ...win(16 / 9), reduced: false }));
+    const { reduced: _left, ...without } = win(16 / 9); // a window with no `reduced` at all
+    expect(tourAt(p, GAP, without)).toEqual(tourAt(p, GAP, win(16 / 9)));
   });
 });
 

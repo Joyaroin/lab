@@ -26,3 +26,14 @@ test("a test left at the default 30 s limit fails with the last values read, not
   const plain = err!.message.replace(/\u001b\[\d+m/g, ""); // Playwright colours the diff
   expect(plain).toMatch(/still moving, last read \{.*n.*:\d+\}/);
 });
+
+test("time the test has already used counts: with less than the margin left the poll fails at once", async () => {
+  test.setTimeout(5_000);
+  await new Promise((r) => setTimeout(r, 3_500));
+  let n = 0;
+  const t0 = Date.now();
+  const err = await waitUntilStill(async () => ({ n: n++ }), 50).then(() => null, (e: Error) => e);
+  expect(err, "it failed").not.toBeNull();
+  expect(Date.now() - t0, "at once: less than the margin was left").toBeLessThan(500);
+  expect(err!.message.replace(/\u001b\[\d+m/g, "")).toMatch(/still moving, last read/);
+});

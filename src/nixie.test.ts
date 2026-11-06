@@ -50,6 +50,24 @@ describe("meter shift", () => {
   });
 });
 
+describe("when the tubes lock", () => {
+  // Fixes SHIFT_LOCK through the public shiftDigits, so changing it fails here on purpose. The random
+  // digits are 9 and the true ones 0, so a tube showing 0 has locked.
+  const locked = (kind: "full" | "short", ms: number) =>
+    [...shiftDigits(ms / 1000, "0.000000", kind, () => 0.99).digits.replace(".", "")].map((c) => c === "0");
+  // 7 tubes: tube k locks at len * (0.3 + 0.6 * k / 7), in ms.
+  const lockMs = { full: [240, 308.6, 377.1, 445.7, 514.3, 582.9, 651.4], short: [75, 96.4, 117.9, 139.3, 160.7, 182.1, 203.6] };
+  it("locks 7 tubes left to right at fixed times, the last at 651.4 ms in a full shift", () => {
+    for (const kind of ["full", "short"] as const) {
+      lockMs[kind].forEach((at, k) => {
+        const before = locked(kind, at - 0.2), after = locked(kind, at + 0.2);
+        expect(before[k], `${kind} tube ${k} is still random just before ${at} ms`).toBe(false);
+        expect(after[k], `${kind} tube ${k} has locked just after ${at} ms`).toBe(true);
+      });
+    }
+  });
+});
+
 describe("what the bar shows", () => {
   it("shows the scramble only while a shift is on, so a stale one never sits beside the new reading", () => {
     expect(digitsToShow("0000213", "2622044", true)).toBe("2622044");
