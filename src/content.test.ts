@@ -189,3 +189,26 @@ describe("diagram", () => {
     expect(validateContent(c).join("\n")).toContain("reads as a live status");
   });
 });
+
+// Each TV's bezel carries a maker's plate and a sticky note. Both are drawn on a TV, so neither may
+// read as a status or result, and no two TVs share a note.
+describe("bezel words", () => {
+  it.each(["plate", "note"] as const)("rejects a %s that reads as a live status", (field) => {
+    for (const line of ["All Synced", "42 passing", "build OK", "Running"]) {
+      const c = good();
+      c.stations[0].bezel[field] = line;
+      expect(validateContent(c).join("\n")).toContain(`stations[0].bezel.${field}: reads as a live status`);
+    }
+  });
+  it("rejects a station with no plate or note", () => {
+    const c = good();
+    c.stations[0].bezel.note = "";
+    expect(validateContent(c).join("\n")).toContain("stations[0].bezel.note: missing");
+  });
+  it("gives every TV its own plate and note", () => {
+    for (const f of ["plate", "note"] as const) {
+      const all = content.stations.map((s) => s.bezel[f]);
+      expect(new Set(all).size).toBe(all.length);
+    }
+  });
+});

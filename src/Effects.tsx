@@ -231,6 +231,88 @@ export function Phosphor({ progress }: { progress: { current: number } }) {
   );
 }
 
+// ---------------------------------------------------------------- the bezels
+// One thin plane per TV, drawn once, over the baked bezel (which is soft up close): a crisp edge
+// round the glass, a small maker's plate, and a sticky note of its own. The words come from the
+// station's `bezel` in the content module. No re-bake and no new asset: the textures are painted
+// here, so the cost is code, not megabytes.
+const BEZEL = { width: 0.58, height: 0.48 }; // the baked bezel's face, from tools/room/build.py
+/** How far the edge's opening sits inside the glass. The clear screen layer stands 6.2 mm in front
+ *  of the glass, so from the side it reaches a little past the glass onto the bezel: the edge
+ *  stands in front of it and starts inside the glass edge, so that overhang is always covered. */
+export const EDGE_OVERLAP = 0.003;
+const EDGE_WIDTH = 0.006;
+const NOTE_COLOURS = ["#f4e27a", "#f2a6b8", "#9fd8f0", "#b9e59a", "#f7c68b", "#d3b8f0"];
+
+/** Adds a rounded rectangle to the current path (the caller starts the path). */
+function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
+
+function drawBezel(c: HTMLCanvasElement, bezel: { plate: string; note: string }, k: number) {
+  const g = c.getContext("2d")!, w = c.width, h = c.height, m = w / BEZEL.width; // pixels per metre
+  g.clearRect(0, 0, w, h);
+  const hx = (CRT_GLASS.width / 2 - EDGE_OVERLAP) * m, hy = (CRT_GLASS.height / 2 - EDGE_OVERLAP) * m, r = 0.01 * m;
+  const cx = w / 2, cy = h / 2, ew = EDGE_WIDTH * m;
+  // the edge: a dark lip round the glass, then a thin light line where it meets the bezel
+  g.save();
+  g.beginPath(); g.rect(0, 0, w, h); roundRect(g, cx - hx, cy - hy, hx * 2, hy * 2, r);
+  g.clip("evenodd");
+  g.fillStyle = "#17120c"; g.beginPath(); roundRect(g, cx - hx - ew, cy - hy - ew, (hx + ew) * 2, (hy + ew) * 2, r + ew); g.fill();
+  g.restore();
+  g.lineWidth = Math.max(1, 0.0006 * m); g.strokeStyle = "rgba(255,246,222,0.55)";
+  g.beginPath(); roundRect(g, cx - hx - ew, cy - hy - ew, (hx + ew) * 2, (hy + ew) * 2, r + ew); g.stroke();
+  g.strokeStyle = "rgba(0,0,0,0.6)"; g.lineWidth = Math.max(1, 0.0008 * m);
+  g.beginPath(); roundRect(g, cx - hx, cy - hy, hx * 2, hy * 2, r); g.stroke();
+  // the maker's plate, bottom left of the bezel
+  const pw = 0.13 * m, ph = 0.028 * m, px = cx - 0.2 * m - pw / 2, py = cy + 0.21 * m - ph / 2;
+  const metal = g.createLinearGradient(0, py, 0, py + ph);
+  metal.addColorStop(0, "#d9d6cc"); metal.addColorStop(0.5, "#a9a69b"); metal.addColorStop(1, "#c4c1b6");
+  g.fillStyle = metal; g.beginPath(); roundRect(g, px, py, pw, ph, 0.003 * m); g.fill();
+  g.strokeStyle = "rgba(40,36,28,0.7)"; g.lineWidth = Math.max(1, 0.0007 * m); g.stroke();
+  g.fillStyle = "#2a261e"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = `bold ${0.014 * m}px ${MONO}`; g.fillText(bezel.plate, px + pw / 2, py + ph / 2 + 0.0005 * m, pw * 0.92);
+  // the sticky note, at the bezel's top left corner, tilted a little differently on every TV
+  const nw = 0.056 * m, tilt = ((k % 3) - 1) * 0.07 + 0.03; // sits inside the bezel's margin, clear of the glass
+  g.save();
+  g.translate(cx - 0.257 * m, cy - 0.207 * m); g.rotate(tilt);
+  g.shadowColor = "rgba(0,0,0,0.45)"; g.shadowBlur = 0.004 * m; g.shadowOffsetY = 0.002 * m;
+  g.fillStyle = NOTE_COLOURS[k % NOTE_COLOURS.length]; g.fillRect(-nw / 2, -nw / 2, nw, nw);
+  g.shadowColor = "transparent";
+  g.fillStyle = "rgba(255,255,255,0.25)"; g.fillRect(-nw / 2, -nw / 2, nw, nw * 0.16); // the sticky strip
+  g.fillStyle = "#3b2f6b"; g.font = `${0.0095 * m}px ${MONO}`;
+  const lines = bezel.note.split("\n");
+  lines.forEach((t, i) => g.fillText(t, 0, (i - (lines.length - 1) / 2) * 0.0115 * m + 0.005 * m, nw * 0.9));
+  g.restore();
+}
+
+export function Bezels() {
+  const dense = typeof devicePixelRatio === "number" && devicePixelRatio >= 1.5;
+  const bezels = useMemo(() => crts.map((crt, k) => {
+    const station = stations.find((s) => s.id === crt.id)!;
+    // 1.5 px per mm, doubled on a high-density screen so the edge and words stay crisp
+    const px = dense ? 3000 : 1500;
+    const c = canvas(Math.round(BEZEL.width * px), Math.round(BEZEL.height * px));
+    drawBezel(c, station.bezel, k);
+    return { crt, t: texture(c) };
+  }), [dense]);
+  return (
+    <>
+      {bezels.map(({ crt, t }) => {
+        const a = (crt.yaw * Math.PI) / 180, d = 0.0078; // in front of the clear screen layer (6.2 mm)
+        return (
+          <mesh key={crt.id} position={[crt.screen[0] + Math.sin(a) * d, crt.screen[1], crt.screen[2] + Math.cos(a) * d]}
+            rotation={[0, a, 0]} renderOrder={2} raycast={() => null}>
+            <planeGeometry args={[BEZEL.width, BEZEL.height]} />
+            <meshBasicMaterial map={t} transparent depthWrite={false} toneMapped={false} />
+          </mesh>
+        );
+      })}
+    </>
+  );
+}
+
 // ---------------------------------------------------------------- rain on the window
 // Drops and the streaks they leave on the glass, catching the city's light. Drawn once.
 // Numbers match build.py's window (WIN) in the back wall.
