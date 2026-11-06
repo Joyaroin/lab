@@ -35,24 +35,30 @@ export function ScreenPanels() {
 
 // A station's diagram as a line drawing. The labels are real SVG text (selectable, scaling with the
 // panel); the figure as a whole carries the plain description for a screen reader.
-const BOX_W = 92, BOX_H = 34, GAP = 72, H = 62, Y = 22;
+// Boxes and arrows size to their labels, so longer words never spill out of a box.
+const BOX_H = 34, H = 62, Y = 22;
+const boxWidth = (t: string) => Math.max(66, t.length * 7.4 + 18);
+const arrowLen = (t: string) => Math.max(48, t.length * 5.8 + 16);
 function DiagramFigure({ d }: { d: Diagram }) {
   const n = d.steps.length;
-  const w = n * BOX_W + (n - 1) * GAP;
+  const bw = d.steps.map(boxWidth), al = d.hops.map(arrowLen);
+  const xs: number[] = [];
+  let w = 0;
+  d.steps.forEach((_, i) => { xs.push(w); w += bw[i] + (al[i] ?? 0); });
   return (
     <figure data-diagram style={figure}>
       <svg viewBox={`0 0 ${w} ${H}`} role="img" aria-label={d.description} style={{ width: "100%", maxWidth: w * 1.6, display: "block" }}
         fill="none" stroke="#7dffb0" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
         {d.steps.map((t, i) => {
-          const x = i * (BOX_W + GAP);
+          const x = xs[i], mid = Y + BOX_H / 2;
           return (
             <g key={i}>
-              <rect x={x + 1} y={Y} width={BOX_W - 2} height={BOX_H} rx={4} />
-              <text x={x + BOX_W / 2} y={Y + BOX_H / 2 + 4} textAnchor="middle" fill="#b4ffd0" stroke="none" fontSize={13} fontFamily="inherit">{t}</text>
+              <rect x={x + 1} y={Y} width={bw[i] - 2} height={BOX_H} rx={4} />
+              <text x={x + bw[i] / 2} y={mid + 4} textAnchor="middle" fill="#b4ffd0" stroke="none" fontSize={13} fontFamily="inherit">{t}</text>
               {i < n - 1 && (
                 <>
-                  <path d={`M${x + BOX_W + 4} ${Y + BOX_H / 2} H${x + BOX_W + GAP - 5} m-5 -4 l5 4 l-5 4`} />
-                  <text x={x + BOX_W + GAP / 2} y={Y + BOX_H / 2 - 7} textAnchor="middle" fill="#ffb347" stroke="none" fontSize={10} fontFamily="inherit">{d.hops[i]}</text>
+                  <path d={`M${x + bw[i] + 4} ${mid} H${x + bw[i] + al[i] - 5} m-5 -4 l5 4 l-5 4`} />
+                  {d.hops[i] && <text x={x + bw[i] + al[i] / 2} y={mid - 7} textAnchor="middle" fill="#ffb347" stroke="none" fontSize={10} fontFamily="inherit">{d.hops[i]}</text>}
                 </>
               )}
             </g>

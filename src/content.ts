@@ -80,9 +80,9 @@ export const content: Content = {
         "As of November 2026: about 700 commits and 170+ merged pull requests since August 2026.",
       ],
       diagram: {
-        description: "Git feeds Argo CD, which syncs staging automatically. Production is promoted from staging by hand.",
+        description: "Argo CD syncs from Git. Merges ship to staging automatically. Production is promoted by hand.",
         steps: ["Git", "Argo CD", "Staging", "Production"],
-        hops: ["", "automatic", "by hand"],
+        hops: ["", "automatically", "by hand"],
       },
       links: [
         { label: "MediaSafe repo", href: "https://github.com/Joyaroin/MediaSafe" },
@@ -99,6 +99,11 @@ export const content: Content = {
         "Git hosting and CI runners run at home too, with the CI runner firewalled from the home network and cluster. Production and staging are pinned to separate nodes.",
         "This site runs on that cluster.",
       ],
+      diagram: {
+        description: "Traffic arrives only through a Cloudflare Tunnel. Two Proxmox hosts, jonathan and joseph, run the VMs hamon and hermit.",
+        steps: ["Cloudflare Tunnel", "jonathan and joseph", "hamon and hermit"],
+        hops: ["traffic", "VMs"],
+      },
       links: [SITE_SOURCE],
     },
     {
@@ -110,6 +115,11 @@ export const content: Content = {
         "GitHub Actions pushes images to ECR with OIDC instead of static AWS keys. Pull requests against hotfix branches spin up isolated EKS environments.",
         "The repo is private, so there is no link.",
       ],
+      diagram: {
+        description: "GitHub Actions pushes images to ECR with OIDC. Argo CD ApplicationSets generate per-environment apps.",
+        steps: ["GitHub Actions", "ECR", "Argo CD", "per-environment apps"],
+        hops: ["OIDC", "", "ApplicationSets"],
+      },
       links: [],
     },
     {
@@ -119,6 +129,11 @@ export const content: Content = {
         "A live score-prediction game for the 2026 FIFA World Cup: friends join a group, call scorelines and climb leaderboards that move as goals go in.",
         "React 19, TypeScript, Express 5, single-table DynamoDB, Terraform, Helm and Argo CD.",
       ],
+      diagram: {
+        description: "React 19, Express 5 and single-table DynamoDB.",
+        steps: ["React 19", "Express 5", "DynamoDB"],
+        hops: ["", ""],
+      },
       links: [{ label: "Repo", href: "https://github.com/Joyaroin/wc2026-predictor" }],
     },
     {
@@ -179,6 +194,11 @@ export function validateContent(c: Content): string[] {
     if (hasPrivateAddress(v)) problems.push(`${path}: contains a private address`);
     if (isHref && !SAFE_HREF.test(v)) problems.push(`${path}: must be https:, mailto: or a site path`);
   };
+  // Text drawn on a TV (title card, diagram) is checked like other copy, and must not read as live.
+  const tvText = (path: string, v: unknown) => {
+    text(path, v);
+    if (typeof v === "string" && LIVE_STATUS.test(v)) problems.push(`${path}: reads as a live status`);
+  };
   const linkList = (path: string, list: unknown) => {
     if (!Array.isArray(list)) return void problems.push(`${path}: missing`);
     list.forEach((l: Partial<Link>, i) => {
@@ -194,30 +214,22 @@ export function validateContent(c: Content): string[] {
   if (!Array.isArray(c.stations) || c.stations.length === 0) problems.push("stations: missing");
   (c.stations ?? []).forEach((s, i) => {
     const p = `stations[${i}]`;
-    for (const f of ["id", "name", "worldLine", "heading"] as const) text(`${p}.${f}`, s[f]);
-    for (const f of ["name", "worldLine"] as const) {
-      if (typeof s[f] === "string" && LIVE_STATUS.test(s[f])) problems.push(`${p}.${f}: reads as a live status`);
-    }
+    for (const f of ["id", "heading"] as const) text(`${p}.${f}`, s[f]);
+    for (const f of ["name", "worldLine"] as const) tvText(`${p}.${f}`, s[f]);
     if (typeof s.reading !== "number" || !Number.isFinite(s.reading)) problems.push(`${p}.reading: missing`);
     if (!Array.isArray(s.body) || s.body.length === 0) problems.push(`${p}.body: missing`);
     else s.body.forEach((b, j) => text(`${p}.body[${j}]`, b));
     linkList(`${p}.links`, s.links);
     if (s.diagram) {
       const d = s.diagram, dp = `${p}.diagram`;
-      text(`${dp}.description`, d.description);
+      tvText(`${dp}.description`, d.description);
       if (!Array.isArray(d.steps) || d.steps.length === 0) problems.push(`${dp}.steps: missing`);
+      else d.steps.forEach((t, j) => tvText(`${dp}.steps[${j}]`, t));
+      if (!Array.isArray(d.hops)) problems.push(`${dp}.hops: must be a list`);
       else {
-        d.steps.forEach((t, j) => {
-          text(`${dp}.steps[${j}]`, t);
-          if (typeof t === "string" && LIVE_STATUS.test(t)) problems.push(`${dp}.steps[${j}]: reads as a live status`);
-        });
-        if (!Array.isArray(d.hops) || d.hops.length !== d.steps.length - 1) problems.push(`${dp}.hops: need one fewer than steps`);
+        if (Array.isArray(d.steps) && d.hops.length !== d.steps.length - 1) problems.push(`${dp}.hops: need one fewer than steps`);
+        d.hops.forEach((t, j) => { if (t !== "") tvText(`${dp}.hops[${j}]`, t); });
       }
-      (d.hops ?? []).forEach((t, j) => {
-        if (t === "") return;
-        text(`${dp}.hops[${j}]`, t);
-        if (typeof t === "string" && LIVE_STATUS.test(t)) problems.push(`${dp}.hops[${j}]: reads as a live status`);
-      });
     }
   });
   return problems;

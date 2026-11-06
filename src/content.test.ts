@@ -132,12 +132,33 @@ describe("diagram", () => {
     expect(d.steps).toEqual(["Git", "Argo CD", "Staging", "Production"]);
     expect(d.hops[2]).toMatch(/by hand/i);
   });
-  it("uses only facts in the station's copy", () => {
-    const { d } = media();
-    const body = content.stations.find((s) => s.id === "mediasafe")!.body.join(" ").toLowerCase();
-    for (const t of [...d.steps, ...d.hops.filter(Boolean)]) {
-      for (const w of t.toLowerCase().split(/\s+/)) expect(body, w).toContain(w.slice(0, 5));
+  it("hops that are not a list are reported, not a crash", () => {
+    for (const bad of ["by hand", { length: 2 }, null, 7]) {
+      const { c, d } = media();
+      (d as { hops: unknown }).hops = bad;
+      expect(validateContent(c).join("\n")).toContain("diagram.hops");
     }
+  });
+  // Whole words, so "automatic" does not pass for "automatically". Only plain connectives are free.
+  const FREE = new Set(["a", "an", "the", "to", "and", "by", "from", "is", "are", "with", "which"]);
+  const words = (t: string) => t.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  it.each(content.stations.filter((s) => s.diagram).map((s) => [s.id]))("%s: every word of its diagram, description included, is in its copy", (id) => {
+    const s = content.stations.find((x) => x.id === id)!;
+    const copy = new Set(words(s.body.join(" ") + " " + s.heading + " " + s.name));
+    const d = s.diagram!;
+    for (const t of [d.description, ...d.steps, ...d.hops]) {
+      for (const w of words(t)) if (!FREE.has(w)) expect(copy.has(w), `"${w}" in "${t}"`).toBe(true);
+    }
+  });
+  it("the word check does not pass a near miss", () => {
+    expect(words("automatically")).not.toContain("automatic");
+  });
+  it("exactly Home lab, MediaSafe, Order Tracker and WC2026 have one; Work and Contact do not", () => {
+    expect(content.stations.filter((s) => s.diagram).map((s) => s.id)).toEqual(["mediasafe", "home-lab", "order-tracker", "wc2026-predictor"]);
+  });
+  it("no diagram shows a score, a leaderboard or a result", () => {
+    const wc = content.stations.find((s) => s.id === "wc2026-predictor")!.diagram!;
+    expect([wc.description, ...wc.steps, ...wc.hops].join(" ")).not.toMatch(/score|leader|\d+\s*[-:–]\s*\d+|win|goal|result/i);
   });
   it("a station without one is still valid", () => {
     const c = good();
