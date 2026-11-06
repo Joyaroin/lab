@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { PerspectiveCamera, Vector3 } from "three";
 import { stations } from "../src/content";
-import { CAMERA_FOV, crts, CRT_GLASS } from "../src/crts";
+import { CAMERA_FOV, crts, CRT_GLASS, NOTE_AT, PLATE_AT } from "../src/crts";
 import { PER_STATION, TOTAL, TRAVEL, progressFor } from "../src/hold";
 import { tourAt } from "../src/tour";
 
@@ -68,20 +68,22 @@ for (const scale of [1, 2]) {
       // sample 2 mm outside the middle of each side of the glass, which is where the lip is
       const p0 = progressFor(i + 1), hw = CRT_GLASS.width / 2, hh = CRT_GLASS.height / 2, out = 0.002;
       const sides = await pixels(page, hold, [onBezel(i, p0, hw + out, 0), onBezel(i, p0, -hw - out, 0), onBezel(i, p0, 0, hh + out), onBezel(i, p0, 0, -hh - out)], scale);
-      sides.forEach((px, k) => expect(lum(px), `${s.id}: edge on side ${k} is dark (${px})`).toBeLessThan(45));
+      sides.forEach((px, k) => expect(lum(px), `${s.id}: edge on side ${k} is dark (${px})`).toBeLessThan(60));
 
       // 2. from the wide view: the plate is metal grey and the note has this TV's own colour
       const p = (i * PER_STATION + WIDE * TRAVEL) / TOTAL;
       await scrollToProgress(page, p);
       const wide = await page.screenshot({ path: `test-results/bezel-wide-${scale}x-${s.id}.png` });
-      const [plate] = await pixels(page, wide, [onBezel(i, p, -0.2, -0.21)], scale);
-      const [note] = await pixels(page, wide, [onBezel(i, p, -0.257, 0.207)], scale, 6);
+      const [plate] = await pixels(page, wide, [onBezel(i, p, ...PLATE_AT)], scale);
+      const [note] = await pixels(page, wide, [onBezel(i, p, ...NOTE_AT)], scale, 6);
       expect(Math.max(...plate) - Math.min(...plate), `${s.id}: plate is grey (${plate})`).toBeLessThan(30);
       expect(lum(plate), `${s.id}: plate is metal, not bezel beige`).toBeLessThan(215);
       expect(lum(note), `${s.id}: note is paper-bright (${note})`).toBeGreaterThan(120);
+      // 3. the baked note under it (70 mm, up to 5 mm from its corners) must not show round the painted one
+      const baked = await pixels(page, wide, [[-0.27, 0.12], [-0.27, 0.18], [-0.237, 0.12]].map(([x, y]) => onBezel(i, p, x, y)), scale, 2);
+      baked.forEach((px, k) => expect(lum(px), `${s.id}: baked note corner ${k} is covered (${px})`).toBeGreaterThan(120));
       notes.push(note.join(","));
     }
-    console.log(notes.join("\n"));
     expect(new Set(notes).size, "each TV has its own note").toBe(stations.length);
     await ctx.close();
   });

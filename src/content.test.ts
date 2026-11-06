@@ -200,10 +200,10 @@ describe("bezel words", () => {
       expect(validateContent(c).join("\n")).toContain(`stations[0].bezel.${field}: reads as a live status`);
     }
   });
-  it("rejects a station with no plate or note", () => {
+  it.each(["plate", "note"] as const)("rejects a station with no %s", (field) => {
     const c = good();
-    c.stations[0].bezel.note = "";
-    expect(validateContent(c).join("\n")).toContain("stations[0].bezel.note: missing");
+    c.stations[0].bezel[field] = "";
+    expect(validateContent(c).join("\n")).toContain(`stations[0].bezel.${field}: missing`);
   });
   it("gives every TV its own plate and note", () => {
     for (const f of ["plate", "note"] as const) {
