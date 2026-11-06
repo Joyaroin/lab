@@ -1,11 +1,10 @@
-# A merge to main builds the image, then deploys it to staging by writing its tag.
-# Version commits don't trigger this again, because of paths-ignore.
+# A merge to main builds the image, then deploys it to staging: the staging job writes the tag into
+# deploy/values-staging.yaml on the staging branch, the way promote does for production. Nothing
+# here pushes to main, so a deploy adds no commit there and every merge to main runs this.
 name: release
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - deploy/values-*.yaml
 jobs:
   image:
     runs-on: docker
@@ -16,6 +15,8 @@ jobs:
         env:
           GIT_USERNAME: forgejo
           GIT_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
           # The job's own token can't push packages. This org secret can.
           REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
         run: |
@@ -24,17 +25,46 @@ jobs:
           auth=$(printf 'adham:%s' "$REGISTRY_TOKEN" | base64 | tr -d '\n')
           printf '{"auths":{"%s":{"auth":"%s"}}}' "$host" "$auth" > /kaniko/.docker/config.json
           /kaniko/executor \
-            --context "git://$host/${{ github.repository }}.git#refs/heads/main#${{ github.sha }}" \
-            --destination "$host/${{ github.repository }}:${{ github.sha }}"
+            --context "git://$host/$REPO.git#refs/heads/main#$SHA" \
+            --destination "$host/$REPO:$SHA"
   staging:
     needs: image
     runs-on: docker
+    # One staging push at a time. The tip-of-main check below is what stops an older run winning.
+    concurrency:
+      group: staging
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
-      - name: Write the version
+        with:
+          ref: ${{ github.sha }}
+      - name: Move the staging branch
+        env:
+          SHA: ${{ github.sha }}
         run: |
-          sed -i -E 's/^(\s*tag:).*/\1 "${{ github.sha }}"/' deploy/values-staging.yaml
+          # An older run must not overwrite a newer one. Each attempt reads where staging is, checks
+          # this commit is still main's tip, then pushes only if staging hasn't moved since the read.
+          # A refused push means another run got in between, so look again. At most 3 attempts.
           git config user.name forgejo-ci
           git config user.email ci@forgejo.local
-          git commit -am "Deploy ${{ github.sha }} to staging"
-          git push origin HEAD:main
+          for attempt in 1 2 3; do
+            if git fetch origin staging; then
+              seen=$(git rev-parse FETCH_HEAD)
+            else
+              seen=""   # no staging branch yet: the empty lease means it must not exist
+            fi
+            git fetch origin main
+            if [ "$(git rev-parse FETCH_HEAD)" != "$SHA" ]; then
+              echo "main has moved past $SHA, so a newer run owns staging. Not pushing."
+              exit 0
+            fi
+            git reset --hard "$SHA"
+            sed -i -E "s/^(\s*tag:).*/\1 \"$SHA\"/" deploy/values-staging.yaml
+            git commit -am "Deploy $SHA to staging"
+            if git push --force-with-lease="refs/heads/staging:$seen" origin HEAD:refs/heads/staging; then
+              exit 0
+            fi
+            echo "Push attempt $attempt was refused." >&2
+          done
+          echo "Staging push was refused 3 times." >&2
+          exit 1

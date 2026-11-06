@@ -1,7 +1,7 @@
-# Written by the release workflow on each merge.
+# The release workflow writes the real tag on the staging branch. This copy's tag is a placeholder.
 nodeName: hermit
 image:
-  tag: "8cd49fcf75ecfe996337fc532ce8a1d1e31ad7d1"
+  tag: "f4ab24a120e1b155c1fa492ca7f1fe69b33d50fd"
 tailnet:
   enabled: true
   hostname: lab-staging

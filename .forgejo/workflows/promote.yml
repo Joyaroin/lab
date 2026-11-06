@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Commit to deploy. Leave empty for what's on staging.
+        description: Commit sha to deploy (7 to 40 hex characters). Leave empty for what's on staging.
         required: false
 jobs:
   production:
@@ -17,12 +17,27 @@ jobs:
           fetch-depth: 0
           ref: main
       - name: Move the production branch
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          version='${{ inputs.version }}'
+          version="$INPUT_VERSION"
           if [ -z "$version" ]; then
-            version=$(sed -nE 's/^\s*tag: *"?([^"]*)"?.*/\1/p' deploy/values-staging.yaml)
+            if ! git rev-parse --verify --quiet refs/remotes/origin/staging >/dev/null; then
+              echo "There is no staging branch yet, so there is no staging version. Give a version, or merge to main so release creates it." >&2
+              exit 1
+            fi
+            version=$(git show origin/staging:deploy/values-staging.yaml | sed -nE 's/^\s*tag: *"?([^"]*)"?.*/\1/p')
           fi
-          test -n "$version"
+          # Whichever way version was set, accept only 7 to 40 lowercase hex characters before any
+          # git or sed command sees it.
+          case "$version" in
+            ""|*[!0-9a-f]*) echo "Version is not a commit sha (7 to 40 hex characters)." >&2; exit 1 ;;
+          esac
+          if [ "${#version}" -lt 7 ] || [ "${#version}" -gt 40 ]; then
+            echo "Version is not a commit sha (7 to 40 hex characters)." >&2
+            exit 1
+          fi
+          version=$(git rev-parse --verify "$version^{commit}")
           git checkout --detach "$version"
           sed -i -E "s/^(\s*tag:).*/\1 \"$version\"/" deploy/values-production.yaml
           git config user.name forgejo-ci

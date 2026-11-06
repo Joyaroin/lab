@@ -2,61 +2,192 @@
 name: ci
 on:
   push:
-    branches-ignore: [main]
+    branches-ignore: [main, staging, production]
+  workflow_dispatch:
 jobs:
   frontend:
     runs-on: docker
     steps:
+      - name: Record start time
+        id: start
+        run: date +%s > "${{ runner.temp }}/start"
       - uses: actions/checkout@v4
-      - run: make frontend
-  backend:
-    runs-on: docker
-    steps:
-      - uses: actions/checkout@v4
-      - run: make backend
-  integration:
-    runs-on: docker
-    steps:
-      - uses: actions/checkout@v4
-      - run: make integration
-  browser:
-    runs-on: docker
-    steps:
-      - uses: actions/checkout@v4
-      - run: make browser PW_ARGS="--reporter=list,json"
-        env:
-          PLAYWRIGHT_JSON_OUTPUT_NAME: ${{ runner.temp }}/playwright.json
-      # Forgejo has no job-log API, so put the failures on the PR. Best effort: it never changes
+        id: checkout
+      - name: Run make frontend
+        id: run
+        run: |
+          set -o pipefail
+          make frontend 2>&1 | tee "${{ runner.temp }}/out.log" || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
+      # Forgejo has no job-log API, so put the failure on the PR. Best effort: it never changes
       # the job result, and a failed post is only logged.
-      - name: Post failures on the PR
+      - name: Post the failure on the PR
         if: failure()
         continue-on-error: true
         env:
+          JOB: frontend
+          STEPS: start=${{ steps.start.outcome }} checkout=${{ steps.checkout.outcome }} run=${{ steps.run.outcome }}
+          RUN_STEP: run
+          CMD: make frontend
+          OUT_FILE: ${{ runner.temp }}/out.log
+          EXIT_FILE: ${{ runner.temp }}/exit
+          START_FILE: ${{ runner.temp }}/start
+          MASK_ENV: TOKEN
           SERVER_URL: ${{ github.server_url }}
           REPOSITORY: ${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
           SHA: ${{ github.sha }}
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/post-ci-failure.mjs
+  backend:
+    runs-on: docker
+    steps:
+      - name: Record start time
+        id: start
+        run: date +%s > "${{ runner.temp }}/start"
+      - uses: actions/checkout@v4
+        id: checkout
+      - name: Run make backend
+        id: run
         run: |
-          if [ -f "${{ runner.temp }}/playwright.json" ]; then
-            node scripts/post-browser-failure.mjs "${{ runner.temp }}/playwright.json"
-          else
-            echo "No Playwright report; nothing to post."
-          fi
+          set -o pipefail
+          make backend 2>&1 | tee "${{ runner.temp }}/out.log" || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
+      # Forgejo has no job-log API, so put the failure on the PR. Best effort: it never changes
+      # the job result, and a failed post is only logged.
+      - name: Post the failure on the PR
+        if: failure()
+        continue-on-error: true
+        env:
+          JOB: backend
+          STEPS: start=${{ steps.start.outcome }} checkout=${{ steps.checkout.outcome }} run=${{ steps.run.outcome }}
+          RUN_STEP: run
+          CMD: make backend
+          OUT_FILE: ${{ runner.temp }}/out.log
+          EXIT_FILE: ${{ runner.temp }}/exit
+          START_FILE: ${{ runner.temp }}/start
+          MASK_ENV: TOKEN
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/post-ci-failure.mjs
+  integration:
+    runs-on: docker
+    steps:
+      - name: Record start time
+        id: start
+        run: date +%s > "${{ runner.temp }}/start"
+      - uses: actions/checkout@v4
+        id: checkout
+      - name: Run make integration
+        id: run
+        run: |
+          set -o pipefail
+          make integration 2>&1 | tee "${{ runner.temp }}/out.log" || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
+      # Forgejo has no job-log API, so put the failure on the PR. Best effort: it never changes
+      # the job result, and a failed post is only logged.
+      - name: Post the failure on the PR
+        if: failure()
+        continue-on-error: true
+        env:
+          JOB: integration
+          STEPS: start=${{ steps.start.outcome }} checkout=${{ steps.checkout.outcome }} run=${{ steps.run.outcome }}
+          RUN_STEP: run
+          CMD: make integration
+          OUT_FILE: ${{ runner.temp }}/out.log
+          EXIT_FILE: ${{ runner.temp }}/exit
+          START_FILE: ${{ runner.temp }}/start
+          MASK_ENV: TOKEN
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/post-ci-failure.mjs
+  browser:
+    runs-on: docker
+    steps:
+      - name: Record start time
+        id: start
+        run: date +%s > "${{ runner.temp }}/start"
+      - uses: actions/checkout@v4
+        id: checkout
+      - name: Run make browser PW_ARGS="--reporter=list,json"
+        id: run
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: ${{ runner.temp }}/playwright.json
+        run: |
+          set -o pipefail
+          make browser PW_ARGS="--reporter=list,json" 2>&1 | tee "${{ runner.temp }}/out.log" || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
+      # Forgejo has no job-log API, so put the failure on the PR. Best effort: it never changes
+      # the job result, and a failed post is only logged.
+      - name: Post the failure on the PR
+        if: failure()
+        continue-on-error: true
+        env:
+          JOB: browser
+          STEPS: start=${{ steps.start.outcome }} checkout=${{ steps.checkout.outcome }} run=${{ steps.run.outcome }}
+          RUN_STEP: run
+          CMD: make browser PW_ARGS="--reporter=list,json"
+          OUT_FILE: ${{ runner.temp }}/out.log
+          EXIT_FILE: ${{ runner.temp }}/exit
+          START_FILE: ${{ runner.temp }}/start
+          REPORT: ${{ runner.temp }}/playwright.json
+          MASK_ENV: TOKEN
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/post-ci-failure.mjs
   secret-scan:
     runs-on: docker
     steps:
+      - name: Record start time
+        id: start
+        run: date +%s > "${{ runner.temp }}/start"
       - uses: actions/checkout@v4
+        id: checkout
         with:
           fetch-depth: 0
-      - name: Scan the full history
+      - name: Download gitleaks
+        id: download
         run: |
           v=8.30.1
           base=https://github.com/gitleaks/gitleaks/releases/download/v$v
           cd /tmp
-          curl -fsSLO "$base/gitleaks_${v}_linux_x64.tar.gz"
-          curl -fsSLO "$base/gitleaks_${v}_checksums.txt"
-          grep linux_x64 "gitleaks_${v}_checksums.txt" | sha256sum -c -
-          tar -xzf "gitleaks_${v}_linux_x64.tar.gz" gitleaks
-          cd "$GITHUB_WORKSPACE"
-          /tmp/gitleaks git --redact --exit-code 1 .
+          {
+            curl -fsSLO "$base/gitleaks_${v}_linux_x64.tar.gz" &&
+            curl -fsSLO "$base/gitleaks_${v}_checksums.txt" &&
+            tar -xzf "gitleaks_${v}_linux_x64.tar.gz" gitleaks
+          } || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
+      - name: Check the gitleaks checksum
+        id: checksum
+        run: |
+          v=8.30.1
+          cd /tmp
+          grep linux_x64 "gitleaks_${v}_checksums.txt" | sha256sum -c - || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
+      - name: Scan the full history
+        id: scan
+        run: |
+          /tmp/gitleaks git --redact --exit-code 1 --report-format json --report-path "${{ runner.temp }}/leaks.json" . || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
+      # Forgejo has no job-log API, so put the failure on the PR. Best effort: it never changes
+      # the job result, and a failed post is only logged. No log tail: only the redacted report.
+      - name: Post the failure on the PR
+        if: failure()
+        continue-on-error: true
+        env:
+          JOB: secret-scan
+          STEPS: start=${{ steps.start.outcome }} checkout=${{ steps.checkout.outcome }} download=${{ steps.download.outcome }} checksum=${{ steps.checksum.outcome }} scan=${{ steps.scan.outcome }}
+          RUN_STEP: scan
+          CMD: gitleaks git
+          EXIT_FILE: ${{ runner.temp }}/exit
+          START_FILE: ${{ runner.temp }}/start
+          LEAKS_REPORT: ${{ runner.temp }}/leaks.json
+          MASK_ENV: TOKEN
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/post-ci-failure.mjs
