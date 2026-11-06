@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { stations } from "../src/content";
 import { holdSpan } from "../src/hold";
+import { WORK_COPY } from "./fixtures/work-copy";
 
 // Ticket 55: Work is two pages on one TV, switched by a timeline of two buttons.
 const work = stations.find((s) => s.id === "work")!;
@@ -56,19 +57,31 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     await seg(page, "barracuda").focus();
     await page.keyboard.press("Enter");
     (await shown(page)).forEach((t) => seen.add(t));
-    for (const b of work.body) expect(seen, b).toContain(b);
+    for (const b of WORK_COPY) expect(seen, b).toContain(b); // the old wording, from a fixture
   });
 }
 
-test("scrolling does not turn the page, and a turn starts the new page at its top", async ({ page }) => {
+test("scrolling does not turn the page", async ({ page }) => {
   test.setTimeout(90_000);
   await openWork(page, 1280, 800);
   const box = (await panel(page).boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, 30); await page.waitForTimeout(80); }
+  // the wheel did reach the panel and scroll its text, and still the page did not turn
+  expect(await panel(page).evaluate((e) => e.scrollTop)).toBeGreaterThan(0);
   await expect(seg(page, "solace")).toHaveAttribute("aria-pressed", "true");
+  await expect(seg(page, "barracuda")).toHaveAttribute("aria-pressed", "false");
+});
+
+test("a turn starts the new page at its top", async ({ page }) => {
+  test.setTimeout(90_000);
+  await openWork(page, 1280, 800);
   await panel(page).evaluate((e) => { e.scrollTop = 1e6; });
-  await seg(page, "barracuda").click();
+  const before = await panel(page).evaluate((e) => e.scrollTop);
+  expect(before, "the panel was scrolled before the turn").toBeGreaterThan(0);
+  // click from script: Playwright's own click scrolls the button into view, which would move the panel itself
+  await seg(page, "barracuda").evaluate((b: HTMLElement) => b.click());
+  await expect(seg(page, "barracuda")).toHaveAttribute("aria-pressed", "true");
   expect(await panel(page).evaluate((e) => e.scrollTop)).toBe(0);
 });
 
@@ -82,7 +95,7 @@ async function movedFrom(page: Page, prev: number) {
   return now;
 }
 
-// Leaving Work: once the hold is over, the panel shrinks with the camera and has more text than
+// Leaving Work: the moment the hold is over, the panel shrinks with the camera and has more text than
 // room, which used to swallow the wheel. Every step must now move the tour on.
 test("leaving Work, every wheel step over the panel moves the page on", async ({ page }) => {
   test.setTimeout(90_000);
@@ -90,7 +103,7 @@ test("leaving Work, every wheel step over the panel moves the page on", async ({
   const end = holdSpan(1)[1];
   const to = (f: number) => page.evaluate((f) => { scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)); }, f);
   await panel(page).evaluate((e) => { e.scrollTop = 1e6; }); // read to the end first
-  await to(end - 0.001);
+  await to(end + 0.001); // just past the hold: inside it the panel takes the wheel on purpose
   await page.waitForTimeout(800);
   const box = (await panel(page).boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 3 });

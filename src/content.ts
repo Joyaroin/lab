@@ -24,8 +24,9 @@ export type Station = {
    *  whole text in order; the pages' paragraphs are the same strings, oldest job first. */
   pages?: Page[];
 };
-/** One page of a station: `label` and `dates` name it on the timeline that switches pages. */
-export type Page = { id: string; label: string; dates: string; body: string[] };
+/** One page of a station: `label` and `dates` name it on the timeline that switches pages, and
+ *  `months` is how long the job ran, which sets its segment's width. */
+export type Page = { id: string; label: string; dates: string; months: number; body: string[] };
 /** A chain of steps drawn left to right. `hops[i]` labels the arrow from step i to step i+1
  *  ("" for none), so it has one entry fewer than `steps`. `description` is the plain-text version
  *  a screen reader gets. */
@@ -82,8 +83,8 @@ export const content: Content = {
       // `body` is the whole text in order (Solace, then Barracuda); `pages` splits the same paragraphs.
       body: [...SOLACE, ...BARRACUDA],
       pages: [
-        { id: "solace", label: "Solace", dates: "Sep to Dec 2026", body: SOLACE },
-        { id: "barracuda", label: "Barracuda", dates: "Sep 2025 to Aug 2026", body: BARRACUDA },
+        { id: "solace", label: "Solace", dates: "Sep to Dec 2026", months: 4, body: SOLACE },
+        { id: "barracuda", label: "Barracuda", dates: "Sep 2025 to Aug 2026", months: 12, body: BARRACUDA },
       ],
       links: [LINKEDIN],
     },
@@ -196,6 +197,10 @@ export function validateContent(c: Content): string[] {
     if (hasPrivateAddress(v)) problems.push(`${path}: contains a private address`);
     if (isHref && !SAFE_HREF.test(v)) problems.push(`${path}: must be https:, mailto: or a site path`);
   };
+  const paragraphs = (path: string, list: unknown) => {
+    if (!Array.isArray(list) || list.length === 0) return void problems.push(`${path}: missing`);
+    list.forEach((b, i) => text(`${path}[${i}]`, b));
+  };
   const linkList = (path: string, list: unknown) => {
     if (!Array.isArray(list)) return void problems.push(`${path}: missing`);
     list.forEach((l: Partial<Link>, i) => {
@@ -216,8 +221,7 @@ export function validateContent(c: Content): string[] {
       if (typeof s[f] === "string" && LIVE_STATUS.test(s[f])) problems.push(`${p}.${f}: reads as a live status`);
     }
     if (typeof s.reading !== "number" || !Number.isFinite(s.reading)) problems.push(`${p}.reading: missing`);
-    if (!Array.isArray(s.body) || s.body.length === 0) problems.push(`${p}.body: missing`);
-    else s.body.forEach((b, j) => text(`${p}.body[${j}]`, b));
+    paragraphs(`${p}.body`, s.body);
     linkList(`${p}.links`, s.links);
     if (s.pages) {
       const pp = `${p}.pages`;
@@ -225,8 +229,8 @@ export function validateContent(c: Content): string[] {
       else {
         s.pages.forEach((pg, j) => {
           for (const f of ["id", "label", "dates"] as const) text(`${pp}[${j}].${f}`, pg[f]);
-          if (!Array.isArray(pg.body) || pg.body.length === 0) problems.push(`${pp}[${j}].body: missing`);
-          else pg.body.forEach((b, k) => text(`${pp}[${j}].body[${k}]`, b));
+          if (!Number.isInteger(pg.months) || pg.months <= 0) problems.push(`${pp}[${j}].months: missing`);
+          paragraphs(`${pp}[${j}].body`, pg.body);
         });
       }
     }

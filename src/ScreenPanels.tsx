@@ -48,16 +48,15 @@ function StationPanel({ s }: { s: Station }) {
 // left, each as wide as its months. The open one is filled and tagged "open" with a marker, the
 // others are outlined with an arrow and brighten under the pointer or keyboard focus, so the open
 // page never rests on colour alone and the rest look clickable.
-const MONTHS = [12, 4]; // Barracuda Sep 2025 to Aug 2026, Solace Sep to Dec 2026
 function Timeline({ pages, open, onOpen }: { pages: NonNullable<Station["pages"]>; open: number; onOpen: (i: number) => void }) {
   const order = [...pages.keys()].reverse(); // oldest first, left to right
   return (
     <div role="group" aria-label={pageSwitch.name} data-timeline style={timeline}>
       <p style={hint}>{pageSwitch.hint}</p>
       <div style={{ display: "flex", gap: 6 }}>
-        {order.map((i, k) => (
+        {order.map((i) => (
           <button key={pages[i].id} type="button" className="crt-seg" data-page={pages[i].id} data-open={i === open}
-            aria-pressed={i === open} onClick={() => onOpen(i)} style={{ flex: `${MONTHS[k] ?? 4} 1 0`, minWidth: "5.5em" }}>
+            aria-pressed={i === open} onClick={() => onOpen(i)} style={{ flex: `${pages[i].months} 1 0`, minWidth: "5.5em" }}>
             <span className="crt-seg-label"><span className="crt-seg-tag">{i === open ? `▸ ${pageSwitch.open}` : "›"}</span> {pages[i].label}</span>
             <span className="crt-seg-dates">{pages[i].dates}</span>
           </button>

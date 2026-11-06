@@ -10,6 +10,7 @@ it("index.html shows the same name and title as content, before any script runs"
 });
 
 import { validateContent, content } from "./content";
+import { WORK_COPY } from "../tests/fixtures/work-copy";
 
 const good = () => structuredClone(content);
 
@@ -179,8 +180,19 @@ describe("Work's pages", () => {
     const { w } = work();
     expect(w.pages!.map((p) => p.label)).toEqual(["Solace", "Barracuda"]);
     expect(w.pages!.map((p) => p.dates)).toEqual(["Sep to Dec 2026", "Sep 2025 to Aug 2026"]);
-    expect(w.pages!.flatMap((p) => p.body)).toEqual(w.body);
-    expect(w.body).toHaveLength(11);
+    expect(w.pages!.map((p) => p.months)).toEqual([4, 12]);
+    expect(w.pages!.flatMap((p) => p.body)).toEqual(WORK_COPY); // the old wording, pinned in a fixture
+    expect(w.body).toEqual(WORK_COPY);
+  });
+  it("rejects a page with no months", () => {
+    const { c, w } = work();
+    w.pages![1].months = 0;
+    expect(validateContent(c).join("\n")).toContain("pages[1].months");
+  });
+  it("rejects a page with no paragraphs", () => {
+    const { c, w } = work();
+    w.pages![1].body = [];
+    expect(validateContent(c).join("\n")).toContain("pages[1].body");
   });
   it("rejects a page with a phone number in it", () => {
     const { c, w } = work();
