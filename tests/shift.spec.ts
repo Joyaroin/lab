@@ -112,9 +112,9 @@ const filterOn = (page: Page) => page.evaluate(() => document.querySelector("can
 
 // Watches the canvas's filter and the panel's opacity from inside the page, on its own clock.
 const watch = (page: Page, id: string) => page.evaluate((id) => {
-  const w = window as unknown as { __w: { starts: number[]; ends: number[]; shown: number | null; t0: number; litDuringTear: boolean; visibleDuringTear: boolean; slowestFrame: number } };
+  const w = window as unknown as { __w: { starts: number[]; ends: number[]; shown: number | null; t0: number; litDuringTear: boolean; visibleDuringTear: boolean; slowestFrame: number; resolved: boolean } };
   const canvas = document.querySelector("canvas")!, el = document.querySelector<HTMLElement>(`[data-screen="${id}"]`)!;
-  const st = { starts: [] as number[], ends: [] as number[], shown: null as number | null, t0: performance.now(), litDuringTear: false, visibleDuringTear: true, slowestFrame: 0 };
+  const st = { starts: [] as number[], ends: [] as number[], shown: null as number | null, t0: performance.now(), litDuringTear: false, visibleDuringTear: true, slowestFrame: 0, resolved: false };
   let last = performance.now();
   w.__w = st;
   let on = false;
@@ -127,6 +127,7 @@ const watch = (page: Page, id: string) => page.evaluate((id) => {
   const frame = () => {
     const now = performance.now();
     st.slowestFrame = Math.max(st.slowestFrame, now - last); last = now; // how slow this machine is drawing
+    if (el.dataset.gated === "resolving" || el.getAnimations().length > 0) st.resolved = true; // the text's own resolve animation ran
     if (on) { // while the tear is on: is the text out yet, and is it still in the page for readers?
       if (Number(el.style.opacity) > 0.01) st.litDuringTear = true;
       if (el.style.visibility !== "visible") st.visibleDuringTear = false;
@@ -136,19 +137,20 @@ const watch = (page: Page, id: string) => page.evaluate((id) => {
   };
   frame();
 }, id);
-type Watched = { starts: number[]; ends: number[]; shown: number | null; slowestFrame: number; litDuringTear: boolean; visibleDuringTear: boolean };
+type Watched = { resolved: boolean; starts: number[]; ends: number[]; shown: number | null; slowestFrame: number; litDuringTear: boolean; visibleDuringTear: boolean };
 const watched = (page: Page) => page.evaluate(() => (window as unknown as { __w: Watched }).__w);
 // the shift has played and the text is out
 const settled = (page: Page) => expect.poll(async () => { const w = await watched(page); return w.shown !== null && w.ends.length > 0; }, { timeout: 8_000 }).toBe(true);
 
 // When the text must be fully out, counted from arrival: the design (250 ms dwell + the tear + the
-// snap back, 1090 ms on a first visit and 540 ms on a return; the exact numbers are pinned in
-// shift.test.ts), plus the 220 ms the text takes to resolve, plus what this machine adds. The
+// snap back, 1090 ms on a first visit; on a return the text shows when the 250 ms dwell ends; the
+// exact numbers are pinned in shift.test.ts), plus the 220 ms a first visit's text takes to resolve (a
+// return's does not), plus what this machine adds. The
 // machine's share is judged by its own slowest frame, because the dwell timer, React and the tear
 // each wait behind a frame: up to 4 of them, and 300 ms over. So a slow runner can't fail it, but
 // text that is really late (a second or more past that) does.
 const TEXT_RESOLVE_MS = 220; // the text's own resolve animation (ScreenPanels.tsx)
-const lateBy = (design: number, w: Watched) => design + TEXT_RESOLVE_MS + 4 * w.slowestFrame + 300;
+const lateBy = (design: number, w: Watched, resolve = TEXT_RESOLVE_MS) => design + resolve + 4 * w.slowestFrame + 300;
 
 test("a first visit tears the view for about 0.8 s, and the text resolves as it ends", async ({ page }) => {
   await boot(page);
@@ -171,7 +173,7 @@ test("a first visit tears the view for about 0.8 s, and the text resolves as it 
   expect(await filterOn(page)).toBe(false);
 });
 
-test("a return is a short flick, and its text is back almost at once", async ({ page }) => {
+test("a return shows its text when the 250 ms wait ends, and the flick plays over it", async ({ page }) => {
   await boot(page);
   await scrollTo(page, progressFor(1));
   await page.waitForTimeout(2500);
@@ -184,8 +186,12 @@ test("a return is a short flick, and its text is back almost at once", async ({ 
   const len = w.ends[0] - w.starts[0];
   expect(len).toBeGreaterThan(SHIFT_SECONDS.short * 1000 - w.slowestFrame);
   expect(len).toBeLessThan(SHIFT_SECONDS.short * 1000 + SNAP_BACK_MS + 2 * w.slowestFrame + 60);
-  expect(w.shown! - w.starts[0]).toBeLessThan(len + TEXT_RESOLVE_MS + 2 * w.slowestFrame + 150); // soon after the flick ends
-  expect(w.shown!).toBeLessThan(lateBy(540, w)); // see lateBy
+  expect(w.litDuringTear).toBe(true); // the text is out while the flick plays over it...
+  expect(w.resolved).toBe(false); // ...with no resolve animation
+  expect(w.shown! - w.starts[0]).toBeLessThan(2 * w.slowestFrame + 100); // out as the flick starts, not after it
+  // The design is about 0.3 s from arrival (the wait, 250 ms; the camera's arrival is already done),
+  // against 0.54 s before. lateBy allows for a slow machine.
+  expect(w.shown!).toBeLessThan(lateBy(DWELL_MS, w, 0));
 });
 
 test("reduced motion gets no tear, and the text is there straight away", async ({ browser }) => {
@@ -201,7 +207,7 @@ test("reduced motion gets no tear, and the text is there straight away", async (
   expect(w.shown!).toBeLessThan(700); // no held-back text: only the camera arriving
 });
 
-test("moving quickly between stations can't tear more than 3 times a second", async ({ page }) => {
+test("moving quickly between stations can't make more than 3 sudden changes in a second, tear after tear", async ({ page }) => {
   await boot(page);
   await watch(page, "work");
   // Hop between the stations, spending a little over the dwell at each, for 6 s.
@@ -217,9 +223,16 @@ test("moving quickly between stations can't tear more than 3 times a second", as
     setTimeout(() => { clearInterval(id); res(); }, 6_000);
   }), [[1, 2, 3, 4, 5, 6].map(progressFor), DWELL_MS] as const);
   await page.waitForTimeout(1500);
-  const { starts } = await watched(page);
-  expect(starts.length).toBeGreaterThan(0); // it did tear
-  for (const a of starts) expect(starts.filter((b) => b >= a && b < a + 1000).length).toBeLessThanOrEqual(3);
+  const { starts, ends, slowestFrame } = await watched(page);
+  expect(starts.length).toBeGreaterThan(1); // it did tear, more than once
+  // A sudden change is the tear starting, the re-cut (halfway through a full tear) and the snap back.
+  const changes = starts.flatMap((a, i) => {
+    const b = ends[i];
+    return b === undefined ? [a] : b - a > 500 ? [a, (a + b) / 2, b] : [a, b];
+  });
+  // Times are seen a frame late, so shrink each window by the slowest frame at both ends.
+  const span = 1000 - 2 * slowestFrame;
+  for (const a of changes) expect(changes.filter((b) => b >= a && b < a + span).length).toBeLessThanOrEqual(3);
 });
 
 test("leaving mid-shift ends on the true reading, with no late jump", async ({ page }) => {
@@ -238,7 +251,7 @@ test("leaving mid-shift ends on the true reading, with no late jump", async ({ p
   }), [away] as const);
   expect(stillThere).toBe(true);
   expect(seen.filter((d) => d !== "true")).toEqual([]); // never a scramble, and no jump to the reading at the end
-  expect(await filterOn(page)).toBe(false); // the tear snapped back too
+  expect(await filterOn(page)).toBe(false); // the tear played out its own length and snapped back (it is never cut short, so the flash limit holds)
 });
 
 test("a shift that arrives during the power-on plays once it is over", async ({ page }) => {

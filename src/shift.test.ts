@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createShifts, DWELL_MS, MAX_SHIFTS_PER_SECOND, SNAP_BACK_MS } from "./shift";
+import { createShifts, DWELL_MS, changeOffsets, MAX_CHANGES_PER_SECOND, SNAP_BACK_MS } from "./shift";
 import { SHIFT_SECONDS } from "./nixie";
 import { holdSpan, progressFor, STATION_COUNT } from "./hold";
 
@@ -58,28 +58,54 @@ describe("the shift", () => {
 });
 
 describe("limiting flashes", () => {
-  it("never starts more than 3 shifts in any second, however fast the visitor moves", () => {
+  // Every sudden change of a played shift: the tear starting, each re-cut, the snap back.
+  const run = (hopMs: number, seconds: number) => {
     const s = createShifts();
-    const starts: number[] = [];
-    // hop between the stations every 260 ms (just past the dwell) for 20 s, over and over
-    for (let t = 0, k = 0; t < 20_000; t += DWELL_MS + 10, k++) {
+    const changes: number[] = [];
+    for (let t = 0, k = 0; t < seconds * 1000; t += hopMs, k++) {
       const st = (k % STATION_COUNT) + 1;
       s.observe(mid(st), t);
-      if (s.observe(mid(st), t + DWELL_MS)) starts.push(t + DWELL_MS);
+      const kind = s.observe(mid(st), t + DWELL_MS);
+      if (kind) changes.push(...changeOffsets(kind).map((o) => t + DWELL_MS + o));
     }
-    expect(starts.length).toBeGreaterThan(10); // it still fires when it can
-    for (const a of starts) {
-      expect(starts.filter((b) => b >= a && b < a + 1000).length).toBeLessThanOrEqual(MAX_SHIFTS_PER_SECOND);
+    return changes;
+  };
+  const busiest = (changes: number[]) => Math.max(...changes.map((a) => changes.filter((b) => b >= a && b < a + 1000).length));
+  it("counts the start, the re-cut and the snap back of a tear", () => {
+    expect(changeOffsets("full")).toEqual([0, 400, 800 + SNAP_BACK_MS]);
+    expect(changeOffsets("short")).toEqual([0, 250 + SNAP_BACK_MS]);
+  });
+  it("never holds more than 3 sudden changes in any second, across back-to-back tears", () => {
+    // hop between the stations just past the dwell for 20 s, so one tear follows another
+    for (const hop of [DWELL_MS + 10, 400, 600, 777]) {
+      const changes = run(hop, 20);
+      expect(changes.length).toBeGreaterThan(10); // it still fires when it can
+      expect(busiest(changes)).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
     }
+  });
+  it("holds a second tear back until its changes fit", () => {
+    const s = createShifts();
+    expect(settle(s, mid(1), 0)).toBe("full"); // changes at 250, 650, 1090
+    expect(settle(s, mid(2), 300)).toBeNull(); // would start at 550: 4 changes within a second
+    expect(settle(s, mid(3), 800)).toBeNull(); // 1050: its start fits but its re-cut at 1450 + the earlier ones do not
+    expect(settle(s, mid(4), 3000)).toBe("full");
+  });
+  it("counts from when the tear really began, if the view drew it late", () => {
+    const s = createShifts();
+    expect(settle(s, mid(1), 0)).toBe("full"); // planned 250, 650, 1090
+    s.tearStarted("full", DWELL_MS + 300); // drawn late: 550, 950, 1390
+    // Fired at 1100 it changes at 1100, 1500 and 1540. On the planned times that fits (650, 1090, 1100 and
+    // 1090, 1100, 1500 are 3 each); on the drawn times 950, 1100, 1390, 1500 is 4 in a second.
+    expect(settle(s, mid(2), 850)).toBeNull();
   });
   it("shows the text at once when a shift is held back, and does not count that visit", () => {
     const s = createShifts();
-    for (let k = 0; k < MAX_SHIFTS_PER_SECOND; k++) expect(settle(s, mid(k + 1), k * 300)).not.toBeNull();
-    const t = 3 * 300 + 10; // 3 shifts in the last second
-    expect(settle(s, mid(4), t)).toBeNull();
-    expect(s.ready(4, mid(4), t + DWELL_MS)).toBe(true);
-    s.observe(0, t + 3000); // away, then back
-    expect(settle(s, mid(4), t + 5000)).toBe("full"); // later, still a first visit
+    expect(settle(s, mid(1), 0)).toBe("full");
+    expect(settle(s, mid(2), 300)).toBeNull();
+    expect(s.ready(2, mid(2), 300 + DWELL_MS)).toBe(true);
+    expect(s.resolves(2)).toBe(false); // and it just appears
+    s.observe(0, 3000); // away, then back
+    expect(settle(s, mid(2), 5000)).toBe("full"); // later, still a first visit
   });
 });
 
@@ -102,15 +128,21 @@ describe("text resolving out of the shift", () => {
     expect(s.ready(1, mid(1), end - 1)).toBe(false);
     expect(s.ready(1, mid(1), end)).toBe(true);
   });
-  it("shows sooner after a short flick", () => {
+  it("shows at once when the dwell ends on a return, without resolving; a first visit resolves", () => {
     const s = createShifts();
     settle(s, mid(1), 0);
+    expect(s.resolves(1)).toBe(true);
     s.observe(0, 5000);
+    s.ready(1, 0, 5000); // the room sees the text go
     s.observe(mid(1), 6000);
+    expect(s.ready(1, mid(1), 6000 + DWELL_MS - 1)).toBe(false); // still waiting
     expect(s.observe(mid(1), 6000 + DWELL_MS)).toBe("short");
-    expect(s.ready(1, mid(1), 6000 + DWELL_MS + SHIFT_SECONDS.short * 1000 + SNAP_BACK_MS)).toBe(true);
+    expect(s.ready(1, mid(1), 6000 + DWELL_MS)).toBe(true);
+    expect(s.resolves(1)).toBe(false);
+    s.tearStarted("short", 6000 + DWELL_MS + 200); // the flick drawn late does not hold the text
+    expect(s.ready(1, mid(1), 6000 + DWELL_MS)).toBe(true);
   });
-  it("is readable about a second after arrival on a first visit, and almost at once on a return", () => {
+  it("is readable about a second after arrival on a first visit, and about 0.3 s on a return", () => {
     const s = createShifts();
     s.observe(mid(1), 0);
     s.observe(mid(1), DWELL_MS);
@@ -118,11 +150,12 @@ describe("text resolving out of the shift", () => {
     while (!s.ready(1, mid(1), first)) first++;
     expect(first).toBeLessThanOrEqual(1200);
     s.observe(0, 5000);
+    s.ready(1, 0, 5000); // the room sees the text go
     s.observe(mid(1), 6000);
     s.observe(mid(1), 6000 + DWELL_MS);
     let back = 6000;
     while (!s.ready(1, mid(1), back)) back++;
-    expect(back - 6000).toBeLessThanOrEqual(600);
+    expect(back - 6000).toBe(DWELL_MS);
   });
   it("stays through the fade out on leaving, and is held back again on the next arrival", () => {
     const s = createShifts();
