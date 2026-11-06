@@ -64,6 +64,16 @@ export function formatDuration(seconds) {
   return s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`;
 }
 
+/** Text in a fence that its own content can't close: longer than the longest run of tildes inside. */
+export function fenced(text) {
+  const longest = Math.max(5, ...(text.match(/~+/g) ?? []).map((r) => r.length));
+  const f = "~".repeat(longest + 1);
+  return [f, text, f];
+}
+
+/** Inline code that the text can't break out of. */
+const code = (s) => "`" + s.replace(/[`\r\n]+/g, "'") + "`";
+
 /**
  * The comment body. The first line must not start with verdict, pass, fail or rebuild: merge-pr reads those.
  * `i` holds job, sha, step (failed step id), cmd, exit, out (output text or undefined), tests (browser only),
@@ -76,18 +86,18 @@ export function formatComment(i) {
     lines.push(`Error: ${i.tests.length} browser test(s) did not pass.`, "");
     for (const t of i.tests.slice(0, MAX_TESTS)) {
       const err = t.error.length > MAX_ERROR ? t.error.slice(0, MAX_ERROR) + "\n… (cut)" : t.error;
-      lines.push(`**${t.name}**`, "", "~~~~~~", err, "~~~~~~", "");
+      lines.push(`**${t.name.replace(/[*`\r\n]+/g, "'")}**`, "", ...fenced(err), "");
     }
     if (i.tests.length > MAX_TESTS) lines.push(`… and ${i.tests.length - MAX_TESTS} more.`, "");
   } else if (i.out === undefined) {
     lines.push(`Error: step ${i.step} failed: no output captured.`, "");
   } else {
-    lines.push(`Error: \`${i.cmd}\` exited with code ${i.exit ?? "unknown"}.`);
+    lines.push(`Error: ${code(i.cmd)} exited with code ${i.exit ?? "unknown"}.`);
     const first = firstErrorLine(i.out);
-    if (first) lines.push(`First error line: ${first}`);
+    if (first) lines.push(`First error line: ${code(first)}`);
     lines.push("");
   }
-  if (i.out !== undefined) lines.push(`Last ${TAIL_LINES} lines of output:`, "", "~~~~~~", tail(i.out), "~~~~~~", "");
+  if (i.out !== undefined) lines.push(`Last ${TAIL_LINES} lines of output:`, "", ...fenced(tail(i.out)), "");
   return lines.join("\n").trimEnd() + `\n\n${markerFor(i.job)}`;
 }
 
@@ -125,20 +135,29 @@ export async function findComment(env, pr, marker) {
  * now (ms, for tests). `env`: SERVER_URL, REPOSITORY, BRANCH, SHA, TOKEN.
  */
 export async function main(input, env) {
-  const out = read(input.outFile);
+  const secrets = input.secrets ?? [];
+  // Mask before anything is cut, or a secret that crosses a cut leaks half its value.
+  const clean = (t) => mask(stripAnsi(t), secrets);
+  const rawOut = read(input.outFile);
+  const out = rawOut === undefined ? undefined : clean(rawOut);
   const failed = failedStep(input.steps) ?? input.job;
   const reportText = input.report && failed === input.runStep ? read(input.report) : undefined;
-  const tests = reportText ? failedTests(JSON.parse(reportText)) : [];
+  let tests = [];
+  try {
+    if (reportText) tests = failedTests(JSON.parse(reportText)).map((t) => ({ name: clean(t.name), error: clean(t.error) }));
+  } catch {
+    console.log("Could not read the Playwright report; using the command and exit code.");
+  }
   const start = Number(read(input.startFile)?.trim());
   const now = input.now ?? Date.now();
   const text = formatComment({
-    job: input.job, sha: env.SHA, step: failed, cmd: input.cmd, exit: read(input.exitFile)?.trim(),
+    job: input.job, sha: env.SHA, step: failed, cmd: clean(input.cmd ?? ""), exit: read(input.exitFile)?.trim(),
     out, tests, seconds: start ? now / 1000 - start : 0, load: loadavg(),
   });
   const marker = markerFor(input.job);
   const pr = await findPr(env);
   if (pr === undefined) return console.log(`No open PR for ${env.BRANCH}; nothing to post.`);
-  const body = JSON.stringify({ body: mask(text, input.secrets ?? []) });
+  const body = JSON.stringify({ body: mask(text, secrets) });
   const earlier = await findComment(env, pr, marker);
   if (earlier === undefined) await api(env, `/issues/${pr}/comments`, { method: "POST", body });
   else await api(env, `/issues/comments/${earlier}`, { method: "PATCH", body });

@@ -45,7 +45,7 @@ describe("formatComment", () => {
     expect(body).toContain(`Job: ${job}`);
     expect(body).toContain("Failed step: run");
     expect(body).toContain("`make frontend` exited with code 2");
-    expect(body).toContain("First error line: src/a.ts: TypeError: bad");
+    expect(body).toContain("First error line: `src/a.ts: TypeError: bad`");
     expect(body).toContain("line 59");
     expect(body).toContain("line 20");
     expect(body).not.toContain("line 19\n");
@@ -169,7 +169,7 @@ describe("main against a fake Forgejo", () => {
     await t.run();
     const body = t.calls[0].body.body;
     expect(body).toContain("`make browser` exited with code 3");
-    expect(body).toContain("First error line: boom: Error here");
+    expect(body).toContain("First error line: `boom: Error here`");
   });
   it("browser falls back when the report has no failed test", async () => {
     const t = await run([pr(7, "ticket-66")], { rep: { suites: [] } });
@@ -184,12 +184,37 @@ describe("main against a fake Forgejo", () => {
     expect(body).toContain("Failed step: checkout");
     expect(body).toContain("no output captured");
   });
-  it("never lets a secret's value into the comment", async () => {
-    const secret = "s3cr3t-token-value";
-    const t = await run([pr(7, "ticket-66")], { job: "frontend", rep: null, output: `Error: auth ${secret} rejected\n${secret}`, secrets: [secret] });
+  it("never lets a planted value into the comment", async () => {
+    const planted = ["s3cr3t", "value"].join("-");
+    const t = await run([pr(7, "ticket-66")], { job: "frontend", rep: null, output: `Error: auth ${planted} rejected\n${planted}`, secrets: [planted] });
     await t.run();
-    expect(JSON.stringify(t.calls[0].body)).not.toContain(secret);
+    expect(JSON.stringify(t.calls[0].body)).not.toContain(planted);
     expect(t.calls[0].body.body).toContain("Error: auth *** rejected");
+  });
+  const PLANTED = "0123456789abcdef".repeat(3).slice(0, 40);
+  const leaks = (body) => { for (let i = 0; i + 8 <= PLANTED.length; i++) if (body.includes(PLANTED.slice(i, i + 8))) return true; return false; };
+  it("masks a secret that crosses the 6000-character tail cut", async () => {
+    const t = await run([pr(7, "ticket-66")], { job: "frontend", rep: null, output: "value: " + PLANTED + "y".repeat(5980), secrets: [PLANTED] });
+    await t.run();
+    expect(leaks(t.calls[0].body.body)).toBe(false);
+  });
+  it("masks a secret that crosses the 1500-character test-error cut", async () => {
+    const r = { suites: [{ title: "a.spec.ts", file: "a.spec.ts", specs: [{ title: "t", tests: [{ status: "unexpected", results: [{ error: { message: "z".repeat(1480) + PLANTED } }] }] }] }] };
+    const t = await run([pr(7, "ticket-66")], { rep: r, secrets: [PLANTED] });
+    await t.run();
+    expect(leaks(t.calls[0].body.body)).toBe(false);
+  });
+  it("browser falls back when playwright.json is cut off", async () => {
+    const t = await run([pr(7, "ticket-66")], { rep: null });
+    writeFileSync(t.input.report, '{"suites":[');
+    await t.run();
+    expect(t.calls[0].body.body).toContain("`make browser` exited with code 3");
+  });
+  it("log text cannot close the code fence", async () => {
+    const t = await run([pr(7, "ticket-66")], { job: "frontend", rep: null, output: "a\n~~~~~~~~\n@everyone" });
+    await t.run();
+    const body = t.calls[0].body.body;
+    expect(body).toContain("~~~~~~~~~\na\n~~~~~~~~\n@everyone\n~~~~~~~~~");
   });
   it("a failed post exits 0 and logs the reason", async () => {
     const t = await run([pr(7, "ticket-66")], { status: 500 });
