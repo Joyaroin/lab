@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { failedTests, formatComment, main, MARKER } from "./post-browser-failure.mjs";
+import { AUTHOR, failedTests, formatComment, main, MARKER } from "./post-browser-failure.mjs";
 
 const test = (status, message) => ({ status, results: [{ error: message && { message } }] });
 const report = {
@@ -81,7 +81,10 @@ describe("main against a fake Forgejo", () => {
     expect(t.calls[0].body.body).toContain(MARKER);
   });
   it("updates its earlier comment instead of posting a second one", async () => {
-    const earlier = [{ id: 11, body: "someone else" }, { id: 12, body: `CI browser job output for 1111111\n\n${MARKER}` }];
+    const earlier = [
+      { id: 11, body: "someone else", user: { login: "adham" } },
+      { id: 12, body: `CI browser job output for 1111111\n\n${MARKER}`, user: { login: AUTHOR } },
+    ];
     const t = await run([pr(7, "ticket-66")], report, earlier);
     await t.run();
     expect(t.calls).toHaveLength(1);
@@ -89,6 +92,13 @@ describe("main against a fake Forgejo", () => {
     expect(t.calls[0].url).toBe("/api/v1/repos/projects/lab/issues/comments/12");
     expect(t.calls[0].body.body).toMatch(/for abcdef1/);
     expect(t.calls[0].body.body).toContain(MARKER);
+  });
+  it("leaves alone a comment that only quotes the marker", async () => {
+    const quote = [{ id: 13, body: `> ${MARKER}\nwhy is this here?`, user: { login: "adham" } }];
+    const t = await run([pr(7, "ticket-66")], report, quote);
+    await t.run();
+    expect(t.calls).toHaveLength(1);
+    expect(t.calls[0].method).toBe("POST");
   });
   it("posts nothing without an open PR", async () => {
     const t = await run([pr(5, "other")]);

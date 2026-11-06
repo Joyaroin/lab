@@ -63,14 +63,14 @@ export async function findPr(env) {
   }
 }
 
-/** Id of this script's earlier comment on the PR, or undefined. */
+/** The user CI comments as: the job token belongs to it, and only it can edit its own comments. */
+export const AUTHOR = "forgejo-actions";
+
+/** Id of this script's earlier comment on the PR, or undefined. Only a comment written by CI (AUTHOR) counts, so one that quotes the marker is left alone. */
 export async function findComment(env, pr) {
-  for (let page = 1; page <= 10; page++) {
-    const comments = await api(env, `/issues/${pr}/comments?limit=50&page=${page}`);
-    const mine = comments.find((c) => c.body?.includes(MARKER));
-    if (mine) return mine.id;
-    if (comments.length < 50) return undefined;
-  }
+  // Forgejo's comment list ignores limit and page and returns every comment in one go.
+  const comments = await api(env, `/issues/${pr}/comments`);
+  return comments.find((c) => c.body?.includes(MARKER) && c.user?.login === AUTHOR)?.id;
 }
 
 export async function main(file, env) {
