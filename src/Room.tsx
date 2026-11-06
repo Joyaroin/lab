@@ -27,10 +27,13 @@ function ScreenPins({ progress, gate }: { progress: MutableRefObject<number>; ga
       const el = document.querySelector<HTMLElement>(`[data-screen="${crt.id}"]`);
       if (!el) return;
       // Full for the whole hold. Held back (but still in the page, for readers, selection and search)
-      // from arrival until the shift ends, then it resolves out of the effect.
+      // from arrival until the shift ends, then (first visit) it resolves out of the effect. A return's
+      // text shows when the dwell ends and the flick plays over it.
       const strength = panelStrength(progress.current, k + 1);
       const out = gate.ready(k + 1, progress.current, performance.now());
-      if (out && el.dataset.gated === "true") el.dataset.gated = "resolving";
+      if (out && el.dataset.gated === "true") { // only a first visit's text resolves; a return's just appears
+        if (gate.resolves(k + 1)) el.dataset.gated = "resolving"; else delete el.dataset.gated;
+      }
       else if (!out && strength >= PANEL_SHOWN) el.dataset.gated = "true";
       else if (!out) delete el.dataset.gated;
       el.style.opacity = String(out ? strength : 0);

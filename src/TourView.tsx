@@ -31,6 +31,9 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
   const [quietUntil] = useState(() => performance.now() + POWER_ON_SECONDS * 1000);
   const [shifts] = useState(() => createShifts(reduced, { startProgress: scrollProgress(), quietUntil }));
   const [barShift, setBarShift] = useState<{ kind: ShiftKind; id: number } | null>(null);
+  // The tear is kept apart from the bar's shift: leaving mid-shift ends the bar's, but the tear plays
+  // out its own length, so its snap back is always where the flash limit counted it.
+  const [tearShift, setTearShift] = useState<{ kind: ShiftKind; id: number } | null>(null);
 
   // The tear starts a frame or more after the shift fires (later on a slow device), and the text
   // follows once it is over: say when it began, and ask the room for a frame to show the text.
@@ -38,13 +41,14 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
   const tearStarted = useCallback((kind: ShiftKind, nowMs: number) => {
     shifts.tearStarted(kind, nowMs);
     clearTimeout(tearTimer.current);
+    if (kind === "short") return; // a return's text is already showing
     tearTimer.current = window.setTimeout(() => meter.redraw?.(), SHIFT_SECONDS[kind] * 1000 + SNAP_BACK_MS + 30);
   }, [shifts, meter]);
   useEffect(() => () => clearTimeout(tearTimer.current), []);
 
   useEffect(() => {
-    gate.ready = shifts.ready;
-    return () => { gate.ready = () => true; };
+    gate.ready = shifts.ready; gate.resolves = shifts.resolves;
+    return () => { gate.ready = () => true; gate.resolves = () => false; };
   }, [gate, shifts]);
 
   useEffect(() => {
@@ -58,12 +62,13 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
     const check = () => {
       const kind = shifts.observe(progress.current, performance.now());
       // Leaving mid-shift ends it: the bar and the desk meter go straight to the reading for
-      // where the visitor is, and the tear snaps back.
+      // where the visitor is. The tear finishes its own length.
       if (active !== null && shifts.station !== active) stop();
       if (kind) {
         active = shifts.station;
         meter.shift = kind; meter.shiftAt = null;
-        setBarShift({ kind, id: ++id });
+        const next = { kind, id: ++id };
+        setBarShift(next); setTearShift(next);
       }
       meter.redraw?.(); // the text's gate may have opened
     };
@@ -104,7 +109,7 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
   return (
     <>
       <div aria-hidden style={{ height: `${SCROLL_SCREENS * 100}vh` }} />
-      <Tear shift={barShift} reduced={reduced} onStart={tearStarted} />
+      <Tear shift={tearShift} reduced={reduced} onStart={tearStarted} />
       <ScreenPanels />
       <Hud current={t.station} onJump={jump} />
       <div style={{ position: "fixed", left: 0, right: 0, bottom: "1rem", zIndex: 10, display: "flex", justifyContent: "center", pointerEvents: "none" }}>

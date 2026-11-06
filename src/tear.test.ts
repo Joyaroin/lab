@@ -26,12 +26,13 @@ describe("the tear", () => {
   it("is smaller for the short flick", () => {
     expect(Math.max(...run("short").map((x) => x.slip))).toBeLessThan(Math.max(...run("full").map((x) => x.slip)));
   });
-  it("re-cuts the bands at most twice, so the pattern never changes more than 3 times a second", () => {
-    for (const kind of ["full", "short"] as const) {
+  it("re-cuts the bands once in the full tear (two poses) and not at all in the flick", () => {
+    const recuts = (kind: "full" | "short") => {
       const poses = run(kind).filter((x) => !x.done).map((x) => x.pose);
-      const changes = poses.filter((p, i) => i > 0 && p !== poses[i - 1]).length;
-      expect(changes).toBeLessThanOrEqual(TEAR_POSES[kind] - 1);
-      expect(changes / SHIFT_SECONDS[kind]).toBeLessThanOrEqual(3);
-    }
+      return poses.filter((p, i) => i > 0 && p !== poses[i - 1]).length;
+    };
+    expect(TEAR_POSES).toEqual({ full: 2, short: 1 });
+    expect(recuts("full")).toBe(1);
+    expect(recuts("short")).toBe(0);
   });
 });
