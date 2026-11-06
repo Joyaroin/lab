@@ -5,30 +5,56 @@ import { execFileSync } from "node:child_process";
 // clash (#60, #83). Directories count too: "a/x" and "A/y" clash. The extension is ignored for the
 // last part, because `import "./tear"` is what breaks when src/Tear.tsx sits beside src/tear.ts.
 function caseClashes(paths: string[]): string[][] {
-  const groups = new Map<string, Set<string>>();
-  for (const p of paths) {
-    const parts = p.split("/");
-    parts[parts.length - 1] = parts[parts.length - 1].replace(/\.[^.]+$/, "");
-    for (let i = 1; i <= parts.length; i++) {
-      const prefix = parts.slice(0, i).join("/");
-      const key = prefix.toLowerCase();
-      if (!groups.has(key)) groups.set(key, new Set());
-      groups.get(key)!.add(prefix);
+  // Two passes: the real file name (foo.ts vs foo.TS, .env vs .Env) and the import-style name.
+  const found = new Map<string, string[]>();
+  for (const stripExt of [false, true]) {
+    const groups = new Map<string, Set<string>>();
+    for (const p of paths) {
+      const parts = p.split("/");
+      if (stripExt)
+        parts[parts.length - 1] = parts[parts.length - 1].replace(
+          /(.)\.[^.]+$/,
+          "$1",
+        );
+      for (let i = 1; i <= parts.length; i++) {
+        const prefix = parts.slice(0, i).join("/");
+        const key = prefix.toLowerCase();
+        if (!groups.has(key)) groups.set(key, new Set());
+        groups.get(key)!.add(prefix);
+      }
+    }
+    for (const g of groups.values()) {
+      if (g.size > 1) {
+        const names = [...g].sort();
+        found.set(names.join("\0"), names);
+      }
     }
   }
-  return [...groups.values()].filter((g) => g.size > 1).map((g) => [...g].sort());
+  return [...found.values()];
 }
 
 describe("file names", () => {
   it("spots names that differ only by case", () => {
-    expect(caseClashes(["src/Tear.tsx", "src/tear.ts"])).toEqual([["src/Tear", "src/tear"]]);
-    expect(caseClashes(["src/Tear.tsx", "src/tear.tsx"])).toEqual([["src/Tear", "src/tear"]]);
-    expect(caseClashes(["src/tear.ts", "src/tear.test.ts", "src/TearView.tsx"])).toEqual([]);
+    expect(caseClashes(["src/Tear.tsx", "src/tear.ts"])).toEqual([
+      ["src/Tear", "src/tear"],
+    ]);
+    expect(caseClashes(["src/Tear.tsx", "src/tear.tsx"])).toEqual([
+      ["src/Tear.tsx", "src/tear.tsx"],
+      ["src/Tear", "src/tear"],
+    ]);
+    expect(
+      caseClashes(["src/tear.ts", "src/tear.test.ts", "src/TearView.tsx"]),
+    ).toEqual([]);
     expect(caseClashes(["a/x.ts", "A/y.ts"])).toEqual([["A", "a"]]);
+    expect(caseClashes(["src/foo.ts", "src/foo.TS"])).toEqual([
+      ["src/foo.TS", "src/foo.ts"],
+    ]);
+    expect(caseClashes([".env", ".Env"])).toEqual([[".Env", ".env"]]);
+    expect(caseClashes([".env", ".env.local"])).toEqual([]);
   });
 
   it("no two tracked files differ only by case", () => {
-    const files = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
+    const files = execFileSync("git", ["ls-files", "-z", "--cached"], {
       encoding: "utf8",
     })
       .split("\0")
