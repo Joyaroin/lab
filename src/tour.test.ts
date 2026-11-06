@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { tourAt, progressFor, holdSpan, panelStrength, PANEL_SHOWN, STATION_COUNT } from "./tour";
+import { tourAt } from "./tour";
+import { progressFor, holdSpan, panelStrength, PANEL_SHOWN, STATION_COUNT } from "./hold";
 // travelProgress is test-only (the app never asks where the middle of a travel is), so it lives in
 // tests/lib, where the browser specs share it; src already reaches into tests/ for room-mesh and fixtures.
 import { travelProgress } from "../tests/lib/travel";
@@ -180,8 +181,12 @@ describe("portrait framing", () => {
   it("leaves landscape windows on the approved stops", () => {
     const w = win(16 / 9);
     expect(tourAt(progressFor(0), GAP, w).camera).toEqual(ENTRANCE.camera);
-    for (let i = 1; i <= STATION_COUNT; i++)
-      expect(tourAt(progressFor(i), GAP, w).camera).toEqual(squareStop(crts[i - 1], w).camera);
+    expect(tourAt(progressFor(0), GAP, w).look).toEqual(ENTRANCE.look);
+    for (let i = 1; i <= STATION_COUNT; i++) {
+      const stop = squareStop(crts[i - 1], w), t = tourAt(progressFor(i), GAP, w);
+      expect(t.camera).toEqual(stop.camera);
+      expect(t.look).toEqual(stop.look);
+    }
   });
   it("pulls back every station but the home lab, whose phone view is approved, and those with a phone stop", () => {
     for (const c of crts) expect(c.portrait > 1, c.id).toBe(c.id !== "home-lab" && !c.phone);
@@ -215,7 +220,7 @@ describe("phone stops", () => {
   it("do not change the desktop stop: it is the square one", () => {
     for (const id of reframed) {
       const i = crts.findIndex((c) => c.id === id) + 1, c = crts[i - 1];
-      const wide = tourAt(progressFor(i), GAP, win(1280 / 800, 800)), s = squareStop(c, { width: 1280, height: 800 });
+      const wide = tourAt(progressFor(i), GAP, win(1280 / 800)), s = squareStop(c, { width: 1280, height: 800 });
       expect(wide.camera).toEqual(s.camera);
       expect(wide.look).toEqual(s.look);
     }
@@ -494,7 +499,7 @@ describe("arcs between stations", () => {
   });
   it("arrives square to the glass for the hold, and leaves from the same stop", () => {
     for (const i of legs) {
-      const arrive = tourAt(holdSpan(i + 1)[0], GAP, win(16 / 10, 800)), s = squareStop(crts[i], { width: 1280, height: 800 });
+      const arrive = tourAt(holdSpan(i + 1)[0], GAP, win()), s = squareStop(crts[i], { width: 1280, height: 800 });
       for (let k = 0; k < 3; k++) { expect(arrive.camera[k]).toBeCloseTo(s.camera[k], 9); expect(arrive.look[k]).toBeCloseTo(s.look[k], 9); }
       const a = (crts[i].yaw * Math.PI) / 180, fwd = [-Math.sin(a), 0, -Math.cos(a)];
       const to = arrive.look.map((v, k) => v - arrive.camera[k]);
@@ -525,20 +530,20 @@ describe("reduced motion", () => {
     for (const aspect of [16 / 9, 390 / 780]) {
       for (let k = 0; k <= 10; k++) {
         const p = holdSpan(1)[0] * (k / 10);
-        expect(on(p, aspect)).toEqual(tourAt(p, GAP, win(aspect, 800)));
+        expect(on(p, aspect)).toEqual(tourAt(p, GAP, win(aspect)));
       }
     }
   });
   it("still ends square on each TV, exactly as without it", () => {
     for (let i = 1; i <= STATION_COUNT; i++) {
       const p = progressFor(i);
-      expect(on(p, 1280 / 800)).toEqual(tourAt(p, GAP, win(1280 / 800, 800)));
+      expect(on(p, 1280 / 800)).toEqual(tourAt(p, GAP, win(1280 / 800)));
     }
   });
   it("differs from the arcs mid-travel, which are unchanged by default", () => {
     const p = (holdSpan(1)[1] + holdSpan(2)[0]) / 2;
     expect(on(p).camera).not.toEqual(tourAt(p, GAP, win()).camera);
-    expect(tourAt(p, GAP, win(16 / 9, 800, false))).toEqual(tourAt(p, GAP, win(16 / 9, 800)));
+    expect(tourAt(p, GAP, win(16 / 9))).toEqual(tourAt(p, GAP, { ...win(16 / 9), reduced: false }));
   });
 });
 

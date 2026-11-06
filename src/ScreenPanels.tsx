@@ -67,7 +67,7 @@ function Timeline({ pages, open, onOpen }: { pages: NonNullable<Station["pages"]
   );
 }
 const timeline: CSSProperties = { margin: "0 0 0.7em", padding: 0 };
-const hint: CSSProperties = { margin: "0 0 0.33em", fontSize: "0.75em", letterSpacing: "0.08em", color: "#ffb347" };
+const hint: CSSProperties = { margin: "0 0 0.25em", fontSize: "0.75em", letterSpacing: "0.08em", color: "#ffb347" };
 
 // A station's diagram as a line drawing. The labels are real SVG text (selectable, scaling with the
 // panel); the figure as a whole carries the plain description for a screen reader.
@@ -120,8 +120,9 @@ const css = `
   radial-gradient(ellipse at 50% 45%, #10391f, #04140b 70%, #010804);
   background-attachment: local; }
 /* The cue adds nothing to the scrollable height (the negative top margin cancels its height), and is
-   hidden with visibility (inherited, so it never counts as visible inside a hidden panel) rather than display: otherwise showing and hiding it changes how far the
-   panel can scroll, and the browser moves the visitor's position when it hides at the end. */
+   hidden with visibility (inherited, so it never counts as visible inside a hidden panel) rather than
+   display: otherwise showing and hiding it changes how far the panel can scroll, and the browser moves
+   the visitor's position when it hides at the end. */
 .crt-more { position: sticky; bottom: -0.9em; margin: -2.6em -1em 0; height: 2.6em; visibility: hidden; display: flex;
   align-items: flex-end; justify-content: center; padding-bottom: 0.3em; pointer-events: none;
   background: linear-gradient(to bottom, rgba(4,20,11,0), rgba(4,20,11,0.97) 70%); }

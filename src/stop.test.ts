@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { PerspectiveCamera } from "three";
 import { CAMERA_FOV, crts } from "./crts";
 import { glassBox, glassOnScreen } from "./glass";
-import { progressFor, tourAt } from "./tour";
+import { progressFor } from "./hold";
+import { tourAt } from "./tour";
 import { BOTTOM_CLEAR, SIDE, TOP_CLEAR } from "./pin";
 import { squareStop } from "./stop";
 

@@ -8,17 +8,18 @@ import { WORK_COPY } from "./fixtures/work-copy";
 
 // Ticket 55: Work is two pages on one TV, switched by a timeline of two buttons.
 const work = stations.find((s) => s.id === "work")!;
-const seg = (page: Page, id: string) => panelOf(page, "work").locator(`button[data-page="${id}"]`);
+const workPanel = (page: Page) => panelOf(page, "work");
+const seg = (page: Page, id: string) => workPanel(page).locator(`button[data-page="${id}"]`);
 
 async function openWork(page: Page, w: number, h: number) {
   await page.setViewportSize({ width: w, height: h });
   await page.goto("/");
   await expect(page.getByLabel("Boot log")).toBeHidden();
   await page.getByRole("navigation", { name: "HUD" }).locator('a[href="#work"]').click();
-  await expect(panelOf(page, "work")).toHaveCSS("opacity", "1");
+  await expect(workPanel(page)).toHaveCSS("opacity", "1");
   await waitForCamera(page); // the camera has arrived
 }
-const shown = (page: Page) => panelOf(page, "work").locator("p").allInnerTexts();
+const shown = (page: Page) => workPanel(page).locator("p").allInnerTexts();
 
 for (const [w, h] of [[1280, 800], [1920, 1080]]) {
   test(`desktop ${w}x${h}: Work opens on Solace, and a click or Enter on a segment turns the page`, async ({ page }) => {
@@ -66,11 +67,11 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
 test("scrolling does not turn the page", async ({ page }) => {
   test.setTimeout(90_000);
   await openWork(page, 1280, 800);
-  const box = (await panelOf(page, "work").boundingBox())!;
+  const box = (await workPanel(page).boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, 30); await page.waitForTimeout(80); }
   // the wheel did reach the panel and scroll its text, and still the page did not turn
-  expect(await panelOf(page, "work").evaluate((e) => e.scrollTop)).toBeGreaterThan(0);
+  expect(await workPanel(page).evaluate((e) => e.scrollTop)).toBeGreaterThan(0);
   await expect(seg(page, "solace")).toHaveAttribute("aria-pressed", "true");
   await expect(seg(page, "barracuda")).toHaveAttribute("aria-pressed", "false");
 });
@@ -78,13 +79,13 @@ test("scrolling does not turn the page", async ({ page }) => {
 test("a turn starts the new page at its top", async ({ page }) => {
   test.setTimeout(90_000);
   await openWork(page, 1280, 800);
-  await panelOf(page, "work").evaluate((e) => { e.scrollTop = 1e6; });
-  const before = await panelOf(page, "work").evaluate((e) => e.scrollTop);
+  await workPanel(page).evaluate((e) => { e.scrollTop = 1e6; });
+  const before = await workPanel(page).evaluate((e) => e.scrollTop);
   expect(before, "the panel was scrolled before the turn").toBeGreaterThan(0);
   // click from script: Playwright's own click scrolls the button into view, which would move the panel itself
   await seg(page, "barracuda").evaluate((b: HTMLElement) => b.click());
   await expect(seg(page, "barracuda")).toHaveAttribute("aria-pressed", "true");
-  expect(await panelOf(page, "work").evaluate((e) => e.scrollTop)).toBe(0);
+  expect(await workPanel(page).evaluate((e) => e.scrollTop)).toBe(0);
 });
 
 /** Waits for the page to move past `prev` and then stop, so a slow runner doesn't read as a stuck wheel.
@@ -104,10 +105,10 @@ test("leaving Work, every wheel step over the panel moves the page on", async ({
   await openWork(page, 1280, 800);
   const end = holdSpan(1)[1];
   const to = (f: number) => page.evaluate((f) => { scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)); }, f);
-  await panelOf(page, "work").evaluate((e) => { e.scrollTop = 1e6; }); // read to the end first
+  await workPanel(page).evaluate((e) => { e.scrollTop = 1e6; }); // read to the end first
   await to(end + 0.001); // just past the hold: inside it the panel takes the wheel on purpose
   await waitForPanel(page, "work"); // the panel has finished shrinking with the camera
-  const box = (await panelOf(page, "work").boundingBox())!;
+  const box = (await workPanel(page).boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 3 });
   let prev = await page.evaluate(() => scrollY), stuck: number[] = [], arrived = false;
   for (let i = 0; i < 40; i++) {
@@ -168,7 +169,7 @@ test("a page turn flicks the Work TV only, and the page still changes", async ({
   await flicksOver(page);
   expect((await filters(page)).on).toHaveLength(1);
   expect((await filters(page)).canvas).toBe(0); // not the whole view
-  expect(await panelOf(page, "work").evaluate((e) => (e as HTMLElement).style.filter)).toBe(""); // and it ends
+  expect(await workPanel(page).evaluate((e) => (e as HTMLElement).style.filter)).toBe(""); // and it ends
   expect(await page.locator("canvas").evaluate((e) => (e as HTMLElement).style.filter)).toBe("");
 });
 

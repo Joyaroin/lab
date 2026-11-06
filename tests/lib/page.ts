@@ -44,7 +44,10 @@ const TEST_MARGIN_MS = 3_000;
 function pollBudget(limit: number) {
   try {
     const info = test.info();
-    if (info.timeout > 0) return Math.max(1_000, Math.min(limit, info.timeout - info.duration - TEST_MARGIN_MS));
+    // Never below 1 ms (0 would mean no limit), and never past the test's own end: a test with less
+    // than the margin left gets a poll that fails at once, showing what it last read, not one that
+    // runs on past the test's timeout.
+    if (info.timeout > 0) return Math.max(1, Math.min(limit, info.timeout - info.duration - TEST_MARGIN_MS));
   } catch { /* outside a test: no test clock to respect */ }
   return limit;
 }

@@ -33,11 +33,6 @@ export type ShiftKind = keyof typeof SHIFT_SECONDS;
 // Where in a shift's run the tubes start locking (`from`) and how much of it they take (`spread`).
 const SHIFT_LOCK = { from: 0.3, spread: 0.6 } as const;
 
-/** Seconds into a shift when the last of `tubes` tubes locks on the reading: the visible scramble
- *  ends there, not at the shift's end. */
-export const lastLockSeconds = (kind: ShiftKind, tubes: number) =>
-  (SHIFT_LOCK.from + (SHIFT_LOCK.spread * (tubes - 1)) / tubes) * SHIFT_SECONDS[kind];
-
 /** The digits to show `t` seconds into a shift. Past the end, always exactly `digits`. */
 export function shiftDigits(t: number, digits: string, kind: ShiftKind, rand: () => number = Math.random): { digits: string; done: boolean } {
   const len = SHIFT_SECONDS[kind];

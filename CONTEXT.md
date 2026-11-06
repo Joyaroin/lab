@@ -32,9 +32,9 @@ The language of this project: its terms, what each one means, and what it doesn'
   "HALDEN HX-101". One per TV.
 - **Sticky note**: the small coloured note at a bezel's top left, with a few words of its own and a tilt
   that differs on each TV.
-- **Diagram**: a station's line drawing on its glass, a left-to-right chain of steps. It redraws facts
-  already in that station's copy and adds none, and never reads as a live status or result. Contact has
-  none. Work's diagram is its timeline.
+- **Diagram**: a station's line drawing on its glass. It redraws facts already in that station's copy
+  and adds none, and never reads as a live status or result. Contact has none. Most are a left-to-right
+  chain of steps joined by hops; Work's is its timeline, made of segments, with no steps or hops.
 - **Page**: one of the parts a station's text is split into, shown one at a time (only Work has pages:
   Solace and Barracuda). Together the pages hold exactly the station's text, in order. The station
   opens on its first page and scrolling never changes it.

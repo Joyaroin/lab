@@ -42,6 +42,7 @@ export type Content = {
   identity: { name: string; title: string; availability: string };
   links: Link[];
   stations: Station[];
+  pageSwitch: typeof pageSwitch;
 };
 
 // Links that more than one station or the HUD uses, written once.
@@ -67,6 +68,7 @@ const BARRACUDA = [
 ];
 
 export const content: Content = {
+  pageSwitch,
   identity: {
     name: "Adham Sedik",
     title: "SWE & Platform",
@@ -240,7 +242,7 @@ export function validateContent(c: Content): string[] {
     });
   };
 
-  for (const f of ["name", "hint", "open", "openMark", "closedMark"] as const) tvText(`pageSwitch.${f}`, pageSwitch[f]);
+  for (const [f, v] of Object.entries(c.pageSwitch ?? {})) tvText(`pageSwitch.${f}`, v);
   text("identity.name", c.identity?.name);
   text("identity.title", c.identity?.title);
   text("identity.availability", c.identity?.availability);

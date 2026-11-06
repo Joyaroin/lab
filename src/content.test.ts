@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { identity } from "./content";
 
@@ -264,14 +264,19 @@ describe("bezel words", () => {
   });
 });
 
-// The timeline's own words are drawn on a TV too, so they are checked like the rest.
-describe("page switch words", () => {
-  const original = { ...pageSwitch };
-  afterEach(() => Object.assign(pageSwitch, original));
-  it.each(Object.keys(original) as (keyof typeof original)[])("rejects a %s that is empty or reads as live", (f) => {
-    pageSwitch[f] = "";
-    expect(validateContent(content).join("\n")).toContain(`pageSwitch.${f}: missing`);
-    pageSwitch[f] = "Synced";
-    expect(validateContent(content).join("\n")).toContain(`pageSwitch.${f}: reads as a live status`);
+// The timeline's own words are drawn on a TV too, so they are checked like the rest. The words come
+// from the Content given, so every key it holds is validated, including ones added later.
+describe("timeline words", () => {
+  it.each(Object.keys(pageSwitch))("rejects a %s that is empty or reads as live", (f) => {
+    const c = good();
+    c.pageSwitch[f as keyof typeof pageSwitch] = "";
+    expect(validateContent(c).join("\n")).toContain(`pageSwitch.${f}: missing`);
+    c.pageSwitch[f as keyof typeof pageSwitch] = "Synced";
+    expect(validateContent(c).join("\n")).toContain(`pageSwitch.${f}: reads as a live status`);
+  });
+  it("validates a key added to the timeline words", () => {
+    const c = good();
+    (c.pageSwitch as Record<string, string>).extra = "";
+    expect(validateContent(c).join("\n")).toContain("pageSwitch.extra: missing");
   });
 });
