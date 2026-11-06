@@ -1,29 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
+import { countDraws, draws, frames } from "./lib/page";
 
-// Counts the 3D scene's draw calls, which is what a drawn frame is made of. Headless Chromium has
-// software WebGL, so this proves the scene is idle, not how much a phone would spend drawing.
-// Nothing on the CRTs moves, so every draw is the power-on, a scroll or a pointer move.
-const countDraws = async (page: Page) => {
-  await page.addInitScript(() => {
-    const w = window as unknown as { __draws: number; __frames: number };
-    w.__draws = 0;
-    w.__frames = 0; // each frame clears the screen once
-    for (const C of [WebGLRenderingContext, WebGL2RenderingContext]) {
-      const clear = C.prototype.clear;
-      C.prototype.clear = function (mask: number) { w.__frames++; return clear.call(this, mask); };
-    }
-    for (const C of [WebGLRenderingContext, WebGL2RenderingContext]) {
-      for (const fn of ["drawArrays", "drawElements", "drawArraysInstanced", "drawElementsInstanced"] as const) {
-        const orig = (C.prototype as any)[fn];
-        (C.prototype as any)[fn] = function (...a: unknown[]) { w.__draws++; return orig.apply(this, a); };
-      }
-    }
-  });
-};
 test.setTimeout(60_000); // several idle waits
-
-const draws = (page: Page) => page.evaluate(() => (window as unknown as { __draws: number }).__draws);
-const frames = (page: Page) => page.evaluate(() => (window as unknown as { __frames: number }).__frames);
 
 // Wait out the power-on (about 1.5 s) and the camera's glide, with a margin.
 const SETTLE_MS = 8_000;

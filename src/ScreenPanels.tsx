@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import type { OnPageTurn } from "./TearView";
 import { pageSwitch, stations, type Diagram, type Station } from "./content";
 
 // Each station's text as real HTML. The room (Room.tsx) pins each panel to its CRT screen and
@@ -6,7 +7,7 @@ import { pageSwitch, stations, type Diagram, type Station } from "./content";
 // fine scanlines and a curved-glass vignette, all drawn by CSS behind the text so it stays sharp.
 // When the text runs past the panel's height, a fade and a "more" hint sit at its bottom edge
 // until the visitor has scrolled to the end.
-export function ScreenPanels({ onTurn }: { onTurn?: (el: HTMLElement) => void }) {
+export function ScreenPanels({ onTurn }: { onTurn?: OnPageTurn }) {
   return (
     <>
       <style>{css}</style>
@@ -15,7 +16,7 @@ export function ScreenPanels({ onTurn }: { onTurn?: (el: HTMLElement) => void })
   );
 }
 
-function StationPanel({ s, onTurn }: { s: Station; onTurn?: (el: HTMLElement) => void }) {
+function StationPanel({ s, onTurn }: { s: Station; onTurn?: OnPageTurn }) {
   const ref = useRef<HTMLElement>(null);
   // A station with pages opens on its first (Work: Solace). Scrolling never changes it.
   const [open, setOpen] = useState(0);

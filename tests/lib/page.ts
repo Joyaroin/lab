@@ -87,3 +87,27 @@ export const meanBrightness = (page: Page, png: Buffer) => readShot(page, png, (
   for (let k = 0; k < d.length; k += 4) sum += 0.2126 * d[k] + 0.7152 * d[k + 1] + 0.0722 * d[k + 2];
   return sum / (d.length / 4);
 }, null);
+
+// Counts the 3D scene's draw calls, which is what a drawn frame is made of. Headless Chromium has
+// software WebGL, so this proves the scene is idle, not how much a phone would spend drawing.
+// Nothing on the CRTs moves, so every draw is the power-on, a scroll or a pointer move.
+export const countDraws = async (page: Page) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __draws: number; __frames: number };
+    w.__draws = 0;
+    w.__frames = 0; // each frame clears the screen once
+    for (const C of [WebGLRenderingContext, WebGL2RenderingContext]) {
+      const clear = C.prototype.clear;
+      C.prototype.clear = function (mask: number) { w.__frames++; return clear.call(this, mask); };
+    }
+    for (const C of [WebGLRenderingContext, WebGL2RenderingContext]) {
+      for (const fn of ["drawArrays", "drawElements", "drawArraysInstanced", "drawElementsInstanced"] as const) {
+        const orig = (C.prototype as any)[fn];
+        (C.prototype as any)[fn] = function (...a: unknown[]) { w.__draws++; return orig.apply(this, a); };
+      }
+    }
+  });
+};
+export const draws = (page: Page) => page.evaluate(() => (window as unknown as { __draws: number }).__draws);
+export const frames = (page: Page) => page.evaluate(() => (window as unknown as { __frames: number }).__frames);
+

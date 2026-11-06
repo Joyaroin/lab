@@ -1,6 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
 import { stations } from "../src/content";
 import { holdSpan } from "../src/hold";
+import { SHIFT_SECONDS } from "../src/nixie";
+import { busiestWindow, SNAP_BACK_MS } from "../src/shift";
+import { countDraws, draws, frames } from "./lib/page";
 import { WORK_COPY } from "./fixtures/work-copy";
 
 // Ticket 55: Work is two pages on one TV, switched by a timeline of two buttons.
@@ -139,53 +142,81 @@ const watchFilters = (page: Page) => page.evaluate(() => {
   new MutationObserver(() => { if (canvas.style.filter.includes("shift-tear")) w.__f.canvas++; }).observe(canvas, { attributes: true, attributeFilter: ["style"] });
 });
 const filters = (page: Page) => page.evaluate(() => (window as unknown as { __f: Seen }).__f);
-/** The most sudden changes (a flick starting, its snap back) in any real one-second window. */
-const busiest = (f: Seen) => {
-  const all = [...f.on, ...f.off];
-  return Math.max(0, ...all.map((a) => all.filter((b) => b >= a && b < a + 1000).length));
-};
+
+/** Opens Work (waiting out the arrival's own tear) and starts watching the filters. */
+async function openWorkWatched(page: Page) {
+  await openWork(page, 1280, 800);
+  // the first visit's tear is over once the canvas has no filter (its text, which waits for it, is already out)
+  await expect.poll(() => page.locator("canvas").evaluate((e) => (e as HTMLElement).style.filter), { timeout: 10_000 }).toBe("");
+  await watchFilters(page);
+}
+/** Waits until every flick that started has snapped back. */
+const flicksOver = (page: Page) => expect.poll(async () => { const f = await filters(page); return f.on.length > 0 && f.off.length === f.on.length; }, { timeout: 10_000 }).toBe(true);
+/** For checks that something did NOT happen: waits for the length of a flick plus a few drawn frames, counted on the page's own clock and frames, so a slow machine waits longer. */
+const pastAFlick = (page: Page) => page.evaluate(([ms]) => new Promise<void>((res) => {
+  const t0 = performance.now();
+  let n = 0;
+  const tick = () => (++n >= 5 && performance.now() - t0 > ms ? res() : requestAnimationFrame(tick));
+  tick();
+}), [SHIFT_SECONDS.short * 1000 + SNAP_BACK_MS] as const);
 
 test("a page turn flicks the Work TV only, and the page still changes", async ({ page }) => {
   test.setTimeout(60_000);
-  await openWork(page, 1280, 800);
-  await page.waitForTimeout(2500); // the arrival's own tear is over
-  await watchFilters(page);
+  await openWorkWatched(page);
   await seg(page, "barracuda").click();
   await expect(seg(page, "barracuda")).toHaveAttribute("aria-pressed", "true");
   expect(await shown(page)).toEqual(expect.arrayContaining(work.pages![1].body));
-  await expect.poll(async () => (await filters(page)).on.length).toBe(1);
-  await page.waitForTimeout(600);
+  await flicksOver(page);
+  expect((await filters(page)).on).toHaveLength(1);
   expect((await filters(page)).canvas).toBe(0); // not the whole view
   expect(await panel(page).evaluate((e) => (e as HTMLElement).style.filter)).toBe(""); // and it ends
   expect(await page.locator("canvas").evaluate((e) => (e as HTMLElement).style.filter)).toBe("");
 });
 
+test("after a page turn the scene draws no frames at rest", async ({ page }) => {
+  test.setTimeout(60_000);
+  await countDraws(page);
+  await openWorkWatched(page);
+  await seg(page, "barracuda").click();
+  await flicksOver(page);
+  // The camera has been still since arriving, so anything drawn now would be the flick's doing. An absence
+  // can't be waited for, so as idle.spec.ts does: let a few seconds pass and compare.
+  await page.waitForTimeout(1_000); // a frame the page turn may have asked for
+  const before = { draws: await draws(page), frames: await frames(page) };
+  await page.waitForTimeout(3_000);
+  expect({ draws: await draws(page), frames: await frames(page) }).toEqual(before);
+});
+
 test("reduced motion swaps the page with no effect", async ({ browser }) => {
   const page = await (await browser.newContext({ reducedMotion: "reduce" })).newPage();
   await openWork(page, 1280, 800);
-  await page.waitForTimeout(1500);
   await watchFilters(page);
   await seg(page, "barracuda").click();
   await expect(seg(page, "barracuda")).toHaveAttribute("aria-pressed", "true");
   expect(await shown(page)).toEqual(expect.arrayContaining(work.pages![1].body));
-  await page.waitForTimeout(600);
+  await pastAFlick(page);
   expect(await filters(page)).toEqual({ on: [], off: [], canvas: 0 });
 });
 
+// Clicks arrive at a set pace: the pause between them is the stimulus, not a wait for something.
+const clickEvery = async (page: Page, ms: number, ids: string[]) => {
+  for (const id of ids) {
+    const t = Date.now();
+    await seg(page, id).click();
+    await page.waitForTimeout(Math.max(0, ms - (Date.now() - t)));
+  }
+};
+
 test("clicking quickly back and forth ends on the right page and still flicks", async ({ page }) => {
   test.setTimeout(60_000);
-  await openWork(page, 1280, 800);
-  await page.waitForTimeout(2500);
-  await watchFilters(page);
-  const order = ["barracuda", "solace", "barracuda", "solace", "barracuda", "solace", "barracuda"];
-  for (const id of order) { await seg(page, id).click(); await page.waitForTimeout(60); }
+  await openWorkWatched(page);
+  await clickEvery(page, 60, ["barracuda", "solace", "barracuda", "solace", "barracuda", "solace", "barracuda"]);
   await expect(seg(page, "barracuda")).toHaveAttribute("aria-pressed", "true");
   expect(await shown(page)).toEqual(expect.arrayContaining(work.pages![1].body));
   expect(await shown(page)).not.toContain(work.pages![0].body[0]);
-  await page.waitForTimeout(600);
+  await flicksOver(page);
   const f = await filters(page);
-  expect(f.on.length).toBeGreaterThan(0);
-  expect(f.on.length).toBeLessThan(order.length); // not one per click
+  expect(f.on.length).toBeLessThan(7); // not one per click
   expect(f.canvas).toBe(0);
 });
 
@@ -193,20 +224,13 @@ test("clicking quickly back and forth ends on the right page and still flicks", 
 for (const every of [700, 715, 730]) {
   test(`clicking every ${every} ms never puts more than 3 sudden changes in a real second`, async ({ page }) => {
     test.setTimeout(60_000);
-    await openWork(page, 1280, 800);
-    await page.waitForTimeout(2500);
-    await watchFilters(page);
-    const ids = ["barracuda", "solace"];
-    for (let k = 0; k < 8; k++) {
-      const t = Date.now();
-      await seg(page, ids[k % 2]).click();
-      await page.waitForTimeout(Math.max(0, every - (Date.now() - t)));
-    }
-    await page.waitForTimeout(600);
+    await openWorkWatched(page);
+    await clickEvery(page, every, Array.from({ length: 8 }, (_, k) => (k % 2 ? "solace" : "barracuda")));
+    await flicksOver(page);
     const f = await filters(page);
     expect(f.on.length).toBeGreaterThan(1); // it flicks more than once
     expect(f.off.length).toBe(f.on.length);
-    expect(busiest(f)).toBeLessThanOrEqual(3);
+    expect(busiestWindow([...f.on, ...f.off])).toBeLessThanOrEqual(3);
     await expect(seg(page, "solace")).toHaveAttribute("aria-pressed", "true"); // 8 clicks, ends on the last one
   });
 }

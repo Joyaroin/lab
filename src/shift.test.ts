@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createShifts, DWELL_MS, changeOffsets, MAX_CHANGES_PER_SECOND, SNAP_BACK_MS } from "./shift";
+import { busiestWindow, createShifts, DWELL_MS, changeOffsets, MAX_CHANGES_PER_SECOND, SNAP_BACK_MS } from "./shift";
 import { SHIFT_SECONDS } from "./nixie";
 import { holdSpan, progressFor, STATION_COUNT } from "./hold";
 
@@ -70,17 +70,16 @@ describe("limiting flashes", () => {
     }
     return changes;
   };
-  const busiest = (changes: number[]) => Math.max(...changes.map((a) => changes.filter((b) => b >= a && b < a + 1000).length));
   it("counts the start, the re-cut and the snap back of a tear", () => {
     expect(changeOffsets("full")).toEqual([0, 400, 800 + SNAP_BACK_MS]);
     expect(changeOffsets("short")).toEqual([0, 250 + SNAP_BACK_MS]);
   });
   it("never holds more than 3 sudden changes in any second, across back-to-back tears", () => {
-    // hop between the stations just past the dwell for 20 s, so one tear follows another
+    // hop between the stations just past the wait for 20 s, so one tear follows another
     for (const hop of [DWELL_MS + 10, 400, 600, 777]) {
       const changes = run(hop, 20);
       expect(changes.length).toBeGreaterThan(10); // it still fires when it can
-      expect(busiest(changes)).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
+      expect(busiestWindow(changes)).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
     }
   });
   it("holds a second tear back until its changes fit", () => {
@@ -128,7 +127,7 @@ describe("text resolving out of the shift", () => {
     expect(s.ready(1, mid(1), end - 1)).toBe(false);
     expect(s.ready(1, mid(1), end)).toBe(true);
   });
-  it("shows at once when the dwell ends on a return, without resolving; a first visit resolves", () => {
+  it("shows at once when the wait ends on a return, without resolving; a first visit resolves", () => {
     const s = createShifts();
     settle(s, mid(1), 0);
     expect(s.resolves(1)).toBe(true);
@@ -221,13 +220,21 @@ describe("a Work page turn", () => {
     expect(played.length).toBeGreaterThan(0);
     expect(played.length).toBeLessThan(40); // not every click
     const times = played.flatMap((t) => changeOffsets("short").map((o) => t + o));
-    for (const a of times) expect(times.filter((b) => b >= a && b < a + 1000).length).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
+    expect(busiestWindow(times)).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
   });
   it("holds a click 0.7 s after a flick back, because the snap back is drawn a frame late", () => {
     const s = createShifts();
     expect(s.turn(0)).toBe(true);
     expect(s.turn(710)).toBe(false); // 0, 290, 710, 1000 would be 4 in a second once drawn late
     expect(s.turn(1100)).toBe(true);
+  });
+  it("counts from when the flick really began, if the page drew it late", () => {
+    const s = createShifts();
+    expect(s.turn(0)).toBe(true); // booked 0 and 290
+    s.turnStarted(200); // drawn late: 200 and 490
+    // A click at 900 adds 900 and 1190. On the booked times (0, 290, 900) and (290, 900, 1190) that fits;
+    // on the drawn times 200, 490, 900 and 1190 are 4 in a window of 1100 ms.
+    expect(s.turn(900)).toBe(false);
   });
   it("counts against the flash limit with a tear that is already playing", () => {
     const s = createShifts();

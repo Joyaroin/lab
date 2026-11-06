@@ -39,8 +39,11 @@ The language of this project: its terms, what each one means, and what it doesn'
   the pulled-back view, where that view would be mostly dark. Only MediaSafe and WC2026 have one.
 - **Shift**: the moment of arrival at a station, when the view tears and the meter scrambles and locks
   onto the reading. It fires once the visitor has stayed inside a hold, not when scrolling past. Full on
-  a station's first visit, a short flick after. Never at the entrance, never with reduced motion. The tear is room-only: the HUD and the meter bar stay still. A Work page turn plays the short flick too, on that TV's screen only (not the room); the same limit counts it. On a return the text shows as soon as
-  the wait ends and the flick plays over it; on a first visit it waits for the tear, then resolves out of it.
-  The full tear re-cuts its bands once. No one-second window holds more than 3 sudden changes (the tear
-  starting, a re-cut, the snap back), counted over a little more than a second to cover late frames; a shift held back by that still shows its text. Visits
-  are kept in memory only, and nothing on screen shows where you have been.
+  a station's first visit, a short flick after. Never at the entrance, never with reduced motion. The
+  tear is room-only: the HUD and the meter bar stay still. A Work page turn plays the short flick too, on
+  that TV's screen only (not the room); the same limit counts it. On a return the text shows as soon as
+  the wait ends and the flick plays over it; on a first visit it waits for the tear, then resolves out of
+  it. The full tear re-cuts its bands once. No one-second window holds more than 3 sudden changes (the
+  tear starting, a re-cut, the snap back), counted over a little more than a second to cover late
+  frames; a shift held back by that still shows its text. Visits are kept in memory only, and nothing
+  on screen shows where you have been.

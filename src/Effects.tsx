@@ -3,7 +3,7 @@ import { createRef, useEffect, useMemo, useRef } from "react";
 import { AdditiveBlending, CanvasTexture, CylinderGeometry, DoubleSide, SRGBColorSpace, Vector3, type Camera, type Mesh, type MeshBasicMaterial } from "three";
 import { textOnGlass } from "./tour";
 import { crts, CRT_GLASS, DESK_METER, NOTE_AT, PLATE_AT, type Crt } from "./crts";
-import { powerOn, shiftDigits, type MeterLink } from "./nixie";
+import { powerOn, setMeterShift, shiftDigits, type MeterLink } from "./nixie";
 import { stations } from "./content";
 import { CARD_PX, MONO, drawPhosphor } from "./card";
 
@@ -119,9 +119,9 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
     let shifting = false;
     if (link.shift && !reduced && s.done) {
       if (link.shiftAt === null) link.shiftAt = clock.elapsedTime;
-      const sh = shiftDigits(clock.elapsedTime - link.shiftAt, link.digits, link.shift);
-      if (sh.done) { link.shift = null; link.shiftAt = null; } else { s.digits = sh.digits; shifting = true; }
-    } else if (link.shift && reduced) { link.shift = null; link.shiftAt = null; } // reduced motion: no shift, show the plain reading
+      const step = shiftDigits(clock.elapsedTime - link.shiftAt, link.digits, link.shift);
+      if (step.done) setMeterShift(link, null); else { s.digits = step.digits; shifting = true; }
+    } else if (link.shift && reduced) setMeterShift(link, null); // reduced motion: no shift, show the plain reading
     // (while the power-on is still running the shift stays pending and plays when it ends: the tour's
     // quiet period is timed from when the tour mounts, the power-on from the first frame after, which
     // on a slow device is later)
