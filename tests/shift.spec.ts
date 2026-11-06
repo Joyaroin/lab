@@ -78,7 +78,6 @@ test("arriving in a hold scrambles the meter for the length of the shift, and it
   // settle), not the slowest of the whole run: the page's load and the tear's first draw can take much
   // longer than the frames that show the digits, and a wide allowance would let an early stop pass.
   const slowest = Math.max(0, ...frames.filter((f) => f.at >= first && f.at <= settled!.at).map((f) => f.gap));
-  
   const lastLock = lastLockSeconds("full", (await reading(page)).length) * 1000;
   expect(settled!.at - first).toBeGreaterThan(lastLock - slowest); // it lasted until the last tube locks
   await expect.poll(async () => (await tubes(page)) === (await reading(page)), { timeout: 10_000 }).toBe(true);
@@ -276,54 +275,62 @@ test("moving quickly between stations can't make more than the limit of sudden c
   expect(busiestWindow(changes)).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
 });
 
-test("leaving mid-shift ends on the true reading, with no late jump, and the tear plays out", async ({ page }) => {
-  await boot(page);
-  // Leave the hold the moment the tear starts, from inside the page, so no round trip delays it. Then
-  // time the tear on the page's own clock, from the filter going on to it coming off, and watch the bar
-  // until a few frames after that. Nothing here waits on a timer, so a slow machine can't make the
-  // check late: a tear cut short when the visitor left comes off long before its 0.8 s, whenever we look.
-  const away = holdSpan(1)[1] + 0.03;
-  const left = page.evaluate(([p]) => new Promise<{ seen: string[]; stillThere: boolean; length: number; slowest: number; leftAt: number }>((res) => {
-    const max = () => document.documentElement.scrollHeight - window.innerHeight;
-    const canvas = document.querySelector("canvas")!;
-    const on = () => canvas.style.filter.includes("shift-tear");
-    const seen: string[] = [];
-    // The machine's slowest frame, as the other tests allow for.
-    let slowest = 0, lastFrame = performance.now();
-    const frames = () => { const now = performance.now(); slowest = Math.max(slowest, now - lastFrame); lastFrame = now; requestAnimationFrame(frames); };
-    frames();
-    const start = new MutationObserver((_, mo) => {
-      if (!on()) return;
-      mo.disconnect();
-      const started = performance.now();
-      window.scrollTo(0, p * max()); window.dispatchEvent(new Event("scroll"));
-      const leftAt = performance.now() - started;
-      const bar = new MutationObserver(() => seen.push(window.__meter.scramble()));
-      bar.observe(window.__meter.bar(), { childList: true, subtree: true, characterData: true });
-      new MutationObserver((_, end) => {
-        if (on()) return;
-        end.disconnect();
-        const length = performance.now() - started;
-        // a few more frames, to catch a late jump to the reading at the end
-        let n = 0;
+// The tear is timed on performance.now() (TearView's useTear): it starts at one reading and comes off
+// at the first frame where 0.8 s have passed. A slow frame can only make it come off later, never
+// sooner. The only thing that shortens what we measure is the gap between the tear starting and our
+// observer running, so a small fixed allowance covers every frame rate. A tear cut short comes off
+// within a frame or two of the visitor leaving, far under this, however slow the frames are.
+const TEAR_ALLOWANCE_MS = 50;
+const WATCH_AFTER_LEAVING_MS = 2_000;
+
+// At 1x and under Chromium's CPU throttling, so the check is shown to hold at slow frame rates.
+for (const rate of [1, 10, 16]) {
+  test(`leaving mid-shift ends on the true reading, with no late jump, and the tear plays out (${rate}x)`, async ({ page }) => {
+    await boot(page);
+    if (rate > 1) await (await page.context().newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate });
+    // Leave the hold the moment the tear starts, from inside the page, so no round trip delays it. Time
+    // the tear on the page's own clock, from the filter going on to it coming off, and watch the bar
+    // for 2 s after leaving. Nothing here waits on a timer for its result.
+    const away = holdSpan(1)[1] + 0.03;
+    const left = page.evaluate(([p, watchMs]) => new Promise<{ seen: string[]; stillThere: boolean; length: number | null }>((res) => {
+      const max = () => document.documentElement.scrollHeight - window.innerHeight;
+      const canvas = document.querySelector("canvas")!;
+      const on = () => canvas.style.filter.includes("shift-tear");
+      const seen: string[] = [];
+      new MutationObserver((_, mo) => {
+        if (!on()) return;
+        mo.disconnect();
+        const started = performance.now();
+        window.scrollTo(0, p * max()); window.dispatchEvent(new Event("scroll"));
+        let length: number | null = null;
+        new MutationObserver((_, end) => {
+          if (on()) return;
+          end.disconnect();
+          length = performance.now() - started;
+        }).observe(canvas, { attributes: true, attributeFilter: ["style"] });
+        const bar = new MutationObserver(() => seen.push(window.__meter.scramble()));
+        bar.observe(window.__meter.bar(), { childList: true, subtree: true, characterData: true });
+        // Every frame until 2 s after leaving. A tear that was going to come off has done so by the
+        // first frame past that: its own frames run at the same rate as ours.
         const tick = () => {
           seen.push(window.__meter.scramble());
-          if (++n < 10) return requestAnimationFrame(tick);
+          if (performance.now() - started < watchMs) return requestAnimationFrame(tick);
           bar.disconnect();
-          res({ seen, stillThere: Math.abs(window.scrollY / max() - p) < 0.01, length, slowest, leftAt });
+          res({ seen, stillThere: Math.abs(window.scrollY / max() - p) < 0.01, length: on() ? null : length });
         };
         tick();
       }).observe(canvas, { attributes: true, attributeFilter: ["style"] });
-    }).observe(canvas, { attributes: true, attributeFilter: ["style"] });
-  }), [away] as const);
-  await scrollToProgress(page, progressFor(1));
-  const { seen, stillThere, length, slowest } = await left;
-  expect(stillThere).toBe(true);
-  // the tear plays out its own length after leaving, never cut short (give or take a frame at each end)
-  expect(length, "the tear's length after leaving").toBeGreaterThan(SHIFT_SECONDS.full * 1000 - slowest);
-  expect(seen.filter((d) => d !== "true")).toEqual([]); // never a scramble, and no jump to the reading at the end
-  expect(await filterOn(page)).toBe(false); // and it did snap back
-});
+    }), [away, WATCH_AFTER_LEAVING_MS] as const);
+    await scrollToProgress(page, progressFor(1));
+    const { seen, stillThere, length } = await left;
+    expect(stillThere).toBe(true);
+    expect(length, `the tear never came off in the ${WATCH_AFTER_LEAVING_MS} ms after leaving`).not.toBeNull();
+    // the tear plays out its own length after leaving, never cut short
+    expect(length!, "the tear's length after leaving").toBeGreaterThan(SHIFT_SECONDS.full * 1000 - TEAR_ALLOWANCE_MS);
+    expect(seen.filter((d) => d !== "true")).toEqual([]); // never a scramble, and no jump to the reading at the end
+    expect(await filterOn(page)).toBe(false); // and it did snap back
+  });
+}
 
 test("a shift that arrives during the power-on plays once it is over", async ({ page }) => {
   // When the tour (and the bar) appeared, on the page's clock: the power-on takes POWER_ON_SECONDS from about then.
