@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { POWER_ON_SECONDS, SHIFT_SECONDS, type MeterLink } from "./nixie";
-import { Tear } from "./Tear";
+import { Tear } from "./TearView";
 import { stations } from "./content";
 import { Hud } from "./Hud";
 import { ScreenPanels } from "./ScreenPanels";

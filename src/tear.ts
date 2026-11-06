@@ -2,7 +2,7 @@ import { SHIFT_SECONDS, type ShiftKind } from "./nixie";
 
 // The tear: horizontal bands of the view slip sideways with a red and cyan edge, then snap back.
 // This is only the timing: how far the bands slip and how wide the edge is, `t` seconds in. The
-// view draws it with an SVG filter (Tear.tsx). The full version re-cuts the bands twice (three
+// view draws it with an SVG filter (TearView.tsx). The full version re-cuts the bands twice (three
 // poses in 0.8 s); the short one is a single flick. Neither changes pose more than 3 times a second.
 export const TEAR_POSES = { full: 3, short: 1 } as const;
 /** Largest slip and edge width, as a share of the window width. */
