@@ -223,16 +223,15 @@ test("moving quickly between stations can't make more than 3 sudden changes in a
     setTimeout(() => { clearInterval(id); res(); }, 6_000);
   }), [[1, 2, 3, 4, 5, 6].map(progressFor), DWELL_MS] as const);
   await page.waitForTimeout(1500);
-  const { starts, ends, slowestFrame } = await watched(page);
+  const { starts, ends } = await watched(page);
   expect(starts.length).toBeGreaterThan(1); // it did tear, more than once
   // A sudden change is the tear starting, the re-cut (halfway through a full tear) and the snap back.
   const changes = starts.flatMap((a, i) => {
     const b = ends[i];
     return b === undefined ? [a] : b - a > 500 ? [a, (a + b) / 2, b] : [a, b];
   });
-  // Times are seen a frame late, so shrink each window by the slowest frame at both ends.
-  const span = 1000 - 2 * slowestFrame;
-  for (const a of changes) expect(changes.filter((b) => b >= a && b < a + span).length).toBeLessThanOrEqual(3);
+  // The real times, in a full second: the limit's own padding covers the frames, the test doesn't shrink the window.
+  for (const a of changes) expect(changes.filter((b) => b >= a && b < a + 1000).length).toBeLessThanOrEqual(3);
 });
 
 test("leaving mid-shift ends on the true reading, with no late jump", async ({ page }) => {

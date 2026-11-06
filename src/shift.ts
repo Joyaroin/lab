@@ -10,10 +10,6 @@ import { TEAR_POSES } from "./tear";
  *  through a station doesn't trigger it. */
 export const DWELL_MS = 250;
 
-/** True if no window of one second holds more than MAX_CHANGES_PER_SECOND of these times. */
-const withinLimit = (times: number[]) =>
-  times.every((a) => times.filter((b) => b >= a && b < a + 1000).length <= MAX_CHANGES_PER_SECOND);
-
 const stationAt = (progress: number) => {
   for (let i = 1; i <= STATION_COUNT; i++) {
     const [a, b] = holdSpan(i);
@@ -29,11 +25,26 @@ export const SNAP_BACK_MS = 40;
 /** The most sudden changes (a jump in the view) in any one second. A shift held back by this still shows its text. */
 export const MAX_CHANGES_PER_SECOND = 3;
 
+/** Changes are drawn on the next frame, so two of them can land closer together than they were booked
+ *  (a late start, an early next one). Every check counts over this much more than a second, so the
+ *  real gaps still hold the limit on a slow device. One place for tears and page turns alike. */
+export const FRAME_ALLOWANCE_MS = 100;
+const WINDOW_MS = 1000 + FRAME_ALLOWANCE_MS;
+
 /** When a shift's tear jumps the view, in ms after it starts: the tear starting, each re-cut of the
  *  bands, and the snap back. The tear and this list both come from TEAR_POSES and SHIFT_SECONDS. */
 export const changeOffsets = (kind: ShiftKind): number[] => {
   const len = SHIFT_SECONDS[kind] * 1000, poses = TEAR_POSES[kind];
   return [0, ...Array.from({ length: poses - 1 }, (_, k) => ((k + 1) / poses) * len), len + SNAP_BACK_MS];
+};
+
+/** Book `kind`'s changes from `nowMs` among the `booked` ones: the new list of booked changes (old ones
+ *  dropped) and the plan, or null if some window would then hold more than the limit. */
+const book = (booked: number[], kind: ShiftKind, nowMs: number) => {
+  const kept = booked.filter((c) => c > nowMs - WINDOW_MS); // an older change can't share a window with a new one
+  const plan = changeOffsets(kind).map((o) => nowMs + o), all = [...kept, ...plan];
+  const fits = all.every((a) => all.filter((b) => b >= a && b < a + WINDOW_MS).length <= MAX_CHANGES_PER_SECOND);
+  return { kept, plan, fits };
 };
 
 /** What the room needs from the tracker: may station `i`'s text show at this progress and time. */
@@ -67,10 +78,10 @@ export function createShifts(reduced = false, { startProgress = 0, quietUntil = 
       if (here !== at) { at = here; since = nowMs; fired = false; }
       if (reduced || here === 0 || fired || nowMs - since < DWELL_MS || nowMs < quietUntil) return null;
       fired = true;
-      changes = changes.filter((c) => c > nowMs - 1000); // an older change can't share a window with a new one
       const kind = visited.has(here) ? "short" : "full";
-      const plan = changeOffsets(kind).map((o) => nowMs + o);
-      if (!withinLimit([...changes, ...plan])) { readyAt = nowMs; return null; }
+      const { kept, plan, fits } = book(changes, kind, nowMs);
+      changes = kept;
+      if (!fits) { readyAt = nowMs; return null; }
       changes.push(...plan); lastPlan = plan;
       visited.add(here);
       if (kind === "full") { resolving.add(here); readyAt = nowMs + SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS; }
@@ -92,9 +103,9 @@ export function createShifts(reduced = false, { startProgress = 0, quietUntil = 
      *  either way. */
     turn(nowMs: number): boolean {
       if (reduced) return false;
-      changes = changes.filter((c) => c > nowMs - 1000);
-      const plan = changeOffsets("short").map((o) => nowMs + o);
-      if (!withinLimit([...changes, ...plan])) return false;
+      const { kept, plan, fits } = book(changes, "short", nowMs);
+      changes = kept;
+      if (!fits) return false;
       changes.push(...plan);
       return true;
     },

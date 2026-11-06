@@ -223,6 +223,12 @@ describe("a Work page turn", () => {
     const times = played.flatMap((t) => changeOffsets("short").map((o) => t + o));
     for (const a of times) expect(times.filter((b) => b >= a && b < a + 1000).length).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
   });
+  it("holds a click 0.7 s after a flick back, because the snap back is drawn a frame late", () => {
+    const s = createShifts();
+    expect(s.turn(0)).toBe(true);
+    expect(s.turn(710)).toBe(false); // 0, 290, 710, 1000 would be 4 in a second once drawn late
+    expect(s.turn(1100)).toBe(true);
+  });
   it("counts against the flash limit with a tear that is already playing", () => {
     const s = createShifts();
     expect(settle(s, mid(1), 0)).toBe("full"); // changes at 250, 650, 1090+250
