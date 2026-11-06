@@ -46,15 +46,20 @@ const sample = (page: Page, ms: number) => page.evaluate((ms) => new Promise<str
 
 test("arriving in a hold scrambles the meter, which ends on the true reading", async ({ page }) => {
   await boot(page);
+  // Each time the bar changes, does it show the reading, or something else? Something else is the scramble.
+  // (This used to count distinct values and expect more than 2. That depends on how many frames the page
+  // draws in the shift's 0.8 s: under heavy load a frame can take over a second, so one scrambled frame
+  // is all there is, and the count was 2. The first scrambled frame is drawn as the shift starts, whatever
+  // the frame rate, so one is what must always be there.)
   const seen = page.evaluate(() => new Promise<string[]>((res) => {
     const out: string[] = [];
-    const mo = new MutationObserver(() => out.push(window.__meter.tubes()));
+    const mo = new MutationObserver(() => out.push(window.__meter.scramble()));
     mo.observe(window.__meter.bar(), { childList: true, subtree: true, characterData: true });
     setTimeout(() => { mo.disconnect(); res(out); }, 6_000);
   }));
   await scrollToProgress(page, progressFor(1));
-  const digitsSeen = await seen;
-  expect(new Set(digitsSeen).size).toBeGreaterThan(2); // it scrambled
+  const shown = await seen;
+  expect(shown.filter((d) => d !== "true").length).toBeGreaterThan(0); // it scrambled
   await expect.poll(async () => (await tubes(page)) === (await reading(page)), { timeout: 10_000 }).toBe(true); // and settled on the reading
 });
 
