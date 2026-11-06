@@ -35,6 +35,13 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
   // out its own length, so its snap back is always where the flash limit counted it.
   const [tearShift, setTearShift] = useState<{ kind: ShiftKind; id: number } | null>(null);
 
+  // A Work page turn's flick, on that TV's screen only. The page turns whether or not it plays.
+  const [turn, setTurn] = useState<{ el: HTMLElement; id: number } | null>(null);
+  const turnId = useRef(0);
+  const pageTurned = useCallback((el: HTMLElement) => {
+    if (shifts.turn(performance.now())) setTurn({ el, id: ++turnId.current });
+  }, [shifts]);
+
   // The tear starts a frame or more after the shift fires (later on a slow device), and the text
   // follows once it is over: say when it began, and ask the room for a frame to show the text.
   const tearTimer = useRef(0);
@@ -109,8 +116,8 @@ export function Tour({ gap, progress, meter, gate }: { gap: Gap | null; progress
   return (
     <>
       <div aria-hidden style={{ height: `${SCROLL_SCREENS * 100}vh` }} />
-      <Tear shift={tearShift} reduced={reduced} onStart={tearStarted} />
-      <ScreenPanels />
+      <Tear shift={tearShift} turn={turn} reduced={reduced} onStart={tearStarted} />
+      <ScreenPanels onTurn={pageTurned} />
       <Hud current={t.station} onJump={jump} />
       <div style={{ position: "fixed", left: 0, right: 0, bottom: "1rem", zIndex: 10, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto" }}>

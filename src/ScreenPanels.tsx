@@ -6,16 +6,16 @@ import { pageSwitch, stations, type Diagram, type Station } from "./content";
 // fine scanlines and a curved-glass vignette, all drawn by CSS behind the text so it stays sharp.
 // When the text runs past the panel's height, a fade and a "more" hint sit at its bottom edge
 // until the visitor has scrolled to the end.
-export function ScreenPanels() {
+export function ScreenPanels({ onTurn }: { onTurn?: (el: HTMLElement) => void }) {
   return (
     <>
       <style>{css}</style>
-      {stations.map((s) => <StationPanel key={s.id} s={s} />)}
+      {stations.map((s) => <StationPanel key={s.id} s={s} onTurn={onTurn} />)}
     </>
   );
 }
 
-function StationPanel({ s }: { s: Station }) {
+function StationPanel({ s, onTurn }: { s: Station; onTurn?: (el: HTMLElement) => void }) {
   const ref = useRef<HTMLElement>(null);
   // A station with pages opens on its first (Work: Solace). Scrolling never changes it.
   const [open, setOpen] = useState(0);
@@ -37,7 +37,7 @@ function StationPanel({ s }: { s: Station }) {
         ))}
       </p>
       {s.diagram && <DiagramFigure d={s.diagram} />}
-      {s.pages && <Timeline pages={s.pages} open={open} onOpen={setOpen} />}
+      {s.pages && <Timeline pages={s.pages} open={open} onOpen={(i) => { if (i !== open && ref.current) onTurn?.(ref.current); setOpen(i); }} />}
       {(page ? page.body : s.body).map((b, i) => <p key={i} style={para}>{b}</p>)}
       <div className="crt-more" aria-hidden="true"><span>more ▾</span></div>
     </section>

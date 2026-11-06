@@ -119,3 +119,64 @@ test("leaving Work, every wheel step over the panel moves the page on", async ({
   expect(stuck, "wheel steps that did not move the page").toEqual([]);
   expect(arrived, "reached MediaSafe's hold").toBe(true);
 });
+
+// Ticket 58: turning the page plays the short flick on the Work TV only.
+// Watches the panel's and the canvas's filter from inside the page; returns what it saw.
+const watchFilters = (page: Page) => page.evaluate(() => {
+  const w = window as unknown as { __f: { panel: number[]; canvas: number } };
+  const panelEl = document.querySelector<HTMLElement>('[data-screen="work"]')!, canvas = document.querySelector("canvas")!;
+  w.__f = { panel: [], canvas: 0 };
+  let on = false;
+  const t0 = performance.now();
+  new MutationObserver(() => {
+    const now = panelEl.style.filter.includes("shift-tear");
+    if (now && !on) w.__f.panel.push(performance.now() - t0);
+    on = now;
+  }).observe(panelEl, { attributes: true, attributeFilter: ["style"] });
+  new MutationObserver(() => { if (canvas.style.filter.includes("shift-tear")) w.__f.canvas++; }).observe(canvas, { attributes: true, attributeFilter: ["style"] });
+});
+const filters = (page: Page) => page.evaluate(() => (window as unknown as { __f: { panel: number[]; canvas: number } }).__f);
+
+test("a page turn flicks the Work TV only, and the page still changes", async ({ page }) => {
+  test.setTimeout(60_000);
+  await openWork(page, 1280, 800);
+  await page.waitForTimeout(2500); // the arrival's own tear is over
+  await watchFilters(page);
+  await seg(page, "barracuda").click();
+  await expect(seg(page, "barracuda")).toHaveAttribute("aria-pressed", "true");
+  expect(await shown(page)).toEqual(expect.arrayContaining(work.pages![1].body));
+  await expect.poll(async () => (await filters(page)).panel.length).toBe(1);
+  await page.waitForTimeout(600);
+  expect((await filters(page)).canvas).toBe(0); // not the whole view
+  expect(await panel(page).evaluate((e) => (e as HTMLElement).style.filter)).toBe(""); // and it ends
+  expect(await page.locator("canvas").evaluate((e) => (e as HTMLElement).style.filter)).toBe("");
+});
+
+test("reduced motion swaps the page with no effect", async ({ browser }) => {
+  const page = await (await browser.newContext({ reducedMotion: "reduce" })).newPage();
+  await openWork(page, 1280, 800);
+  await page.waitForTimeout(1500);
+  await watchFilters(page);
+  await seg(page, "barracuda").click();
+  await expect(seg(page, "barracuda")).toHaveAttribute("aria-pressed", "true");
+  expect(await shown(page)).toEqual(expect.arrayContaining(work.pages![1].body));
+  await page.waitForTimeout(600);
+  expect(await filters(page)).toEqual({ panel: [], canvas: 0 });
+});
+
+test("clicking quickly back and forth ends on the right page, with at most 3 sudden changes in a second", async ({ page }) => {
+  test.setTimeout(60_000);
+  await openWork(page, 1280, 800);
+  await page.waitForTimeout(2500);
+  await watchFilters(page);
+  const order = ["barracuda", "solace", "barracuda", "solace", "barracuda", "solace", "barracuda"];
+  for (const id of order) { await seg(page, id).click(); await page.waitForTimeout(60); }
+  await expect(seg(page, "barracuda")).toHaveAttribute("aria-pressed", "true");
+  expect(await shown(page)).toEqual(expect.arrayContaining(work.pages![1].body));
+  expect(await shown(page)).not.toContain(work.pages![0].body[0]);
+  await page.waitForTimeout(600);
+  const f = await filters(page);
+  expect(f.panel.length).toBeGreaterThan(0);
+  expect(f.panel.length).toBeLessThan(order.length); // not one per click
+  expect(f.canvas).toBe(0);
+});

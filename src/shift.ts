@@ -87,6 +87,17 @@ export function createShifts(reduced = false, { startProgress = 0, quietUntil = 
       changes = changes.filter((c) => !lastPlan.includes(c)).concat(plan); lastPlan = plan;
       if (kind === "full") readyAt = Math.max(readyAt, nowMs + SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS);
     },
+    /** A Work page turn asks for the short flick on that TV. It plays unless reduced motion is on or
+     *  it would put more than the limit of sudden changes in a second (quick clicks): the page turns
+     *  either way. */
+    turn(nowMs: number): boolean {
+      if (reduced) return false;
+      changes = changes.filter((c) => c > nowMs - 1000);
+      const plan = changeOffsets("short").map((o) => nowMs + o);
+      if (!withinLimit([...changes, ...plan])) return false;
+      changes.push(...plan);
+      return true;
+    },
     restore(progress: number) {
       at = stationAt(progress);
       fired = at !== 0;

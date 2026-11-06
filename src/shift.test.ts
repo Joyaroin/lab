@@ -208,3 +208,24 @@ describe("the power-on and a reload", () => {
     expect(s.station).toBe(0);
   });
 });
+
+describe("a Work page turn", () => {
+  it("plays the short flick, and only when the visitor is not reduced", () => {
+    expect(createShifts().turn(1000)).toBe(true);
+    expect(createShifts(true).turn(1000)).toBe(false);
+  });
+  it("lets quick clicks through only while no second holds more than 3 sudden changes", () => {
+    const s = createShifts();
+    const played: number[] = [];
+    for (let t = 0; t < 4000; t += 100) if (s.turn(t)) played.push(t);
+    expect(played.length).toBeGreaterThan(0);
+    expect(played.length).toBeLessThan(40); // not every click
+    const times = played.flatMap((t) => changeOffsets("short").map((o) => t + o));
+    for (const a of times) expect(times.filter((b) => b >= a && b < a + 1000).length).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
+  });
+  it("counts against the flash limit with a tear that is already playing", () => {
+    const s = createShifts();
+    expect(settle(s, mid(1), 0)).toBe("full"); // changes at 250, 650, 1090+250
+    expect(s.turn(700)).toBe(false);
+  });
+});
