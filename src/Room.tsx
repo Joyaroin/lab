@@ -3,7 +3,8 @@ import { Suspense, useEffect, useMemo, type MutableRefObject } from "react";
 import { MeshBasicMaterial, Vector3, type Mesh, type MeshStandardMaterial } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import roomUrl from "./assets/room.glb?url";
-import { CAMERA_FOV, crts, ENTRANCE, glassCorners, glassEdge, isPortrait, panelPoint } from "./crts";
+import { CAMERA_FOV, crts, ENTRANCE, glassEdge, isPortrait, panelPoint } from "./crts";
+import { glassBox } from "./glass";
 import { fitPanel, glassFontSize } from "./pin";
 import { PANEL_SHOWN, panelStrength, parallax, textOnGlass, parallaxStrength, tourAt } from "./tour";
 import { DeskMeter, Phosphor, Rain } from "./Effects";
@@ -38,17 +39,11 @@ function ScreenPins({ progress, gate }: { progress: MutableRefObject<number>; ga
       if (strength < PANEL_SHOWN) return;
       if (textOnGlass(progress.current, k + 1, size.width / size.height)) {
         // Desktop: the camera is square to the glass, so the text is laid exactly over it.
-        const xs: number[] = [], ys: number[] = [];
-        for (const v of glassCorners(crt)) {
-          c.set(...v).project(camera);
-          xs.push((c.x * 0.5 + 0.5) * size.width);
-          ys.push((-c.y * 0.5 + 0.5) * size.height);
-        }
-        const left = Math.min(...xs), top = Math.min(...ys);
-        el.style.width = `${Math.max(...xs) - left}px`;
-        el.style.height = `${Math.max(...ys) - top}px`;
+        const { left, top, width, height } = glassBox(crt, camera, size);
+        el.style.width = `${width}px`;
+        el.style.height = `${height}px`;
         if (el.style.maxHeight !== "none") el.style.maxHeight = "none"; // the fixed height is the limit
-        el.style.fontSize = `${glassFontSize(Math.max(...xs) - left)}px`;
+        el.style.fontSize = `${glassFontSize(width)}px`;
         el.dataset.glass = "true";
         el.style.transform = `translate(${left}px, ${top}px)`;
         markMore(el);
@@ -101,7 +96,10 @@ function BakedRoom({ onLoaded, onProgress }: { onLoaded: () => void; onProgress:
 // Moves the camera along the tour. Eases toward the scroll position and adds slight mouse
 // parallax, unless the visitor prefers reduced motion: then it snaps, holds still, and travels in
 // a straight line between stations (the leg from the entrance still curves).
-// It writes the camera position to the canvas's data-camera, so tests can check the path.
+// It writes the camera position to the canvas's data-camera, so tests can check the path. That
+// ships in the live site on purpose: it is three numbers the visitor can already see, one attribute
+// write per drawn frame, and tests of the real build need it. (Keeping it out of production would
+// mean testing a different build from the one that ships.)
 // The room is drawn only on demand (see Room): this asks for the next frame until the camera
 // has arrived, and scrolling or moving the pointer starts it again.
 function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; reduced: boolean }) {

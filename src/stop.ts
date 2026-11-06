@@ -32,11 +32,3 @@ export function squareStop(crt: Crt, win: Win): { camera: V3; look: V3 } {
     look: [crt.screen[0], y, crt.screen[2]],
   };
 }
-
-/** Where the glass lands in the window from its square stop, in pixels. The station's text is
- *  pinned to exactly this rectangle. */
-export function glassRect(crt: Crt, win: Win) {
-  const d = stopDistance(win), pxPerM = win.height / (2 * d * TAN);
-  const width = CRT_GLASS.width * pxPerM, height = CRT_GLASS.height * pxPerM;
-  return { left: win.width / 2 - width / 2, top: band(win).centreY - height / 2, width, height };
-}

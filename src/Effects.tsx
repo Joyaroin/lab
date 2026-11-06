@@ -5,6 +5,7 @@ import { textOnGlass } from "./tour";
 import { crts, CRT_GLASS, DESK_METER, type Crt } from "./crts";
 import { powerOn, shiftDigits, type MeterLink } from "./nixie";
 import { stations } from "./content";
+import { CARD_PX, drawPhosphor } from "./card";
 
 // The late-night look, drawn over the baked room (Room.tsx) without making it redraw nonstop.
 // Everything here is a few small textured planes drawn once. The only things that move are the
@@ -184,42 +185,6 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
 // Nothing on the card moves or reads as live. The station's own text is the HTML panel pinned on
 // top (Room.tsx), and the card is swapped for the clear glass while that text is showing.
 
-const MONO = '"DejaVu Sans Mono", ui-monospace, monospace';
-
-function drawPhosphor(c: HTMLCanvasElement, card?: { worldLine: string; name: string }) {
-  const g = c.getContext("2d")!, w = c.width, h = c.height;
-  g.fillStyle = "#020a05"; g.fillRect(0, 0, w, h);
-  const glow = g.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w * 0.62);
-  glow.addColorStop(0, "#0f3d22"); glow.addColorStop(0.6, "#082513"); glow.addColorStop(1, "#010603");
-  g.fillStyle = glow; g.fillRect(0, 0, w, h);
-  if (card) {
-    g.textAlign = "center"; g.textBaseline = "middle";
-    g.shadowColor = "rgba(90,255,150,0.9)"; g.shadowBlur = 8;
-    g.fillStyle = "#7dffb0";
-    // Each line is as large as fits inside the visible part of the glass, up to a cap.
-    const fit = (text: string, cap: number) => {
-      g.font = `bold ${cap}px ${MONO}`;
-      const wide = g.measureText(text).width;
-      return Math.floor(wide > w * 0.8 ? (cap * w * 0.8) / wide : cap);
-    };
-    const small = fit(card.worldLine, h / 8);
-    g.font = `bold ${small}px ${MONO}`; g.fillText(card.worldLine, w / 2, h * 0.34);
-    const big = fit(card.name, h / 5);
-    g.font = `bold ${big}px ${MONO}`; g.fillText(card.name, w / 2, h * 0.56);
-    g.shadowBlur = 0;
-    g.fillRect(w * 0.15, h * 0.44, w * 0.7, Math.max(2, h / 120)); // rule between the lines
-  }
-  g.fillStyle = "rgba(0,0,0,0.35)"; // scanlines
-  for (let y = 0; y < h; y += 3) g.fillRect(0, y, w, 1);
-  // the tube's curve: corners fall off into the bezel
-  const v = g.createRadialGradient(w / 2, h / 2, h * 0.35, w / 2, h / 2, w * 0.68);
-  v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,0.85)");
-  g.fillStyle = v; g.fillRect(0, 0, w, h);
-  const sheen = g.createLinearGradient(0, 0, w, h); // a faint reflection on the glass
-  sheen.addColorStop(0, "rgba(200,255,220,0.07)"); sheen.addColorStop(0.35, "rgba(200,255,220,0)");
-  g.fillStyle = sheen; g.fillRect(0, 0, w, h);
-}
-
 /** How much smaller than the glass the phosphor plane is, so it stays inside the bezel. */
 const PLANE_INSET = 0.012;
 
@@ -231,10 +196,10 @@ function phosphorFrame(crt: Crt) {
 export function Phosphor({ progress }: { progress: { current: number } }) {
   const screens = useMemo(() => crts.map((crt) => {
     const station = stations.find((s) => s.id === crt.id);
-    const c = canvas(640, 500);
+    const c = canvas(CARD_PX.width, CARD_PX.height);
     drawPhosphor(c, station);
     // the same glass with no card, shown while the station's own text is on it
-    const clear = canvas(640, 500);
+    const clear = canvas(CARD_PX.width, CARD_PX.height);
     drawPhosphor(clear);
     return { crt, t: texture(c), clear: texture(clear), mats: createRef<MeshBasicMaterial>(), mesh: createRef<Mesh>() };
   }), []);

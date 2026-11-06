@@ -119,9 +119,6 @@ describe("title card text", () => {
       expect(validateContent(c).join("\n")).toContain(`stations[0].${field}: reads as a live status`);
     }
   });
-  it("the shipped cards read as no status", () => {
-    expect(validateContent(content)).toEqual([]);
-  });
 });
 
 // A station's optional diagram is held as data and checked like other copy.

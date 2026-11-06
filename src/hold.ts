@@ -20,6 +20,10 @@ export const progressFor = (i: number) => {
   return (a + b) / 2;
 };
 
+/** Scroll progress `f` (0..1) of the way through the travel into station `i`: 0 is where the travel
+ *  starts (the previous stop's hold ends, or the entrance), 1 is where this station's hold begins. */
+export const travelProgress = (i: number, f: number) => holdSpan(i)[0] - ((1 - f) * TRAVEL) / TOTAL;
+
 /** How much travel (as a share of one stretch) the text takes to fade out. It is gone before the
  *  mouse parallax starts (`PARALLAX_FROM` in tour.ts), so flat text never sits over tilting glass. */
 export const TEXT_FADE = 0.18;
