@@ -1,28 +1,44 @@
 import { test, expect, type Page } from "@playwright/test";
 import { holdSpan, progressFor } from "../src/hold";
-import { DWELL_MS } from "../src/shift";
+import { POWER_ON_SECONDS, SHIFT_SECONDS } from "../src/nixie";
+import { DWELL_MS, SNAP_BACK_MS } from "../src/shift";
+import { panelOf as panel, scrollToProgress as scrollTo } from "./lib/page";
 
 test.setTimeout(60_000);
 
-const bar = (page: Page) => page.locator("[data-meter-bar] .meter-digits");
-const tubes = (page: Page) => page.locator("[data-meter-bar] [data-testid=tube]").allTextContents().then((t) => t.join(""));
-const label = (page: Page) => bar(page).getAttribute("aria-label");
+// The Meter bar's digits, as the tests read them. The page-side readers are installed in every page
+// (`window.__meter`), so the in-page watchers below don't each carry their own copy.
+const METER_BAR = "[data-meter-bar]";
+const meterDigits = (page: Page) => page.locator(`${METER_BAR} .meter-digits`);
+const tubes = (page: Page) => page.locator(`${METER_BAR} [data-testid=tube]`).allTextContents().then((t) => t.join(""));
+const label = (page: Page) => meterDigits(page).getAttribute("aria-label");
+const reading = async (page: Page) => (await label(page))!.replace("Reading ", "").replace(".", "");
 
+type MeterReaders = { tubes: () => string; truth: () => string; scramble: () => string; bar: () => Element };
+declare global { interface Window { __meter: MeterReaders } }
+const installMeterReaders = (page: Page) => page.addInitScript(() => {
+  const bar = () => document.querySelector("[data-meter-bar]")!;
+  const tubes = () => [...document.querySelectorAll("[data-meter-bar] [data-testid=tube]")].map((e) => e.textContent).join("");
+  const truth = () => document.querySelector("[data-meter-bar] .meter-digits")!.getAttribute("aria-label")!.replace("Reading ", "").replace(".", "");
+  // "true" while the tubes show the reading, else what they show: a scramble is a moment of the second kind.
+  window.__meter = { bar, tubes, truth, scramble: () => (tubes() === truth() ? "true" : tubes()) };
+});
+
+/** Opens the site with the Meter bar up, and waits out its power-on (POWER_ON_SECONDS, which starts
+ *  as the tour mounts, about when the bar appears) with a margin, so no test starts inside it. */
 async function boot(page: Page) {
+  await installMeterReaders(page);
   await page.goto("/");
-  await expect(page.locator("[data-meter-bar]")).toBeVisible();
+  await expect(page.locator(METER_BAR)).toBeVisible();
   await expect(page.getByLabel("Boot log")).toBeHidden();
-  await page.waitForTimeout(1_000); // power-on
+  await page.waitForTimeout(POWER_ON_SECONDS * 1000 + 300);
 }
-const scrollTo = (page: Page, progress: number) => page.evaluate((p) => {
-  window.scrollTo(0, p * (document.documentElement.scrollHeight - window.innerHeight));
-}, progress);
 
 // Samples the bar's digits every frame for `ms`.
 const sample = (page: Page, ms: number) => page.evaluate((ms) => new Promise<string[]>((res) => {
   const seen: string[] = [], t0 = performance.now();
   const tick = () => {
-    seen.push([...document.querySelectorAll("[data-meter-bar] [data-testid=tube]")].map((e) => e.textContent).join(""));
+    seen.push(window.__meter.tubes());
     performance.now() - t0 < ms ? requestAnimationFrame(tick) : res(seen);
   };
   tick();
@@ -32,16 +48,14 @@ test("arriving in a hold scrambles the meter, which ends on the true reading", a
   await boot(page);
   const seen = page.evaluate(() => new Promise<string[]>((res) => {
     const out: string[] = [];
-    const read = () => [...document.querySelectorAll("[data-meter-bar] [data-testid=tube]")].map((e) => e.textContent).join("");
-    const mo = new MutationObserver(() => out.push(read()));
-    mo.observe(document.querySelector("[data-meter-bar]")!, { childList: true, subtree: true, characterData: true });
+    const mo = new MutationObserver(() => out.push(window.__meter.tubes()));
+    mo.observe(window.__meter.bar(), { childList: true, subtree: true, characterData: true });
     setTimeout(() => { mo.disconnect(); res(out); }, 6_000);
   }));
   await scrollTo(page, progressFor(1));
   const digitsSeen = await seen;
-  const true_ = (await label(page))!.replace("Reading ", "").replace(".", "");
   expect(new Set(digitsSeen).size).toBeGreaterThan(2); // it scrambled
-  await expect.poll(() => tubes(page), { timeout: 10_000 }).toBe(true_); // and settled on the reading
+  await expect.poll(async () => (await tubes(page)) === (await reading(page)), { timeout: 10_000 }).toBe(true); // and settled on the reading
 });
 
 test("scrolling quickly through a station does not scramble the meter", async ({ page }) => {
@@ -52,34 +66,31 @@ test("scrolling quickly through a station does not scramble the meter", async ({
   await page.waitForTimeout(1200); // travelling: reading is fixed, no shift yet
 
   // The whole scroll-through happens in one task in the page, so it can't depend on the frame
-  // rate or on Playwright round trips: arrive at station 2, spend 50 ms there on the page's own
-  // clock, move on into the travel before station 3. Real scroll events come once per frame (200 ms or more on
-  // software WebGL), so each scroll is followed by an event we dispatch ourselves, which the app
-  // handles at once. Then watch the bar for 1.5 s. Outside a hold no shift can fire, so anything
-  // but the true reading on the tubes came from station 2, and a slow frame can't cause it.
+  // rate or on Playwright round trips: arrive at station 2, spend a fifth of the dwell there on the
+  // page's own clock, move on into the travel before station 3. Real scroll events come once per frame
+  // (200 ms or more on software WebGL), so each scroll is followed by an event we dispatch ourselves,
+  // which the app handles at once. Then watch the Meter bar for 1.5 s. Outside a hold no shift can
+  // fire, so anything but the true reading on the tubes came from station 2, and a slow frame can't
+  // cause it.
   const away = (progressFor(2) + progressFor(3)) / 2;
   expect(away).toBeGreaterThan(holdSpan(2)[1]);
   expect(away).toBeLessThan(holdSpan(3)[0]);
-  const { seen, stillThere } = await page.evaluate(([p2, p3]) => new Promise<{ seen: string[]; stillThere: boolean }>((res) => {
+  const stay = DWELL_MS / 5;
+  expect(stay).toBeLessThan(DWELL_MS);
+  const { seen, stillThere } = await page.evaluate(([p2, p3, stay]) => new Promise<{ seen: string[]; stillThere: boolean }>((res) => {
     const max = () => document.documentElement.scrollHeight - window.innerHeight;
     const to = (p: number) => { window.scrollTo(0, p * max()); window.dispatchEvent(new Event("scroll")); };
-    // A scramble is a moment when the tubes differ from the true reading in the label.
-    const read = () => {
-      const tubes = [...document.querySelectorAll("[data-meter-bar] [data-testid=tube]")].map((e) => e.textContent).join("");
-      const truth = document.querySelector("[data-meter-bar] .meter-digits")!.getAttribute("aria-label")!.replace("Reading ", "").replace(".", "");
-      return tubes === truth ? "true" : tubes;
-    };
-    const seen = [read()];
-    const mo = new MutationObserver(() => seen.push(read()));
-    mo.observe(document.querySelector("[data-meter-bar]")!, { childList: true, subtree: true, characterData: true });
+    const seen = [window.__meter.scramble()];
+    const mo = new MutationObserver(() => seen.push(window.__meter.scramble()));
+    mo.observe(window.__meter.bar(), { childList: true, subtree: true, characterData: true });
     to(p2);
-    for (const t0 = performance.now(); performance.now() - t0 < 50;); // 50 ms at station 2
+    for (const t0 = performance.now(); performance.now() - t0 < stay;); // a short stay at station 2
     to(p3);
     setTimeout(() => {
       mo.disconnect();
       res({ seen, stillThere: Math.abs(window.scrollY / max() - p3) < 0.01 });
     }, 1_500);
-  }), [progressFor(2), away] as const);
+  }), [progressFor(2), away, stay] as const);
   expect(stillThere).toBe(true);
   // The reading may move on, but the tubes never show random digits.
   expect(seen.filter((d) => d !== "true")).toEqual([]);
@@ -92,12 +103,11 @@ test("reduced motion shows the plain reading with no scramble", async ({ browser
   await page.waitForTimeout(100);
   const seen = await sample(page, DWELL_MS + 1500);
   expect(new Set(seen).size).toBe(1);
-  expect(seen[0]).toBe((await label(page))!.replace("Reading ", "").replace(".", ""));
+  expect(seen[0]).toBe(await reading(page));
 });
 
 // --- the tear, and the text resolving out of it ---
 
-const panel = (page: Page, id: string) => page.locator(`[data-screen="${id}"]`);
 const filterOn = (page: Page) => page.evaluate(() => document.querySelector("canvas")!.style.filter.includes("shift-tear"));
 
 // Watches the canvas's filter and the panel's opacity from inside the page, on its own clock.
@@ -137,7 +147,8 @@ const settled = (page: Page) => expect.poll(async () => { const w = await watche
 // machine's share is judged by its own slowest frame, because the dwell timer, React and the tear
 // each wait behind a frame: up to 4 of them, and 300 ms over. So a slow runner can't fail it, but
 // text that is really late (a second or more past that) does.
-const lateBy = (design: number, w: Watched) => design + 220 + 4 * w.slowestFrame + 300;
+const TEXT_RESOLVE_MS = 220; // the text's own resolve animation (ScreenPanels.tsx)
+const lateBy = (design: number, w: Watched) => design + TEXT_RESOLVE_MS + 4 * w.slowestFrame + 300;
 
 test("a first visit tears the view for about 0.8 s, and the text resolves as it ends", async ({ page }) => {
   await boot(page);
@@ -150,10 +161,12 @@ test("a first visit tears the view for about 0.8 s, and the text resolves as it 
   expect(w.litDuringTear).toBe(false); // the text was out of sight while the view tore...
   expect(w.visibleDuringTear).toBe(true); // ...but never hidden from readers
   const len = w.ends[0] - w.starts[0];
-  expect(len).toBeGreaterThan(600);
-  expect(len).toBeLessThan(1200 + 2 * w.slowestFrame); // the filter comes off on the first frame after 0.8 s
+  // The filter goes on at one frame and comes off at the first frame after the full tear's 0.8 s, so
+  // it lasts that long, give or take a frame at each end.
+  expect(len).toBeGreaterThan(SHIFT_SECONDS.full * 1000 - w.slowestFrame);
+  expect(len).toBeLessThan(SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS + 2 * w.slowestFrame + 60);
   expect(w.shown! - w.starts[0]).toBeGreaterThan(len - 100); // not before the tear ends...
-  expect(w.shown! - w.starts[0]).toBeLessThan(len + 600 + 2 * w.slowestFrame); // ...and soon after
+  expect(w.shown! - w.starts[0]).toBeLessThan(len + TEXT_RESOLVE_MS + 2 * w.slowestFrame + 150); // ...and soon after, once it has resolved
   expect(w.shown!).toBeLessThan(lateBy(1_090, w)); // see lateBy
   expect(await filterOn(page)).toBe(false);
 });
@@ -168,8 +181,10 @@ test("a return is a short flick, and its text is back almost at once", async ({ 
   await scrollTo(page, progressFor(1));
   await settled(page);
   const w = await watched(page);
-  expect(w.ends[0] - w.starts[0]).toBeLessThan(600 + 2 * w.slowestFrame);
-  expect(w.shown! - w.starts[0]).toBeLessThan(w.ends[0] - w.starts[0] + 600 + 2 * w.slowestFrame); // soon after the flick ends
+  const len = w.ends[0] - w.starts[0];
+  expect(len).toBeGreaterThan(SHIFT_SECONDS.short * 1000 - w.slowestFrame);
+  expect(len).toBeLessThan(SHIFT_SECONDS.short * 1000 + SNAP_BACK_MS + 2 * w.slowestFrame + 60);
+  expect(w.shown! - w.starts[0]).toBeLessThan(len + TEXT_RESOLVE_MS + 2 * w.slowestFrame + 150); // soon after the flick ends
   expect(w.shown!).toBeLessThan(lateBy(540, w)); // see lateBy
 });
 
@@ -215,15 +230,10 @@ test("leaving mid-shift ends on the true reading, with no late jump", async ({ p
   const away = holdSpan(1)[1] + 0.03;
   const { seen, stillThere } = await page.evaluate(([p]) => new Promise<{ seen: string[]; stillThere: boolean }>((res) => {
     const max = () => document.documentElement.scrollHeight - window.innerHeight;
-    const read = () => {
-      const tubes = [...document.querySelectorAll("[data-meter-bar] [data-testid=tube]")].map((e) => e.textContent).join("");
-      const truth = document.querySelector("[data-meter-bar] .meter-digits")!.getAttribute("aria-label")!.replace("Reading ", "").replace(".", "");
-      return tubes === truth ? "true" : tubes;
-    };
     window.scrollTo(0, p * max()); window.dispatchEvent(new Event("scroll"));
     const seen: string[] = [];
     const t0 = performance.now();
-    const tick = () => { seen.push(read()); performance.now() - t0 < 2000 ? requestAnimationFrame(tick) : res({ seen, stillThere: Math.abs(window.scrollY / max() - p) < 0.01 }); };
+    const tick = () => { seen.push(window.__meter.scramble()); performance.now() - t0 < 2000 ? requestAnimationFrame(tick) : res({ seen, stillThere: Math.abs(window.scrollY / max() - p) < 0.01 }); };
     setTimeout(tick, 150); // a few frames for React to take the shift off
   }), [away] as const);
   expect(stillThere).toBe(true);
@@ -232,40 +242,53 @@ test("leaving mid-shift ends on the true reading, with no late jump", async ({ p
 });
 
 test("a shift that arrives during the power-on plays once it is over", async ({ page }) => {
-  // When the tour (and the bar) appeared, on the page's clock: the power-on takes 1.4 s from about then.
+  // When the tour (and the bar) appeared, on the page's clock: the power-on takes POWER_ON_SECONDS from about then.
   await page.addInitScript(() => {
     new MutationObserver((_, mo) => {
       if (document.querySelector("[data-meter-bar]")) { (window as unknown as { __barAt: number }).__barAt = performance.now(); mo.disconnect(); }
     }).observe(document, { childList: true, subtree: true });
   });
   await page.goto("/");
-  await expect(page.locator("[data-meter-bar]")).toBeVisible();
+  await expect(page.locator(METER_BAR)).toBeVisible();
   await watch(page, "work");
   await scrollTo(page, progressFor(1)); // the tubes are still warming up
   await page.waitForTimeout(500);
   // Not before the power-on is over. (A busy machine can take longer than this to get here, so the
   // time is checked on the page's clock rather than assuming 500 ms is still inside the power-on.)
-  const early = await page.evaluate(() => {
+  const early = await page.evaluate((powerOnMs) => {
     const w = (window as unknown as { __w: { starts: number[]; t0: number }; __barAt: number });
-    return w.__w.starts.filter((s) => w.__w.t0 + s < w.__barAt + 1_400 - 50);
-  });
+    return w.__w.starts.filter((s) => w.__w.t0 + s < w.__barAt + powerOnMs - 50);
+  }, POWER_ON_SECONDS * 1000);
   expect(early).toEqual([]);
   await expect.poll(async () => (await watched(page)).starts.length, { timeout: 6_000 }).toBe(1); // then it plays
   await expect.poll(async () => (await watched(page)).shown, { timeout: 5_000 }).not.toBeNull();
 });
 
-test("reloading inside a hold is not an arrival: no shift, and the text shows", async ({ page }) => {
+test("reloading inside a hold is not an arrival: no shift, the meter never scrambles, and the text shows", async ({ page }) => {
   await boot(page);
   await scrollTo(page, progressFor(1));
-  await page.waitForTimeout(2500);
+  await expect.poll(async () => (await tubes(page)) === (await reading(page)), { timeout: 10_000 }).toBe(true); // first visit played out
+  await page.waitForTimeout(500);
   await page.reload();
-  await expect(page.locator("[data-meter-bar]")).toBeVisible();
+  await expect(page.locator(METER_BAR)).toBeVisible();
   await watch(page, "work");
+  // Watch the tubes from the page's own clock for the whole of what follows: a shift that fired would
+  // scramble them, whatever the filter and the text did.
+  await page.evaluate(() => {
+    const w = window as unknown as { __scrambles: string[] };
+    w.__scrambles = [];
+    const mo = new MutationObserver(() => { const s = window.__meter.scramble(); if (s !== "true") w.__scrambles.push(s); });
+    mo.observe(window.__meter.bar(), { childList: true, subtree: true, characterData: true });
+  });
   // Headless Chromium doesn't put the scroll position back here (the page is only tall once the room
-  // is up), so do what browsers that do restore it do: scroll there, just after the tour mounts.
+  // is up), so do what browsers that do restore it do: scroll there, just after the tour mounts. The
+  // app treats the first move off the top after a reload as that restore (TourView.tsx), not an arrival.
   await scrollTo(page, progressFor(1));
   await expect.poll(async () => (await watched(page)).shown, { timeout: 8_000 }).not.toBeNull();
-  await page.waitForTimeout(DWELL_MS + 2000);
+  // Long enough for the shift to have played had it fired: past the power-on, the dwell and the tear.
+  await page.waitForTimeout(POWER_ON_SECONDS * 1000 + DWELL_MS + SHIFT_SECONDS.full * 1000 + 500);
   expect((await watched(page)).starts).toEqual([]);
   expect(await filterOn(page)).toBe(false);
+  expect(await page.evaluate(() => (window as unknown as { __scrambles: string[] }).__scrambles)).toEqual([]);
+  expect(await panel(page, "work").evaluate((e) => (e as HTMLElement).style.opacity)).toBe("1");
 });
