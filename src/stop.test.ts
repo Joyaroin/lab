@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { PerspectiveCamera } from "three";
 import { CAMERA_FOV, crts } from "./crts";
-import { boxAround, glassOnScreen } from "./glass";
+import { glassBox, glassOnScreen } from "./glass";
 import { progressFor, tourAt } from "./tour";
 import { BOTTOM_CLEAR, SIDE, TOP_CLEAR } from "./pin";
 import { squareStop } from "./stop";
@@ -14,8 +14,9 @@ function glassAtHold(i: number, w: number, h: number) {
   cam.position.set(...t.camera);
   cam.lookAt(...t.look);
   cam.updateMatrixWorld();
-  const pts = glassOnScreen(crts[i], cam, { width: w, height: h });
-  const box = boxAround(pts);
+  const size = { width: w, height: h };
+  const pts = glassOnScreen(crts[i], cam, size);
+  const box = glassBox(crts[i], cam, size); // the call Room.tsx pins the text with
   return { left: box.left, right: box.left + box.width, top: box.top, bottom: box.top + box.height, pts, box };
 }
 

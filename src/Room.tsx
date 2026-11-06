@@ -13,7 +13,7 @@ import type { TextGate } from "./shift";
 import { markMore } from "./ScreenPanels";
 
 // Pins each station's HTML panel (a DOM element with data-screen="<id>") to its real CRT in the
-// baked room: every frame it projects the CRT's panel point (room-layout.json, via crts.ts) into
+// baked room: every frame it projects the CRT's panel point (the CRT's place in room-layout.json, via crts.ts) into
 // the window and places the panel there (on a phone, the station's phone pin if it has one), as
 // wide as the CRT looks, kept inside the window by fitPanel. The text stays real HTML, so it is
 // sharp at any size, selectable, and its links work. Only the current station's panel is shown.
@@ -26,7 +26,7 @@ function ScreenPins({ progress, gate }: { progress: MutableRefObject<number>; ga
     crts.forEach((crt, k) => {
       const el = document.querySelector<HTMLElement>(`[data-screen="${crt.id}"]`);
       if (!el) return;
-      // Full for the whole hold. Held back (but still in the page, for readers, selection and search)
+      // Full for the whole hold. Held back (but still in the page, for readers and selection)
       // from arrival until the shift ends, then (first visit) it resolves out of the effect. A return's
       // text shows when the dwell ends and the flick plays over it.
       const strength = panelStrength(progress.current, k + 1);

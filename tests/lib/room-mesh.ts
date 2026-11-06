@@ -19,7 +19,7 @@ function load() {
   // The reader below assumes 32-bit float positions, 16-bit indices, meshes read as they are (no
   // node transform) and tightly packed buffers. If a re-bake changes any of that, fail here, not
   // with wrong distances.
-  const FLOAT = 5126, USHORT = 5123;
+  const FLOAT = 5126, USHORT = 5123, TRIANGLES = 4;
   for (const n of json.nodes ?? [])
     for (const k of ["matrix", "translation", "rotation", "scale"])
       if (n[k]) throw new Error(`room.glb: node "${n.name}" has a ${k}; room-mesh.ts reads meshes untransformed`);
@@ -30,7 +30,7 @@ function load() {
     if (pos.componentType !== FLOAT || pos.type !== "VEC3") throw new Error("room.glb: POSITION is not float VEC3; room-mesh.ts can't read it");
     if (idx.componentType !== USHORT) throw new Error(`room.glb: indices are componentType ${idx.componentType}, not 16-bit; room-mesh.ts can't read them`);
     if (pv.byteStride || iv.byteStride) throw new Error("room.glb: an interleaved buffer view; room-mesh.ts expects tightly packed data");
-    if (p.mode !== undefined && p.mode !== 4) throw new Error(`room.glb: a primitive with mode ${p.mode}, not triangles`);
+    if (p.mode !== undefined && p.mode !== TRIANGLES) throw new Error(`room.glb: a primitive with mode ${p.mode}, not triangles`);
     const P = new Float32Array(bin.buffer.slice(bin.byteOffset + (pv.byteOffset ?? 0) + (pos.byteOffset ?? 0), bin.byteOffset + (pv.byteOffset ?? 0) + (pos.byteOffset ?? 0) + pos.count * 12));
     const I = new Uint16Array(bin.buffer.slice(bin.byteOffset + (iv.byteOffset ?? 0) + (idx.byteOffset ?? 0), bin.byteOffset + (iv.byteOffset ?? 0) + (idx.byteOffset ?? 0) + idx.count * 2));
     for (const i of I) tris.push(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]);

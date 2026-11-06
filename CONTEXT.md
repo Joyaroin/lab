@@ -17,6 +17,13 @@ The language of this project: its terms, what each one means, and what it doesn'
   name, such as "World line 03 / Home lab", readable from across the room. The words come from the
   station's `worldLine` and `name` in the content module, nothing else. It clears when that station's
   text is showing. It never moves and never reads as a live status or result.
+- **Bezel**: the frame round a TV's glass. The baked one is soft up close, so a sharp layer is drawn over
+  it: a crisp edge, a maker's plate and a sticky note. Its words come from the station's `bezel` in the
+  content module, and none of it reads as a live status or result.
+- **Maker's plate**: the small metal label on a bezel's bottom left, with a made-up model number such as
+  "HALDEN HX-101". One per TV.
+- **Sticky note**: the small coloured note at a bezel's top left, with a few words of its own and a tilt
+  that differs on each TV.
 - **Diagram**: a station's line drawing on its glass, a left-to-right chain of steps. It redraws facts
   already in that station's copy and adds none, and never reads as a live status or result. Contact has none.
 - **Step**: one box in a diagram, such as "Argo CD".
