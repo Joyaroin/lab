@@ -20,7 +20,11 @@ export type Station = {
   links: Link[];
   /** optional line drawing of facts already in `body` */
   diagram?: Diagram;
+  /** words on the TV's bezel: the maker's plate and the sticky note. Neither may read as a status. */
+  bezel: Bezel;
 };
+/** `plate` is an invented maker and model (no real brand, nothing from the series, ADR-0002). */
+export type Bezel = { plate: string; note: string };
 /** A chain of steps drawn left to right. `hops[i]` labels the arrow from step i to step i+1
  *  ("" for none), so it has one entry fewer than `steps`. `description` is the plain-text version
  *  a screen reader gets. */
@@ -69,6 +73,7 @@ export const content: Content = {
         "Delivered C# and .NET services and React/TypeScript UI across some 60 tickets, and brought open-source license scanning into CI.",
       ],
       links: [LINKEDIN],
+      bezel: { plate: "HALDEN HX-101", note: "Call\nFriday" },
     },
     {
       id: "mediasafe", name: "MediaSafe", worldLine: "World line 02", reading: 377,
@@ -89,6 +94,7 @@ export const content: Content = {
         { label: "Deploy repo", href: "https://github.com/Joyaroin/morioh-cho-gitops" },
         { label: "mediasafe.space (Google sign-in)", href: "https://mediasafe.space" },
       ],
+      bezel: { plate: "HALDEN HX-214", note: "Buy\ntape" },
     },
     {
       id: "home-lab", name: "Home lab", worldLine: "World line 03", reading: 512,
@@ -105,6 +111,7 @@ export const content: Content = {
         hops: ["traffic", "VMs"],
       },
       links: [SITE_SOURCE],
+      bezel: { plate: "HALDEN HX-330", note: "Water\nthe fern" },
     },
     {
       id: "order-tracker", name: "Order Tracker", worldLine: "World line 04", reading: 640,
@@ -121,6 +128,7 @@ export const content: Content = {
         hops: ["OIDC", "", "ApplicationSets"],
       },
       links: [],
+      bezel: { plate: "HALDEN HX-418", note: "Lamp\nbulb?" },
     },
     {
       id: "wc2026-predictor", name: "WC2026 Predictor", worldLine: "World line 05", reading: 733,
@@ -135,6 +143,7 @@ export const content: Content = {
         hops: ["", ""],
       },
       links: [{ label: "Repo", href: "https://github.com/Joyaroin/wc2026-predictor" }],
+      bezel: { plate: "HALDEN HX-552", note: "Lunch\nat 1" },
     },
     {
       id: "contact", name: "Contact", worldLine: "World line 06", reading: 861,
@@ -149,6 +158,7 @@ export const content: Content = {
         GITHUB,
         SITE_SOURCE,
       ],
+      bezel: { plate: "HALDEN HX-607", note: "Fix the\nshelf" },
     },
   ],
 };
@@ -220,6 +230,10 @@ export function validateContent(c: Content): string[] {
     if (!Array.isArray(s.body) || s.body.length === 0) problems.push(`${p}.body: missing`);
     else s.body.forEach((b, j) => text(`${p}.body[${j}]`, b));
     linkList(`${p}.links`, s.links);
+    for (const f of ["plate", "note"] as const) {
+      text(`${p}.bezel.${f}`, s.bezel?.[f]);
+      if (typeof s.bezel?.[f] === "string" && LIVE_STATUS.test(s.bezel[f])) problems.push(`${p}.bezel.${f}: reads as a live status`);
+    }
     if (s.diagram) {
       const d = s.diagram, dp = `${p}.diagram`;
       tvText(`${dp}.description`, d.description);

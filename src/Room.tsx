@@ -7,7 +7,7 @@ import { CAMERA_FOV, crts, ENTRANCE, glassEdge, isPortrait, panelPoint } from ".
 import { glassBox } from "./glass";
 import { fitPanel, glassFontSize } from "./pin";
 import { PANEL_SHOWN, panelStrength, parallax, textOnGlass, parallaxStrength, tourAt } from "./tour";
-import { DeskMeter, Phosphor, Rain } from "./Effects";
+import { Bezels, DeskMeter, Phosphor, Rain } from "./Effects";
 import type { MeterLink } from "./nixie";
 import type { TextGate } from "./shift";
 import { markMore } from "./ScreenPanels";
@@ -144,6 +144,7 @@ export default function Room({ onReady, onProgress, progress, reduced, meter, ga
         <BakedRoom onLoaded={onReady} onProgress={onProgress} />
         <DeskMeter link={meter} reduced={reduced} />
         <Phosphor progress={progress} />
+        <Bezels />
         <Rain />
       </Suspense>
     </Canvas>
