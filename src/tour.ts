@@ -69,12 +69,12 @@ export function parallaxStrength(progress: number, aspect: number): number {
 /** The window the tour is laid out for, in px. `reduced` (reduced motion) makes travel between
  *  stations a straight line, not an arc. The leg from the entrance stays curved: the entrance isn't
  *  a station, and the wide view of the room on the way in is kept for everyone. */
-export type TourView = { width: number; height: number; reduced?: boolean };
+export type TourWindow = { width: number; height: number; reduced?: boolean };
 
 /** A window wider than tall uses each station's square stop, worked out from the window's size so
  *  the glass fills the space between the HUD and the meter at any size. Below an aspect of 1
  *  (portrait) the portrait stops are used. */
-export function tourAt(progress: number, gap: number, view: TourView): TourState {
+export function tourAt(progress: number, gap: number, view: TourWindow): TourState {
   const p = Math.min(Math.max(Number.isFinite(progress) ? progress : 0, 0), 1);
   const u = p * TOTAL;
   const i = Math.min(Math.floor(u / PER_STATION), STATION_COUNT - 1); // travel i leads to station i+1
@@ -93,13 +93,12 @@ export function tourAt(progress: number, gap: number, view: TourView): TourState
   // asks for a straight line there. The entrance leg always curves.
   const mid = i === 0 ? ENTRANCE.reveal : ARCS[i - 1];
   const straight = view.reduced && i > 0;
-  const move = straight ? line : curveThrough(mid.camera);
-  const turn = straight ? line : curveThrough(mid.look);
+  const along = (from: V3, to: V3, via: V3) => (straight ? line : curveThrough(via))(from, to, f);
   // In a hold the camera is exactly on the stop, not a lerp that lands within rounding of it.
   return {
     station: Math.round(x),
-    camera: f === 1 ? [...b] : move(a, b, f),
-    look: f === 1 ? [...lb] : turn(la, lb, f),
+    camera: f === 1 ? [...b] : along(a, b, mid.camera),
+    look: f === 1 ? [...lb] : along(la, lb, mid.look),
     reading: lerp(readingAt(i), readingAt(i + 1)),
   };
 }

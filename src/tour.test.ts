@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tourAt as tourAtView, progressFor, holdSpan, panelStrength, PANEL_SHOWN, STATION_COUNT } from "./tour";
+import { tourAt, progressFor, holdSpan, panelStrength, PANEL_SHOWN, STATION_COUNT } from "./tour";
 // travelProgress is test-only (the app never asks where the middle of a travel is), so it lives in
 // tests/lib, where the browser specs share it; src already reaches into tests/ for room-mesh and fixtures.
 import { travelProgress } from "../tests/lib/travel";
@@ -8,41 +8,40 @@ import { crts, panelPoint } from "./crts";
 import { squareStop } from "./stop";
 
 const GAP = 9;
-/** The tour in a window of the given aspect and height (1280 x 800 unless said), reduced motion off unless said. */
-const tourAt = (p: number, gap: number, aspect = 1280 / 800, height = 800, reduced = false) =>
-  tourAtView(p, gap, { width: aspect * height, height, reduced });
+/** A window of the given aspect and height (16:10 at 800 px unless said), reduced motion off unless said. */
+const win = (aspect = 16 / 10, height = 800, reduced = false) => ({ width: aspect * height, height, reduced });
 const readings = stations.map((s) => s.reading);
 
 describe("tour", () => {
   it("starts at the entrance, showing the gap", () => {
-    const t = tourAt(0, GAP);
+    const t = tourAt(0, GAP, win());
     expect(t.station).toBe(0);
     expect(t.reading).toBe(GAP);
   });
 
   it("ends at the last station with its fixed reading", () => {
-    const t = tourAt(1, GAP);
+    const t = tourAt(1, GAP, win());
     expect(t.station).toBe(STATION_COUNT);
     expect(t.reading).toBe(readings[readings.length - 1]);
   });
 
   it("clamps positions outside the tour", () => {
-    expect(tourAt(-3, GAP)).toEqual(tourAt(0, GAP));
-    expect(tourAt(7, GAP)).toEqual(tourAt(1, GAP));
+    expect(tourAt(-3, GAP, win())).toEqual(tourAt(0, GAP, win()));
+    expect(tourAt(7, GAP, win())).toEqual(tourAt(1, GAP, win()));
   });
 
   it("sits exactly on each station when scrolled to it", () => {
     for (let i = 1; i <= STATION_COUNT; i++) {
-      const t = tourAt(progressFor(i), GAP);
+      const t = tourAt(progressFor(i), GAP, win());
       expect(t.station).toBe(i);
       expect(t.reading).toBe(readings[i - 1]);
     }
   });
 
   it("rolls the reading between stations and moves the camera", () => {
-    const a = tourAt(progressFor(1), GAP);
-    const b = tourAt(progressFor(2), GAP);
-    const mid = tourAt((progressFor(1) + progressFor(2)) / 2, GAP);
+    const a = tourAt(progressFor(1), GAP, win());
+    const b = tourAt(progressFor(2), GAP, win());
+    const mid = tourAt((progressFor(1) + progressFor(2)) / 2, GAP, win());
     expect(mid.reading).toBeGreaterThan(a.reading);
     expect(mid.reading).toBeLessThan(b.reading);
     expect(mid.camera).not.toEqual(a.camera);
@@ -50,22 +49,22 @@ describe("tour", () => {
   });
 
   it("rolls from the gap toward the first station", () => {
-    const mid = tourAt(progressFor(1) / 2, GAP);
+    const mid = tourAt(progressFor(1) / 2, GAP, win());
     expect(mid.reading).toBeGreaterThan(GAP);
     expect(mid.reading).toBeLessThan(readings[0]);
   });
 
   it("scrolling backward retraces the same positions", () => {
     const ps = [0, 0.1, 0.33, 0.5, 0.74, 1];
-    const forward = ps.map((p) => tourAt(p, GAP));
-    const backward = [...ps].reverse().map((p) => tourAt(p, GAP)).reverse();
+    const forward = ps.map((p) => tourAt(p, GAP, win()));
+    const backward = [...ps].reverse().map((p) => tourAt(p, GAP, win())).reverse();
     expect(backward).toEqual(forward);
   });
 
   it("changes the current station at the midpoint between two", () => {
     const p1 = progressFor(1), p2 = progressFor(2);
-    expect(tourAt(p1 + (p2 - p1) * 0.4, GAP).station).toBe(1);
-    expect(tourAt(p1 + (p2 - p1) * 0.6, GAP).station).toBe(2);
+    expect(tourAt(p1 + (p2 - p1) * 0.4, GAP, win()).station).toBe(1);
+    expect(tourAt(p1 + (p2 - p1) * 0.6, GAP, win()).station).toBe(2);
   });
 });
 
@@ -78,9 +77,9 @@ describe("holds", () => {
   for (const aspect of [16 / 9, 390 / 780]) {
     it(`keep the camera, look and reading exactly on the stop at every scroll position in a hold (aspect ${aspect.toFixed(2)})`, () => {
       for (let i = 1; i <= STATION_COUNT; i++) {
-        const stop = tourAt(progressFor(i), GAP, aspect);
+        const stop = tourAt(progressFor(i), GAP, win(aspect));
         for (const p of inside(i)) {
-          const t = tourAt(p, GAP, aspect);
+          const t = tourAt(p, GAP, win(aspect));
           same(t.camera, stop.camera);
           same(t.look, stop.look);
           expect(t.reading).toBe(readings[i - 1]);
@@ -92,7 +91,7 @@ describe("holds", () => {
   it("sit on the square stop for the window on desktop", () => {
     for (const [w, h] of [[1280, 800], [1920, 1080]])
       for (let i = 1; i <= STATION_COUNT; i++) {
-        const t = tourAt(progressFor(i), GAP, w / h, h), s = squareStop(crts[i - 1], { width: w, height: h });
+        const t = tourAt(progressFor(i), GAP, win(w / h, h)), s = squareStop(crts[i - 1], { width: w, height: h });
         same(t.camera, s.camera);
         same(t.look, s.look);
       }
@@ -109,18 +108,18 @@ describe("holds", () => {
   });
   it("end with the camera moving again, and travel back the way it came", () => {
     const [, end] = holdSpan(1);
-    const before = tourAt(end, GAP), after = tourAt(end + 0.01, GAP);
+    const before = tourAt(end, GAP, win()), after = tourAt(end + 0.01, GAP, win());
     expect(after.camera).not.toEqual(before.camera);
     const [start] = holdSpan(2);
-    const back = tourAt(start - 0.01, GAP);
-    expect(back.camera).not.toEqual(tourAt(start, GAP).camera);
+    const back = tourAt(start - 0.01, GAP, win());
+    expect(back.camera).not.toEqual(tourAt(start, GAP, win()).camera);
   });
   it("move the camera and roll the reading throughout travel, with no jumps leaving or entering a hold", () => {
     for (let i = 1; i < STATION_COUNT; i++) {
       const a = holdSpan(i)[1], b = holdSpan(i + 1)[0];
-      let prev = tourAt(a, GAP), longest = 0;
+      let prev = tourAt(a, GAP, win()), longest = 0;
       for (let k = 1; k <= 100; k++) {
-        const t = tourAt(a + ((b - a) * k) / 100, GAP);
+        const t = tourAt(a + ((b - a) * k) / 100, GAP, win());
         longest = Math.max(longest, Math.hypot(...(t.camera.map((v, j) => v - prev.camera[j]) as [number, number, number])));
         expect(t.reading).toBeGreaterThanOrEqual(prev.reading);
         prev = t;
@@ -179,8 +178,10 @@ describe("camera stops", () => {
 describe("portrait framing", () => {
   const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
   it("leaves landscape windows on the approved stops", () => {
-    for (let i = 0; i <= STATION_COUNT; i++)
-      expect(tourAt(progressFor(i), GAP, 16 / 9)).toEqual(tourAt(progressFor(i), GAP));
+    const w = win(16 / 9);
+    expect(tourAt(progressFor(0), GAP, w).camera).toEqual(ENTRANCE.camera);
+    for (let i = 1; i <= STATION_COUNT; i++)
+      expect(tourAt(progressFor(i), GAP, w).camera).toEqual(squareStop(crts[i - 1], w).camera);
   });
   it("pulls back every station but the home lab, whose phone view is approved, and those with a phone stop", () => {
     for (const c of crts) expect(c.portrait > 1, c.id).toBe(c.id !== "home-lab" && !c.phone);
@@ -188,7 +189,7 @@ describe("portrait framing", () => {
   it("stands further back on a portrait window along the layout's own stop, looking at the same point", () => {
     for (let i = 0; i <= STATION_COUNT; i++) {
       if (i > 0 && crts[i - 1].phone) continue; // reframed on phones instead, below
-      const tall = tourAt(progressFor(i), GAP, 390 / 780);
+      const tall = tourAt(progressFor(i), GAP, win(390 / 780));
       const cam = i === 0 ? ENTRANCE.camera : crts[i - 1].camera, look = i === 0 ? ENTRANCE.look : crts[i - 1].look;
       for (let k = 0; k < 3; k++) expect(tall.look[k]).toBeCloseTo(look[k], 9);
       const pull = i === 0 ? ENTRANCE.portrait : crts[i - 1].portrait;
@@ -206,7 +207,7 @@ describe("phone stops", () => {
   it("are used on a portrait window, camera and look point both", () => {
     for (const id of reframed) {
       const i = crts.findIndex((c) => c.id === id) + 1, phone = crts[i - 1].phone!;
-      const tall = tourAt(progressFor(i), GAP, 390 / 780);
+      const tall = tourAt(progressFor(i), GAP, win(390 / 780));
       expect(tall.camera).toEqual(phone.camera);
       expect(tall.look).toEqual(phone.look);
     }
@@ -214,7 +215,7 @@ describe("phone stops", () => {
   it("do not change the desktop stop: it is the square one", () => {
     for (const id of reframed) {
       const i = crts.findIndex((c) => c.id === id) + 1, c = crts[i - 1];
-      const wide = tourAt(progressFor(i), GAP, 1280 / 800, 800), s = squareStop(c, { width: 1280, height: 800 });
+      const wide = tourAt(progressFor(i), GAP, win(1280 / 800, 800)), s = squareStop(c, { width: 1280, height: 800 });
       expect(wide.camera).toEqual(s.camera);
       expect(wide.look).toEqual(s.look);
     }
@@ -243,7 +244,7 @@ import { CAMERA_FOV, DESK_METER, ENTRANCE } from "./crts";
 
 /** Where the desk meter's row of tubes lands in a window of `w` x `h`, seen from tour position `p`. */
 function meterOnScreen(p: number, w: number, h: number) {
-  const t = tourAt(p, GAP, w / h);
+  const t = tourAt(p, GAP, win(w / h));
   const cam = new PerspectiveCamera(CAMERA_FOV, w / h, 0.05, 50);
   cam.position.set(...t.camera);
   cam.lookAt(...t.look);
@@ -273,7 +274,7 @@ describe("entrance framing", () => {
     expect(m.right).toBeLessThan(390 - 8);
   });
   it("pulls back to the wide view of the room halfway through the travel to the first station", () => {
-    const half = tourAt(holdSpan(1)[0] / 2, GAP);
+    const half = tourAt(holdSpan(1)[0] / 2, GAP, win());
     for (let k = 0; k < 3; k++) {
       expect(half.camera[k]).toBeCloseTo(ENTRANCE.reveal.camera[k], 6);
       expect(half.look[k]).toBeCloseTo(ENTRANCE.reveal.look[k], 6);
@@ -283,9 +284,9 @@ describe("entrance framing", () => {
   });
   it("moves smoothly from the meter to the first station, with no jumps", () => {
     const steps = 200, end = progressFor(1);
-    let prev = tourAt(0, GAP).camera, longest = 0;
+    let prev = tourAt(0, GAP, win()).camera, longest = 0;
     for (let i = 1; i <= steps; i++) {
-      const c = tourAt((end * i) / steps, GAP).camera;
+      const c = tourAt((end * i) / steps, GAP, win()).camera;
       longest = Math.max(longest, Math.hypot(c[0] - prev[0], c[1] - prev[1], c[2] - prev[2]));
       prev = c;
     }
@@ -299,7 +300,7 @@ const DESKTOP = 1280 / 800;
 
 /** The meter on screen at the entrance, with the pointer at (`x`, `y`). */
 function meterWithPointer(x: number, y: number, w: number, h: number) {
-  const t = tourAt(0, GAP, w / h);
+  const t = tourAt(0, GAP, win(w / h));
   const o = parallax(t.camera, t.look, { x, y });
   const cam = new PerspectiveCamera(CAMERA_FOV, w / h, 0.05, 50);
   cam.position.set(t.camera[0] + o[0], t.camera[1] + o[1], t.camera[2] + o[2]);
@@ -333,7 +334,7 @@ describe("mouse parallax", () => {
     const sub = (a: number[], b: number[]) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
     const len = (a: number[]) => Math.hypot(a[0], a[1], a[2]);
     for (let i = 0; i <= STATION_COUNT; i++) {
-      const t = tourAt(progressFor(i), GAP);
+      const t = tourAt(progressFor(i), GAP, win());
       const d = len(sub(t.look, t.camera));
       for (const [x, y] of pointers.slice(1)) {
         const o = parallax(t.camera, t.look, { x, y });
@@ -389,7 +390,7 @@ describe("parallax near a stop", () => {
 
 describe("parallax strength", () => {
   it("scales the shift, and at zero gives none", () => {
-    const t = tourAt(progressFor(1), GAP);
+    const t = tourAt(progressFor(1), GAP, win());
     expect(parallax(t.camera, t.look, { x: 1, y: 1 }, 0).map(Math.abs)).toEqual([0, 0, 0]);
     const full = parallax(t.camera, t.look, { x: 1, y: 1 }), half = parallax(t.camera, t.look, { x: 1, y: 1 }, 0.5);
     for (let k = 0; k < 3; k++) expect(half[k]).toBeCloseTo(full[k] / 2, 12);
@@ -401,10 +402,11 @@ import { ARCS, glassCorners } from "./crts";
 import { nearestSurface } from "../tests/lib/room-mesh";
 type V3 = [number, number, number];
 
-// The camera must stay CLEAR metres from every surface in the baked room. The near plane is 0.1 m
-// (react-three-fiber's default), so a closer surface would be clipped; CLEAR keeps half that again
-// as margin, so a surface is never right at the edge of clipping. The surfaces are the room's real triangles, read from the committed
-// room.glb, so there is no second list of props to keep in step with tools/room/build.py: add a
+// The camera must stay CLEAR metres from every surface in the baked room. The room's camera uses the
+// default near plane of 0.1 m (react-three-fiber's), so a closer surface would be clipped. 0.15 is the
+// highest value that passes today: it pins the camera's closest approach to the room's props, and
+// leaves no headroom on purpose, so an arc or stop that moves nearer to a surface fails here. The
+// surfaces are the room's real triangles, read from the committed room.glb, so there is no second list of props to keep in step with tools/room/build.py: add a
 // prop near an arc, re-bake, and this fails if the camera would pass through it.
 const CLEAR = 0.15;
 const ROOM = { min: [-1.9, 0, -1.9], max: [1.9, 2.5, 1.9] };
@@ -440,7 +442,7 @@ describe("arcs between stations", () => {
   const half = (i: number) => (holdSpan(i)[1] + holdSpan(i + 1)[0]) / 2;
   const sweep = (i: number, aspect: number, fn: (t: ReturnType<typeof tourAt>) => void, n = 300) => {
     const a = holdSpan(i)[1], b = holdSpan(i + 1)[0];
-    for (let k = 0; k <= n; k++) fn(tourAt(a + ((b - a) * k) / n, GAP, aspect));
+    for (let k = 0; k <= n; k++) fn(tourAt(a + ((b - a) * k) / n, GAP, win(aspect)));
   };
 
   it("has one wide view for each leg between stations", () => {
@@ -448,7 +450,7 @@ describe("arcs between stations", () => {
   });
   it("shows a wide view of the room at the midpoint of every leg", () => {
     for (const i of legs) {
-      const t = tourAt(half(i), GAP);
+      const t = tourAt(half(i), GAP, win());
       for (let k = 0; k < 3; k++) {
         expect(t.camera[k], `leg ${i}`).toBeCloseTo(ARCS[i - 1].camera[k], 6);
         expect(t.look[k], `leg ${i}`).toBeCloseTo(ARCS[i - 1].look[k], 6);
@@ -492,7 +494,7 @@ describe("arcs between stations", () => {
   });
   it("arrives square to the glass for the hold, and leaves from the same stop", () => {
     for (const i of legs) {
-      const arrive = tourAt(holdSpan(i + 1)[0], GAP, 16 / 10, 800), s = squareStop(crts[i], { width: 1280, height: 800 });
+      const arrive = tourAt(holdSpan(i + 1)[0], GAP, win(16 / 10, 800)), s = squareStop(crts[i], { width: 1280, height: 800 });
       for (let k = 0; k < 3; k++) { expect(arrive.camera[k]).toBeCloseTo(s.camera[k], 9); expect(arrive.look[k]).toBeCloseTo(s.look[k], 9); }
       const a = (crts[i].yaw * Math.PI) / 180, fwd = [-Math.sin(a), 0, -Math.cos(a)];
       const to = arrive.look.map((v, k) => v - arrive.camera[k]);
@@ -502,7 +504,7 @@ describe("arcs between stations", () => {
 });
 
 describe("reduced motion", () => {
-  const on = (p: number, aspect = 16 / 9, h = 800) => tourAt(p, GAP, aspect, h, true);
+  const on = (p: number, aspect = 16 / 9, h = 800) => tourAt(p, GAP, win(aspect, h, true));
   for (const aspect of [16 / 9, 390 / 780]) {
     it(`travels in a straight line between every pair of stops (aspect ${aspect.toFixed(2)})`, () => {
       for (let i = 1; i < STATION_COUNT; i++) {
@@ -523,20 +525,20 @@ describe("reduced motion", () => {
     for (const aspect of [16 / 9, 390 / 780]) {
       for (let k = 0; k <= 10; k++) {
         const p = holdSpan(1)[0] * (k / 10);
-        expect(on(p, aspect)).toEqual(tourAt(p, GAP, aspect, 800));
+        expect(on(p, aspect)).toEqual(tourAt(p, GAP, win(aspect, 800)));
       }
     }
   });
   it("still ends square on each TV, exactly as without it", () => {
     for (let i = 1; i <= STATION_COUNT; i++) {
       const p = progressFor(i);
-      expect(on(p, 1280 / 800)).toEqual(tourAt(p, GAP, 1280 / 800, 800));
+      expect(on(p, 1280 / 800)).toEqual(tourAt(p, GAP, win(1280 / 800, 800)));
     }
   });
   it("differs from the arcs mid-travel, which are unchanged by default", () => {
     const p = (holdSpan(1)[1] + holdSpan(2)[0]) / 2;
-    expect(on(p).camera).not.toEqual(tourAt(p, GAP).camera);
-    expect(tourAt(p, GAP, 16 / 9, 800, false)).toEqual(tourAt(p, GAP, 16 / 9, 800));
+    expect(on(p).camera).not.toEqual(tourAt(p, GAP, win()).camera);
+    expect(tourAt(p, GAP, win(16 / 9, 800, false))).toEqual(tourAt(p, GAP, win(16 / 9, 800)));
   });
 });
 

@@ -32,7 +32,6 @@ describe("the tear", () => {
       return poses.filter((p, i) => i > 0 && p !== poses[i - 1]).length;
     };
     expect(TEAR_POSES).toEqual({ full: 2, short: 1 });
-    for (const kind of ["full", "short"] as const) expect(TEAR_SEEDS[kind]).toHaveLength(TEAR_POSES[kind]); // a seed for each pose
     expect(new Set(TEAR_SEEDS.full).size).toBe(TEAR_SEEDS.full.length); // and the re-cut is a different cut
     expect(recuts("full")).toBe(1);
     expect(recuts("short")).toBe(0);

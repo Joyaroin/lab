@@ -275,7 +275,7 @@ const EDGE_WIDTH = 0.006;
 // build.py's numbers, not seen in a render).
 const NOTE_SIZE = { width: 0.056, height: 0.082 };
 const PLATE_SIZE = { width: 0.13, height: 0.028 };
-// One tilt per TV, all different (radians). Small enough that the corners still cover the baked note.
+// One tilt per TV, all different (radians). Small enough that the note still covers the part of the baked note left of the glass.
 const NOTE_TILTS = [-0.06, 0.02, 0.05, -0.03, 0.06, -0.01];
 const NOTE_COLOURS = ["#f4e27a", "#f2a6b8", "#9fd8f0", "#b9e59a", "#f7c68b", "#d3b8f0"];
 

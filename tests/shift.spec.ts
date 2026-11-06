@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { holdSpan, progressFor } from "../src/hold";
-import { POWER_ON_SECONDS, SHIFT_SECONDS } from "../src/nixie";
+import { lastLockSeconds, POWER_ON_SECONDS, SHIFT_SECONDS } from "../src/nixie";
 import { busiestWindow, MAX_CHANGES_PER_SECOND, WAIT_MS, SNAP_BACK_MS } from "../src/shift";
 import { panelOf as panel, scrollToProgress } from "./lib/page";
 
@@ -47,29 +47,40 @@ const sample = (page: Page, ms: number) => page.evaluate((ms) => new Promise<str
 test("arriving in a hold scrambles the meter for the length of the shift, and it ends on the true reading", async ({ page }) => {
   await boot(page);
   // Each time the bar changes, does it show the reading, or something else? Something else is the scramble.
-  // How many frames draw in the shift's 0.8 s depends on the machine (under heavy load one frame can take
-  // over a second), so the test counts none. It uses the page's own clock and the machine's slowest frame:
-  // the scramble must not be over before the shift's length has passed, less what the machine adds
-  // before the first scrambled frame shows (React renders it a frame or more after the shift starts).
-  // A scramble that showed once and stopped, or stopped early, settles too soon for that.
-  const seen = page.evaluate(() => new Promise<{ changes: { at: number; d: string }[]; slowest: number }>((res) => {
+  // The visible scramble ends when the last tube locks, (0.3 + 0.6 (n-1)/n) of the shift (about 651 ms
+  // for 7 tubes), not at the shift's end. How many frames draw by then depends on the machine (under
+  // heavy load one frame can take over a second), so the test counts none. It uses the page's own
+  // clock and the machine's slowest frame. The first scrambled frame shows up to a frame after the
+  // shift starts and the settle up to a frame after the last lock, so the observed length is at least
+  // the last lock's time less one slowest frame. The allowance is measured, so the margin does not
+  // shrink at a low frame rate. A scramble that showed once and stopped, or stopped early, settles too
+  // soon for that.
+  const seen = page.evaluate(() => new Promise<{ changes: { at: number; d: string }[]; frames: { at: number; gap: number }[] }>((res) => {
     const out: { at: number; d: string }[] = [];
     const t0 = performance.now();
     const mo = new MutationObserver(() => out.push({ at: performance.now() - t0, d: window.__meter.scramble() }));
     mo.observe(window.__meter.bar(), { childList: true, subtree: true, characterData: true });
-    let last = performance.now(), slowest = 0;
-    const frame = () => { const now = performance.now(); slowest = Math.max(slowest, now - last); last = now; requestAnimationFrame(frame); };
+    // Every frame, and how long it took to come after the one before.
+    const frames: { at: number; gap: number }[] = [];
+    let last = performance.now();
+    const frame = () => { const now = performance.now(); frames.push({ at: now - t0, gap: now - last }); last = now; requestAnimationFrame(frame); };
     frame();
-    setTimeout(() => { mo.disconnect(); res({ changes: out, slowest }); }, 6_000);
+    setTimeout(() => { mo.disconnect(); res({ changes: out, frames }); }, 6_000);
   }));
   await scrollToProgress(page, progressFor(1));
-  const { changes: shown, slowest } = await seen;
+  const { changes: shown, frames } = await seen;
   const scrambled = shown.filter((c) => c.d !== "true");
   expect(scrambled.length).toBeGreaterThan(0); // it scrambled
   const first = scrambled[0].at, last = scrambled[scrambled.length - 1].at;
   const settled = shown.find((c) => c.at > last && c.d === "true");
   expect(settled, "and settled on the reading").toBeDefined();
-  expect(settled!.at - first).toBeGreaterThan(SHIFT_SECONDS.full * 1000 - 2 * slowest - 150); // it lasted the shift's length
+  // The machine's slowest frame while the scramble was on (the frames from its first change to its
+  // settle), not the slowest of the whole run: the page's load and the tear's first draw can take much
+  // longer than the frames that show the digits, and a wide allowance would let an early stop pass.
+  const slowest = Math.max(0, ...frames.filter((f) => f.at >= first && f.at <= settled!.at).map((f) => f.gap));
+  
+  const lastLock = lastLockSeconds("full", (await reading(page)).length) * 1000;
+  expect(settled!.at - first).toBeGreaterThan(lastLock - slowest); // it lasted until the last tube locks
   await expect.poll(async () => (await tubes(page)) === (await reading(page)), { timeout: 10_000 }).toBe(true);
 });
 

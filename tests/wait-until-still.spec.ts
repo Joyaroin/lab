@@ -15,3 +15,13 @@ test("fails, at its timeout, when the value never stops changing", async () => {
   await expect(waitUntilStill(async () => n++, 50, 1_000)).rejects.toThrow();
   expect(Date.now() - t0).toBeGreaterThan(900);
 });
+
+test("a test left at the default 30 s limit fails with the last values read, not a plain timeout", async () => {
+  test.setTimeout(8_000); // stands in for the 30 s default: shorter than STILL_LIMIT_MS
+  let n = 0;
+  const t0 = Date.now();
+  const err = await waitUntilStill(async () => ({ n: n++ }), 50).then(() => null, (e: Error) => e);
+  expect(err, "it failed").not.toBeNull();
+  expect(Date.now() - t0, "before the test's own timeout").toBeLessThan(8_000);
+  expect(err!.message).toMatch(/still moving, last read .*n.*:\d+/);
+});

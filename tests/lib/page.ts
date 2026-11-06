@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { stations } from "../../src/content";
 import { progressFor } from "../../src/hold";
 
@@ -28,23 +28,39 @@ export async function wheelToStop(page: Page, k: number, x = 5, y = 5) {
   await page.mouse.wheel(0, delta);
 }
 
-/** How long `waitUntilStill` waits for things to stop moving: three times the 15 s `expect` limit,
+/** The longest `waitUntilStill` waits for things to stop moving: three times the 15 s `expect` limit,
  *  because on a slow runner (software WebGL, a host under load) the camera eases in far fewer frames
  *  and one 1920x1080 wheel test timed out at 15 s once. It is a ceiling, not a delay: it only costs
  *  anything when something never settles, and then it still fails, with the last values it read. */
-export const SETTLE_MS = 45_000;
+export const STILL_LIMIT_MS = 45_000;
+
+/** Time to leave the test itself after the poll gives up, so the poll's failure (with its last
+ *  values) is what gets reported and not the test's plain timeout. */
+const TEST_MARGIN_MS = 3_000;
+
+/** How long a poll may run in the test that is running: the limit, or what is left of the test's own
+ *  time less a margin, whichever is shorter. A test left at Playwright's 30 s default would otherwise
+ *  time out first and never show what the poll last read. */
+function pollBudget(limit: number) {
+  try {
+    const info = test.info();
+    if (info.timeout > 0) return Math.max(1_000, Math.min(limit, info.timeout - info.duration - TEST_MARGIN_MS));
+  } catch { /* outside a test: no test clock to respect */ }
+  return limit;
+}
 
 /** Waits until `read()` returns the same thing twice, `every` ms apart, and fails if it hasn't
- *  within `timeout` ms. The scene is only drawn on demand and eases toward its target, so "the same
- *  twice" means the camera has arrived. */
-export async function waitUntilStill<T>(read: () => Promise<T>, every = 300, timeout = SETTLE_MS) {
+ *  within `timeout` ms (at most `STILL_LIMIT_MS`, and always before the test's own timeout). The
+ *  failure shows the last value read. The scene is only drawn on demand and eases toward its target,
+ *  so "the same twice" means the camera has arrived. */
+export async function waitUntilStill<T>(read: () => Promise<T>, every = 300, timeout = STILL_LIMIT_MS) {
   let last: string | undefined;
   await expect.poll(async () => {
     const now = JSON.stringify(await read());
     const still = now === last;
     last = now;
-    return still;
-  }, { intervals: [every], timeout }).toBe(true);
+    return still ? "still" : `still moving, last read ${now}`;
+  }, { intervals: [every], timeout: pollBudget(timeout) }).toBe("still");
   return JSON.parse(last!) as T;
 }
 
