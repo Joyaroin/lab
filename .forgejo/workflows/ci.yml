@@ -149,8 +149,6 @@ jobs:
   # can't be taken, or can't be attached, fails the job.
   screenshots:
     runs-on: docker
-    env:
-      SHOTS_DIR: ${{ runner.temp }}/shots
     steps:
       - name: Record start time
         id: start
@@ -173,6 +171,8 @@ jobs:
       - name: Take the screenshots
         id: run
         if: steps.pr.outputs.pr != ''
+        env:
+          SHOTS_DIR: ${{ runner.temp }}/shots
         run: |
           set -o pipefail
           { npm ci && npx playwright install --with-deps chromium && npx playwright test -c playwright.screenshots.config.ts --reporter=list; } 2>&1 | tee "${{ runner.temp }}/out.log" || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
@@ -181,6 +181,7 @@ jobs:
         if: steps.pr.outputs.pr != ''
         env:
           PR: ${{ steps.pr.outputs.pr }}
+          SHOTS_DIR: ${{ runner.temp }}/shots
           SERVER_URL: ${{ github.server_url }}
           REPOSITORY: ${{ github.repository }}
           BRANCH: ${{ github.ref_name }}
