@@ -17,9 +17,12 @@ backend:
 	@echo "Nothing to check: the site is static files served by nginx, with no server code."
 integration: frontend
 	node tests/integration.mjs
+# Browsers and system packages are installed only in CI. The VM already has them.
 browser:
 	npm ci
+ifdef CI
 	npx playwright install --with-deps chromium
+endif
 	npx playwright test $(PW_ARGS)
 # The browser recipe without the timing and heavy-rendering tests. CI runs the full suite.
 browser-light:
