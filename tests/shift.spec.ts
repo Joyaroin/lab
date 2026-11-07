@@ -37,6 +37,16 @@ async function boot(page: Page) {
   await page.waitForTimeout(POWER_ON_SECONDS * 1000 + 300);
 }
 
+// Samples the bar's digits every frame for `ms`.
+const sample = (page: Page, ms: number) => page.evaluate((ms) => new Promise<string[]>((res) => {
+  const seen: string[] = [], t0 = performance.now();
+  const tick = () => {
+    seen.push(window.__meter.tubes());
+    performance.now() - t0 < ms ? requestAnimationFrame(tick) : res(seen);
+  };
+  tick();
+}), ms);
+
 test("arriving in a hold scrambles the meter for the length of the shift, and it ends on the true reading", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
   // Each time the bar changes, does it show the reading, or something else? Something else is the scramble.
@@ -78,6 +88,16 @@ test("arriving in a hold scrambles the meter for the length of the shift, and it
   const lastLock = locks[locks.length - 1], slot = lastLock - locks[locks.length - 2];
   expect(settled!.at - first).toBeGreaterThan(lastLock - slowest - Math.min(slot, slowest)); // it lasted until the last tube locks
   await expect.poll(async () => (await tubes(page)) === (await reading(page)), { timeout: 10_000 }).toBe(true);
+});
+
+test("reduced motion shows the plain reading with no scramble", async ({ browser }) => {
+  const page = await (await browser.newContext({ reducedMotion: "reduce" })).newPage();
+  await boot(page);
+  await scrollToProgress(page, progressFor(1));
+  await page.waitForTimeout(100);
+  const seen = await sample(page, WAIT_MS + 1500);
+  expect(new Set(seen).size).toBe(1);
+  expect(seen[0]).toBe(await reading(page));
 });
 
 // --- the tear, and the text resolving out of it ---
@@ -198,6 +218,19 @@ test("a return shows its text when the 250 ms wait ends, and the flick plays ove
   // The design is about 0.3 s from arrival (the wait, 250 ms; the camera's arrival is already done),
   // against 0.54 s before. lateBy allows for a slow machine.
   expect(w.shown!).toBeLessThan(lateBy(WAIT_MS, w, 0));
+});
+
+test("reduced motion gets no tear, and the text is there straight away", { tag: "@timing" }, async ({ browser }) => {
+  const page = await (await browser.newContext({ reducedMotion: "reduce" })).newPage();
+  await boot(page);
+  await watch(page, "work");
+  await scrollToProgress(page, progressFor(1));
+  await expect.poll(async () => (await watched(page)).shown, { timeout: 5_000 }).not.toBeNull();
+  await page.waitForTimeout(WAIT_MS + 1500);
+  const w = await watched(page);
+  expect(w.starts).toEqual([]);
+  expect(await filterOn(page)).toBe(false);
+  expect(w.shown!).toBeLessThan(700); // no held-back text: only the camera arriving
 });
 
 test("moving quickly between stations can't make more than the limit of sudden changes in a second, tear after tear", { tag: "@timing" }, async ({ page }) => {
