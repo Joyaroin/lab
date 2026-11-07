@@ -122,4 +122,64 @@ describe("checkFacts", () => {
     const dir = repo({ "docs/agents/domain.md": "Read `CONTEXT-MAP.md` if it exists.\n" });
     expect(checkFacts(dir)).toEqual([]);
   });
+
+  describe("CI jobs in the testing facts", () => {
+    const ci = "name: CI\njobs:\n  frontend:\n    runs-on: docker\n  facts:\n    runs-on: docker\n";
+    const release = "jobs:\n  staging:\n    runs-on: docker\n";
+    const testing = (bullets) => `## What CI runs\n${bullets}\n`;
+
+    it("reports a named job that no workflow defines, and finds jobs in any workflow", () => {
+      const dir = repo({
+        ".forgejo/workflows/ci.yml": ci,
+        ".forgejo/workflows/release.yml": release,
+        "docs/agents/testing.md": testing(
+          "- `frontend`, `ghost`: targets\n- `facts`: `make facts`\n- `staging`: moved on main",
+        ),
+        Makefile: "facts:\n\ttrue\n",
+      });
+      expect(said(checkFacts(dir))).toEqual(["docs/agents/testing.md:2 ghost: no such CI job"]);
+    });
+
+    it("takes only the spans before the colon, and only on bullets that start with one", () => {
+      const dir = repo({
+        ".forgejo/workflows/ci.yml": ci,
+        "docs/agents/testing.md": testing(
+          "- `frontend`: runs `nope` here\n- `facts`: ok\n- On `main`, it builds",
+        ),
+      });
+      expect(checkFacts(dir)).toEqual([]);
+    });
+
+    it("reports a ci.yml job the section doesn't name, at the heading", () => {
+      const dir = repo({
+        ".forgejo/workflows/ci.yml": ci,
+        "docs/agents/testing.md": "# T\n\n## What CI runs\n- `frontend`: x\n",
+      });
+      expect(said(checkFacts(dir))).toEqual(["docs/agents/testing.md:3 CI job facts isn't listed"]);
+    });
+
+    it("ignores job names outside the What CI runs section", () => {
+      const dir = repo({
+        ".forgejo/workflows/ci.yml": ci,
+        "docs/agents/testing.md": "## Commands\n- `ghost`: x\n\n## What CI runs\n- `frontend`, `facts`: x\n",
+      });
+      expect(checkFacts(dir)).toEqual([]);
+    });
+  });
+
+  it("checks the path in a node <path> span", () => {
+    const dir = repo({
+      "scripts/x.mjs": "",
+      "CLAUDE.md": "`node scripts/x.mjs` `node scripts/gone.mjs --flag` `node -e foo` `node --version` `node scripts/noext`\n",
+    });
+    expect(said(checkFacts(dir))).toEqual(["CLAUDE.md:1 scripts/gone.mjs doesn't exist"]);
+  });
+
+  it("counts a tag only as a whole word", () => {
+    const dir = repo({
+      "tests/a.spec.ts": `test("x ${tag("realistic")}", () => {});\n`,
+      "docs/agents/testing.md": `\`${tag("rea")}\` \`${tag("realistic")}\`\n`,
+    });
+    expect(said(checkFacts(dir))).toEqual([`docs/agents/testing.md:1 ${tag("rea")} tags no test`]);
+  });
 });

@@ -1,5 +1,5 @@
 // Checks that the project's own docs name things that exist: paths, bare file names, make targets,
-// npm scripts, and the test tags in docs/agents/testing.md. CI runs it, so a PR that leaves a doc
+// npm scripts, node scripts, and the test tags and CI jobs in docs/agents/testing.md. CI runs it, so a PR that leaves a doc
 // naming something gone goes red. It reads only code spans (`like this`), and only the project's
 // own docs: the generic tracker docs mention optional files on purpose.
 //   node scripts/check-facts.mjs [repo]    prints each problem as doc:line, exits 1 if any
@@ -51,6 +51,13 @@ function npmScripts(root) {
   return new Set(Object.keys(JSON.parse(readFileSync(f, "utf8")).scripts ?? {}));
 }
 
+// Job keys (two-space indent) under jobs: in a workflow. A regex, not a YAML parser: the repo has none.
+function jobs(file) {
+  if (!existsSync(file)) return [];
+  const block = readFileSync(file, "utf8").split(/^jobs:[ \t]*$/m)[1] ?? "";
+  return [...block.matchAll(/^  ([A-Za-z0-9_-]+):/gm)].map((m) => m[1]);
+}
+
 /** Every problem in the project's docs, as { doc, line, message }. */
 export function checkFacts(root) {
   const all = files(root);
@@ -58,12 +65,37 @@ export function checkFacts(root) {
   const tests = all.filter((p) => TEST_FILE.test(p));
   let targets, scripts;
   const problems = [];
+  const workflows = join(root, ".forgejo/workflows");
+  const defined = new Set();
+  if (existsSync(workflows)) {
+    for (const f of readdirSync(workflows)) if (/\.ya?ml$/.test(f)) jobs(join(workflows, f)).forEach((j) => defined.add(j));
+  }
+  const ciJobs = jobs(join(workflows, "ci.yml"));
 
   for (const doc of DOCS) {
     const path = join(root, doc);
     if (!existsSync(path)) continue;
-    readFileSync(path, "utf8").split("\n").forEach((text, i) => {
+    let ciSection = null; // { line, named } while inside "What CI runs" in the testing facts
+    const lines = readFileSync(path, "utf8").split("\n");
+    const endSection = () => {
+      if (!ciSection) return;
+      for (const j of ciJobs) {
+        if (!ciSection.named.has(j)) problems.push({ doc, line: ciSection.line, message: `CI job ${j} isn't listed` });
+      }
+      ciSection = null;
+    };
+    lines.forEach((text, i) => {
+      if (doc === TESTING && /^#{1,6}\s/.test(text)) {
+        endSection();
+        if (/^#{1,6}\s+What CI runs\s*$/.test(text)) ciSection = { line: i + 1, named: new Set() };
+      }
       const say = (message) => problems.push({ doc, line: i + 1, message });
+      if (ciSection && /^\s*[-*]\s+`/.test(text)) {
+        for (const name of spans(text.split(":")[0])) {
+          ciSection.named.add(name);
+          if (!defined.has(name)) say(`${name}: no such CI job`);
+        }
+      }
       for (const span of spans(text)) {
         const make = makeTarget(span);
         const npm = span.match(/^npm\s+(?:run\s+([A-Za-z0-9:_.-]+)|(test|start))\b/);
@@ -74,8 +106,12 @@ export function checkFacts(root) {
           const name = npm[1] ?? npm[2];
           scripts ??= npmScripts(root);
           if (!scripts?.has(name)) say(`${span}: no such script in package.json`);
+        } else if (/^node\s+[^\s-]/.test(span)) {
+          const p = span.split(/\s+/)[1];
+          if (FILE.test(p) && !existsSync(join(root, p))) say(`${p} doesn't exist`);
         } else if (doc === TESTING && /^@[a-z][a-z0-9-]*$/.test(span)) {
-          const used = tests.some((p) => readFileSync(join(root, p), "utf8").includes(span));
+          const whole = new RegExp(`${span}(?![A-Za-z0-9_-])`);
+          const used = tests.some((p) => whole.test(readFileSync(join(root, p), "utf8")));
           if (!used) say(`${span} tags no test`);
         } else if (!/[\s*<>$~{}]|^\/|^\.\.|:\/\//.test(span)) {
           const p = span.replace(LOCATION, "");
@@ -84,6 +120,7 @@ export function checkFacts(root) {
           } else if (FILE.test(p) && !names.has(p)) say(`${p} doesn't exist`);
         }
       }
+      if (i === lines.length - 1) endSection();
     });
   }
   return problems;
