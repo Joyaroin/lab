@@ -83,4 +83,20 @@ describe("readGap timeout", () => {
     expect(await pending).toEqual({ deploys: 4, live: false, complete: true });
     vi.useRealTimers();
   });
+  // ADR-0003: the live call gets 5 s. Written as literals, so changing the default fails this.
+  it("waits 5 s by default: still waiting at 4999 ms, on the saved value at 5000 ms", async () => {
+    vi.useFakeTimers();
+    try {
+      const hung: typeof fetch = (_url, init) =>
+        new Promise((_res, rej) => init?.signal?.addEventListener("abort", () => rej(new DOMException("aborted", "AbortError"))));
+      let result: unknown;
+      readGap(hung, saved).then((g) => (result = g));
+      await vi.advanceTimersByTimeAsync(4999);
+      expect(result, "gave up before 5 s").toBeUndefined();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(result).toEqual({ deploys: 4, live: false, complete: true });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
