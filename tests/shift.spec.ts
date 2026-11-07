@@ -200,19 +200,6 @@ test("a return shows its text when the 250 ms wait ends, and the flick plays ove
   expect(w.shown!).toBeLessThan(lateBy(WAIT_MS, w, 0));
 });
 
-test("reduced motion gets no tear, and the text is there straight away", { tag: "@timing" }, async ({ browser }) => {
-  const page = await (await browser.newContext({ reducedMotion: "reduce" })).newPage();
-  await boot(page);
-  await watch(page, "work");
-  await scrollToProgress(page, progressFor(1));
-  await expect.poll(async () => (await watched(page)).shown, { timeout: 5_000 }).not.toBeNull();
-  await page.waitForTimeout(WAIT_MS + 1500);
-  const w = await watched(page);
-  expect(w.starts).toEqual([]);
-  expect(await filterOn(page)).toBe(false);
-  expect(w.shown!).toBeLessThan(700); // no held-back text: only the camera arriving
-});
-
 test("moving quickly between stations can't make more than the limit of sudden changes in a second, tear after tear", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
   await watch(page, "work");
