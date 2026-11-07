@@ -167,8 +167,8 @@ describe("leaving", () => {
   });
   it("reports where the visitor is", () => {
     const s = setup();
-    s.shift.observe(mid(3)); expect(s.shift.station).toBe(3);
-    s.shift.observe(holdSpan(3)[1] + 0.02); expect(s.shift.station).toBe(0);
+    s.shift.observe(mid(3)); expect(s.shift.hold).toBe(3);
+    s.shift.observe(holdSpan(3)[1] + 0.02); expect(s.shift.hold).toBe(0);
   });
 });
 

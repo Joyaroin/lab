@@ -13,6 +13,12 @@ The language of this project: its terms, what each one means, and what it doesn'
 - **Hold**: a stretch of scroll at a station where the camera stays exactly on the stop, between the
   travel into it and the travel out. The reading stays fixed and the text is at full strength for all
   of it. Clicking the meter or a HUD link lands in the middle of the hold. The entrance has none.
+- **Nearest stop**: the stop the camera is closest to, rounded from scroll progress (0 is the entrance).
+  It changes halfway along a leg. In code: `nearestStop` (`TourState`, the HUD's prop). Not the same as
+  the hold.
+- **The hold you are in**: which station's hold the visitor is inside right now, or 0 on a leg or at the
+  entrance. In code: `hold` (the shift object's getter, `holdAt` inside the shift module). A plain station
+  number (`jump(station)`, `ready(station, ...)`) names a station and is neither of these.
 - **Leg**: the stretch of travel between two stops: the entrance to the first station, or one station
   to the next. A hold is not part of a leg. Leg 1 is the first station to the second; the leg out of
   the entrance is leg 0.
@@ -81,7 +87,7 @@ get a folder; the rest are still flat files in `src/`.
   meter's power-on), calls `observe(progress)` on every scroll and `turn()` on a Work page turn, and says
   when a tear really began (`tearStarted`, `turnStarted`). The module owns the wait timer, the tear-over
   wake-up, the restore window after a reload, the leaving rule, the page-turn limit and the shift's lengths
-  (`SHIFT_SECONDS`). `src/nixie.ts` re-exports `SHIFT_SECONDS` for the browser specs. Until #118 it tells the
+  (`SHIFT_SECONDS`). `src/nixie.ts` re-exports `SHIFT_SECONDS` for the browser specs. `shift.hold` is the hold the visitor is in. Until #118 it tells the
   tour through three callbacks (`onStart`, `onEnd`, `wake`) and the text gate (`ready`, `resolves`).
 - The tour view (`TourView.tsx`) reads scroll and renders. The room (`Room.tsx`, `Effects.tsx`) draws the
   scene and the desk meter. The nixie module (`nixie.ts`) is the meter's digits and power-on.

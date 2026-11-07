@@ -13,7 +13,7 @@ export const WAIT_MS = 250;
 /** A shift that is playing, as the views are told of it. `id` changes for each new one. */
 export type Play = { kind: ShiftKind; id: number };
 
-const stationAt = (progress: number) => {
+const holdAt = (progress: number) => {
   for (let i = 1; i <= STATION_COUNT; i++) {
     const [a, b] = holdSpan(i);
     if (progress >= a && progress <= b) return i;
@@ -124,7 +124,7 @@ export function createShift(reduced = false) {
 
   /** Decide what the visitor's stay so far calls for: end a shift they left, fire one they waited for. */
   const check = (nowMs: number) => {
-    const here = stationAt(progress);
+    const here = holdAt(progress);
     if (here !== at) { at = here; since = nowMs; fired = false; }
     // Leaving mid-shift ends it for the views: the bar and the desk meter go straight to the reading
     // for where the visitor is. The tear finishes its own length.
@@ -145,7 +145,7 @@ export function createShift(reduced = false) {
   };
 
   const restore = (p: number) => {
-    at = stationAt(p);
+    at = holdAt(p);
     fired = at !== 0;
     if (at) revealed.add(at);
   };
@@ -158,12 +158,12 @@ export function createShift(reduced = false) {
       quietUntil = mountedAt + POWER_ON_SECONDS * 1000;
       restoring = m.navigationType === "reload" || m.navigationType === "back_forward";
       progress = m.startProgress;
-      at = stationAt(progress); fired = at !== 0; since = mountedAt; active = null;
+      at = holdAt(progress); fired = at !== 0; since = mountedAt; active = null;
       if (at) revealed.add(at);
       return () => { clearTimeout(waitTimer); clearTimeout(wakeTimer); link = null; };
     },
     /** The hold the visitor is in, 0 for the entrance or travel. */
-    get station() { return at; },
+    get hold() { return at; },
     /** Where the visitor is now. Call on every scroll and resize; the module re-checks by itself once
      *  the wait is over (the visitor may have stopped). */
     observe(p: number) {

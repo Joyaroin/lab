@@ -8,7 +8,7 @@ export const PARALLAX_FROM = 0.2, PARALLAX_FULL = 0.45;
 
 type V3 = [number, number, number];
 
-// The tour: scroll position in, current station, camera position and meter reading out.
+// The tour: scroll position in, nearest stop, camera position and meter reading out.
 // Stop 0 is the entrance (shows the gap, close on the desk meter); stops 1..STATION_COUNT are
 // the stations.
 
@@ -30,7 +30,7 @@ const portraitStops: V3[] = stops.map((c, i) => {
 });
 const portraitLooks: V3[] = looks.map((l, i) => phones[i]?.look ?? l);
 
-export type TourState = { station: number; camera: V3; look: V3; reading: number };
+export type TourState = { nearestStop: number; camera: V3; look: V3; reading: number };
 
 /** True while station `i`'s text is laid over its glass (desktop, panel showing). The pin and the
  *  phosphor swap both use this, so they cannot drift apart. */
@@ -92,7 +92,7 @@ export function tourAt(progress: number, gap: number, win: TourWindow): TourStat
   const along = (from: V3, to: V3, via: V3) => (straight ? line : curveThrough(via))(from, to, f);
   // In a hold the camera is exactly on the stop, not a lerp that lands within rounding of it.
   return {
-    station: Math.round(x),
+    nearestStop: Math.round(x),
     camera: f === 1 ? [...b] : along(a, b, mid.camera),
     look: f === 1 ? [...lb] : along(la, lb, mid.look),
     reading: lerp(readingAt(i), readingAt(i + 1)),

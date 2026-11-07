@@ -3,7 +3,7 @@ import { identity, links, stations } from "./content";
 
 // Always-on corner overlay: résumé, contact and station links. Fixed, so it is reachable
 // at every point in the tour.
-export function Hud({ current, onJump }: { current: number; onJump: (station: number) => void }) {
+export function Hud({ nearestStop, onJump }: { nearestStop: number; onJump: (station: number) => void }) {
   return (
     <nav aria-label="HUD" style={hud}>
       <div style={{ color: "#ffb347" }}>{identity.availability}</div>
@@ -11,10 +11,10 @@ export function Hud({ current, onJump }: { current: number; onJump: (station: nu
         {links.map((l) => <a key={l.label} href={l.href} style={link}>{l.label}</a>)}
       </div>
       <div style={row}>
-        <a href="#entrance" style={link} aria-current={current === 0 ? "location" : undefined}
+        <a href="#entrance" style={link} aria-current={nearestStop === 0 ? "location" : undefined}
           onClick={(e) => { e.preventDefault(); onJump(0); }}>Entrance</a>
         {stations.map((s, i) => (
-          <a key={s.id} href={`#${s.id}`} style={link} aria-current={current === i + 1 ? "location" : undefined}
+          <a key={s.id} href={`#${s.id}`} style={link} aria-current={nearestStop === i + 1 ? "location" : undefined}
             onClick={(e) => { e.preventDefault(); onJump(i + 1); }}>{s.name}</a>
         ))}
       </div>

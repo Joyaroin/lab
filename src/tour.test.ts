@@ -16,13 +16,13 @@ const readings = stations.map((s) => s.reading);
 describe("tour", () => {
   it("starts at the entrance, showing the gap", () => {
     const t = tourAt(0, GAP, win());
-    expect(t.station).toBe(0);
+    expect(t.nearestStop).toBe(0);
     expect(t.reading).toBe(GAP);
   });
 
   it("ends at the last station with its fixed reading", () => {
     const t = tourAt(1, GAP, win());
-    expect(t.station).toBe(STATION_COUNT);
+    expect(t.nearestStop).toBe(STATION_COUNT);
     expect(t.reading).toBe(readings[readings.length - 1]);
   });
 
@@ -34,7 +34,7 @@ describe("tour", () => {
   it("sits exactly on each station when scrolled to it", () => {
     for (let i = 1; i <= STATION_COUNT; i++) {
       const t = tourAt(progressFor(i), GAP, win());
-      expect(t.station).toBe(i);
+      expect(t.nearestStop).toBe(i);
       expect(t.reading).toBe(readings[i - 1]);
     }
   });
@@ -64,8 +64,8 @@ describe("tour", () => {
 
   it("changes the current station at the midpoint between two", () => {
     const p1 = progressFor(1), p2 = progressFor(2);
-    expect(tourAt(p1 + (p2 - p1) * 0.4, GAP, win()).station).toBe(1);
-    expect(tourAt(p1 + (p2 - p1) * 0.6, GAP, win()).station).toBe(2);
+    expect(tourAt(p1 + (p2 - p1) * 0.4, GAP, win()).nearestStop).toBe(1);
+    expect(tourAt(p1 + (p2 - p1) * 0.6, GAP, win()).nearestStop).toBe(2);
   });
 });
 
@@ -84,7 +84,7 @@ describe("holds", () => {
           same(t.camera, stop.camera);
           same(t.look, stop.look);
           expect(t.reading).toBe(readings[i - 1]);
-          expect(t.station).toBe(i);
+          expect(t.nearestStop).toBe(i);
         }
       }
     });

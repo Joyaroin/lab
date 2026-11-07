@@ -84,7 +84,7 @@ export function Tour({ gap, progress, meter, gate, shift: shifts }: { gap: Gap |
   const deploys = gap ? gap.deploys : pendingDeploys;
   const t = tourAt(p, deploys, { width: window.innerWidth, height: window.innerHeight });
   const label = gap ? gapLabel(gap) : "reading prod and staging…";
-  const next = t.station >= STATION_COUNT ? 0 : t.station + 1;
+  const next = t.nearestStop >= STATION_COUNT ? 0 : t.nearestStop + 1;
   const digits = formatReading(Math.round(t.reading));
   useEffect(() => { meter.next = () => jump(next); }, [meter, jump, next]);
   useEffect(() => { meter.digits = digits; meter.redraw?.(); }, [meter, digits]);
@@ -94,10 +94,10 @@ export function Tour({ gap, progress, meter, gate, shift: shifts }: { gap: Gap |
       <div aria-hidden style={{ height: `${SCROLL_SCREENS * 100}vh` }} />
       <Tear shift={tearShift} turn={turn} reduced={reduced} onStart={tearStarted} onTurnStart={turnStarted} />
       <ScreenPanels onTurn={pageTurned} />
-      <Hud current={t.station} onJump={jump} />
+      <Hud nearestStop={t.nearestStop} onJump={jump} />
       <div style={{ position: "fixed", left: 0, right: 0, bottom: "1rem", zIndex: 10, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto" }}>
-          <Meter reading={Math.round(t.reading)} label={t.station === 0 ? label : stationLabel(t.station)}
+          <Meter reading={Math.round(t.reading)} label={t.nearestStop === 0 ? label : stationLabel(t.nearestStop)}
             live={gap ? gap.live : true} pending={!gap} shift={barShift} onClick={() => jump(next)} />
         </div>
       </div>
