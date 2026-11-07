@@ -18,7 +18,7 @@ The language of this project: its terms, what each one means, and what it doesn'
   the hold.
 - **The hold you are in**: which station's hold the visitor is inside right now, or 0 on a leg or at the
   entrance. In code: `hold` (the shift object's getter, `holdAt` inside the shift module). A plain station
-  number (`jump(station)`, `ready(station, ...)`) names a station and is neither of these.
+  number (`jump(station)`, `textState(station, ...)`) names a station and is neither of these.
 - **Leg**: the stretch of travel between two stops: the entrance to the first station, or one station
   to the next. A hold is not part of a leg. Leg 1 is the first station to the second; the leg out of
   the entrance is leg 0.
@@ -92,7 +92,8 @@ get a folder; the rest are still flat files in `src/`.
   gives it one function to ask for a frame (`setWake`). The module owns the wait timer, the power-on hold,
   the tear-over wake-up, the restore window after a reload, the leaving rule, the page-turn limit and the
   shift's lengths (`SHIFT_SECONDS`). `src/nixie.ts` re-exports `SHIFT_SECONDS` for the browser specs.
-  `shift.hold` is the hold the visitor is in. Until #119 the room still reads the text through the text
-  gate (`ready`, `resolves`).
+  `shift.hold` is the hold the visitor is in. The room asks it one question per station per frame,
+  `shift.textState(station, progress, nowMs)`: `held`, `resolving` or `showing`. Asking changes nothing; the
+  module's state changes when it learns something (a shift fires, the visitor leaves, a reload restores).
 - The tour view (`TourView.tsx`) reads scroll and renders. The room (`Room.tsx`, `Effects.tsx`) draws the
   scene and the desk meter. The nixie module (`nixie.ts`) is the meter's digits and power-on.

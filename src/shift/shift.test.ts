@@ -130,7 +130,7 @@ describe("the power-on", () => {
 describe("a reload", () => {
   it("does not play a shift for the hold the page opened in, and shows its text", () => {
     const s = setup({ startProgress: mid(2), navigationType: "reload" });
-    expect(s.shift.ready(2, mid(2), performance.now())).toBe(true);
+    expect(s.shift.textState(2, mid(2), performance.now())).not.toBe("held");
     arrive(s, mid(2), 3000);
     expect(s.started).toEqual([]);
     arrive(s, 0, 100); arrive(s, mid(2), 1000); // leaving and coming back is an arrival, nothing was remembered
@@ -141,7 +141,7 @@ describe("a reload", () => {
     s.shift.observe(0);
     vi.advanceTimersByTime(POWER_ON_MS + 100);
     s.shift.observe(mid(4)); // the browser put the visitor back
-    expect(s.shift.ready(4, mid(4), performance.now())).toBe(true);
+    expect(s.shift.textState(4, mid(4), performance.now())).not.toBe("held");
     vi.advanceTimersByTime(3000);
     expect(s.started).toEqual([]);
   });
@@ -237,12 +237,12 @@ describe("the text", () => {
   it("is held back from arrival until the tear has ended, then shows", () => {
     const s = setup();
     s.shift.observe(mid(1));
-    expect(s.shift.ready(1, mid(1), performance.now())).toBe(false);
+    expect(s.shift.textState(1, mid(1), performance.now())).toBe("held");
     vi.advanceTimersByTime(WAIT_MS + 30); // the timer fires the shift
     const fired = performance.now();
-    expect(s.shift.resolves(1)).toBe(true);
-    expect(s.shift.ready(1, mid(1), fired + FULL_END_MS - 1)).toBe(false);
-    expect(s.shift.ready(1, mid(1), fired + FULL_END_MS + 1)).toBe(true);
+    expect(s.shift.textState(1, mid(1), fired + FULL_END_MS + 1)).toBe("resolving");
+    expect(s.shift.textState(1, mid(1), fired + FULL_END_MS - 1)).toBe("held");
+    expect(s.shift.textState(1, mid(1), fired + FULL_END_MS + 1)).not.toBe("held");
   });
   it("waits for a tear that began late, such as on a slow device", () => {
     const s = setup();
@@ -250,61 +250,73 @@ describe("the text", () => {
     const fired = performance.now();
     expect(s.started).toHaveLength(1);
     s.shift.tearStarted("full", fired + 300); // the view drew it 300 ms after it fired
-    expect(s.shift.ready(1, mid(1), fired + 300 + FULL_END_MS - 1)).toBe(false);
-    expect(s.shift.ready(1, mid(1), fired + 300 + FULL_END_MS + 1)).toBe(true);
+    expect(s.shift.textState(1, mid(1), fired + 300 + FULL_END_MS - 1)).toBe("held");
+    expect(s.shift.textState(1, mid(1), fired + 300 + FULL_END_MS + 1)).not.toBe("held");
   });
   it("is readable about a second after arrival on a first visit", () => {
     const s = setup();
     const arrival = performance.now();
     arrive(s, mid(1), WAIT_MS + 30);
     let t = arrival;
-    while (t - arrival < 5000 && !s.shift.ready(1, mid(1), t)) t++;
+    while (t - arrival < 5000 && s.shift.textState(1, mid(1), t) === "held") t++;
     expect(t - arrival).toBeLessThanOrEqual(1200);
   });
   it("is readable about 0.3 s after arrival on a return", () => {
     const s = setup();
     arrive(s, mid(1)); arrive(s, 0, 100);
-    s.shift.ready(1, 0, performance.now()); // the room sees the text go
     const arrival = performance.now();
     arrive(s, mid(1), WAIT_MS + 30);
     expect(s.started.map((p) => p.kind)).toEqual(["full", "short"]);
     let t = arrival;
-    while (t - arrival < 5000 && !s.shift.ready(1, mid(1), t)) t++;
+    while (t - arrival < 5000 && s.shift.textState(1, mid(1), t) === "held") t++;
     expect(t - arrival).toBeGreaterThanOrEqual(WAIT_MS);
     expect(t - arrival).toBeLessThanOrEqual(WAIT_MS + 30);
   });
   it("is not held back by a short flick the view draws late", () => {
     const s = setup();
     arrive(s, mid(1)); arrive(s, 0, 100);
-    s.shift.ready(1, 0, performance.now());
     arrive(s, mid(1), WAIT_MS + 30);
     const fired = performance.now();
     s.shift.tearStarted("short", fired + 200);
-    expect(s.shift.ready(1, mid(1), fired)).toBe(true);
+    expect(s.shift.textState(1, mid(1), fired)).not.toBe("held");
   });
   it("shows as soon as the wait ends on a return, without resolving", () => {
     const s = setup();
     arrive(s, mid(1)); arrive(s, 0, 100);
-    s.shift.ready(1, 0, performance.now()); // the room sees the text go
     s.shift.observe(mid(1));
-    expect(s.shift.ready(1, mid(1), performance.now() + WAIT_MS - 1)).toBe(false);
+    expect(s.shift.textState(1, mid(1), performance.now() + WAIT_MS - 1)).toBe("held");
     vi.advanceTimersByTime(WAIT_MS + 30);
-    expect(s.shift.ready(1, mid(1), performance.now())).toBe(true);
-    expect(s.shift.resolves(1)).toBe(false);
+    expect(s.shift.textState(1, mid(1), performance.now())).not.toBe("held");
+    expect(s.shift.textState(1, mid(1), performance.now())).toBe("showing");
   });
   it("stays through the fade out on leaving, and is held back again on the next arrival", () => {
     const s = setup();
     arrive(s, mid(1)); vi.advanceTimersByTime(2000);
-    expect(s.shift.ready(1, mid(1), performance.now())).toBe(true);
+    expect(s.shift.textState(1, mid(1), performance.now())).not.toBe("held");
     const out = holdSpan(1)[1] + 0.005;
     s.shift.observe(out);
-    expect(s.shift.ready(1, out, performance.now())).toBe(true);
-    expect(s.shift.ready(1, 0, performance.now())).toBe(false);
+    expect(s.shift.textState(1, out, performance.now())).not.toBe("held");
+    expect(s.shift.textState(1, 0, performance.now())).toBe("held");
+    s.shift.observe(0); // the visitor scrolls on, the panel is gone
     s.shift.observe(holdSpan(1)[0] + 1e-4);
-    expect(s.shift.ready(1, holdSpan(1)[0] + 1e-4, performance.now())).toBe(false);
+    expect(s.shift.textState(1, holdSpan(1)[0] + 1e-4, performance.now())).toBe("held");
+  });
+  it("changes nothing when asked: the same question gets the same answer, whatever was asked before", () => {
+    const s = setup();
+    arrive(s, mid(1), WAIT_MS + 30);
+    const fired = performance.now();
+    const ask = (t: number, p = mid(1)) => s.shift.textState(1, p, t);
+    expect(ask(fired + FULL_END_MS + 1)).toBe("resolving");
+    expect(ask(fired + 1)).toBe("held"); // an earlier time is still held: the later read did not latch
+    expect(ask(fired + FULL_END_MS + 1, 0)).toBe("held"); // nor did a read with the panel gone clear anything
+    expect(ask(fired + FULL_END_MS + 1)).toBe("resolving");
+    s.wake.mockClear();
+    ask(fired + FULL_END_MS + 1);
+    expect(s.wake).not.toHaveBeenCalled();
+    expect(s.started).toHaveLength(1);
   });
   it("shows at once with reduced motion", () => {
-    expect(createShift(true).ready(1, mid(1), 0)).toBe(true);
+    expect(createShift(true).textState(1, mid(1), 0)).toBe("showing");
   });
 });
 
@@ -339,8 +351,8 @@ describe("limiting flashes", () => {
     arrive(s, mid(1), WAIT_MS + 50); // fires at 280: changes 280, 680, 1120
     arrive(s, mid(2), 300); // would fire at 550 after the hop: 4 changes within a second
     expect(s.started).toHaveLength(1);
-    expect(s.shift.ready(2, mid(2), performance.now())).toBe(true);
-    expect(s.shift.resolves(2)).toBe(false);
+    expect(s.shift.textState(2, mid(2), performance.now())).not.toBe("held");
+    expect(s.shift.textState(2, mid(2), performance.now())).toBe("showing");
     arrive(s, mid(3), 300); // would fire at 910: 280, 680, 910 and 1120 are 4 within a window
     expect(s.started).toHaveLength(1);
     arrive(s, 0, 3000); arrive(s, mid(4), 300); // once the first tear's changes are long past: it fits again

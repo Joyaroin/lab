@@ -7,7 +7,7 @@ import { ScreenPanels } from "./ScreenPanels";
 import { Meter } from "./Meter";
 import { formatReading, gapLabel, type Gap } from "./gap";
 import { pendingDeploys } from "./useGap";
-import type { NavigationKind, Shift, TextGate } from "./shift";
+import type { NavigationKind, Shift } from "./shift";
 import { progressFor, STATION_COUNT } from "./hold";
 import { tourAt } from "./tour";
 
@@ -24,7 +24,7 @@ const scrollProgress = () => {
 
 // Scroll drives the tour. The page scrolls (a tall spacer); the room is fixed behind it.
 // `progress` is shared with the room's camera via a ref so frames don't re-render React.
-export function Tour({ gap, progress, meter, gate, shift: shifts }: { gap: Gap | null; progress: MutableRefObject<number>; meter: MeterLink; gate: TextGate; shift: Shift }) {
+export function Tour({ gap, progress, meter, shift: shifts }: { gap: Gap | null; progress: MutableRefObject<number>; meter: MeterLink; shift: Shift }) {
   const [p, setP] = useState(scrollProgress);
   // The tour mounts as the meter starts its power-on, and tells the shift so (below). It reports where
   // the visitor is and that a page turned; the shift owns all the timing.
@@ -38,11 +38,6 @@ export function Tour({ gap, progress, meter, gate, shift: shifts }: { gap: Gap |
   const pageTurned = useCallback((el: HTMLElement) => {
     if (shifts.turn()) setTurn({ el, id: ++turnId.current });
   }, [shifts]);
-
-  useEffect(() => {
-    gate.ready = shifts.ready; gate.resolves = shifts.resolves;
-    return () => { gate.ready = () => true; gate.resolves = () => false; };
-  }, [gate, shifts]);
 
   useEffect(() => {
     const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;

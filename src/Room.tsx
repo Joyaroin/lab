@@ -10,7 +10,7 @@ import { holdSpan, PANEL_SHOWN, panelStrength } from "./hold";
 import { parallax, textOnGlass, parallaxStrength, tourAt } from "./tour";
 import { Bezels, DeskMeter, Phosphor, Rain } from "./Effects";
 import type { MeterLink } from "./nixie";
-import type { Shift, TextGate } from "./shift";
+import type { Shift } from "./shift";
 import { markMore } from "./ScreenPanels";
 
 // Pins each station's HTML panel (a DOM element with data-screen="<id>") to its real CRT in the
@@ -18,7 +18,7 @@ import { markMore } from "./ScreenPanels";
 // the window and places the panel there (on a phone, the station's phone pin if it has one), as
 // wide as the CRT looks, kept inside the window by fitPanel. The text stays real HTML, so it is
 // sharp at any size, selectable, and its links work. Only the current station's panel is shown.
-function ScreenPins({ progress, gate }: { progress: MutableRefObject<number>; gate: TextGate }) {
+function ScreenPins({ progress, shift }: { progress: MutableRefObject<number>; shift: Shift }) {
   const c = useMemo(() => new Vector3(), []);
   const e = useMemo(() => new Vector3(), []);
   const p = useMemo(() => new Vector3(), []);
@@ -31,9 +31,10 @@ function ScreenPins({ progress, gate }: { progress: MutableRefObject<number>; ga
       // from arrival until the shift ends, then (first visit) it resolves out of the effect. A return's
       // text shows when the wait ends and the flick plays over it.
       const strength = panelStrength(progress.current, k + 1);
-      const out = gate.ready(k + 1, progress.current, performance.now());
+      const state = shift.textState(k + 1, progress.current, performance.now());
+      const out = state !== "held";
       if (out && el.dataset.gated === "true") { // only a first visit's text resolves; a return's just appears
-        if (gate.resolves(k + 1)) el.dataset.gated = "resolving"; else delete el.dataset.gated;
+        if (state === "resolving") el.dataset.gated = "resolving"; else delete el.dataset.gated;
       }
       else if (!out && strength >= PANEL_SHOWN) el.dataset.gated = "true";
       else if (!out) delete el.dataset.gated;
@@ -134,8 +135,8 @@ function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; 
   return null;
 }
 
-export default function Room({ onReady, onProgress, progress, reduced, meter, gate, shift }: {
-  onReady: () => void; onProgress: () => void; progress: MutableRefObject<number>; reduced: boolean; meter: MeterLink; gate: TextGate; shift: Shift;
+export default function Room({ onReady, onProgress, progress, reduced, meter, shift }: {
+  onReady: () => void; onProgress: () => void; progress: MutableRefObject<number>; reduced: boolean; meter: MeterLink; shift: Shift;
 }) {
   return (
     // Drawn on demand, not 60 times a second: the baked room is costly to draw (texture
@@ -147,7 +148,7 @@ export default function Room({ onReady, onProgress, progress, reduced, meter, ga
       camera={{ position: ENTRANCE.camera, fov: CAMERA_FOV }}
     >
       <CameraRig progress={progress} reduced={reduced} />
-      <ScreenPins progress={progress} gate={gate} />
+      <ScreenPins progress={progress} shift={shift} />
       <Suspense fallback={null}>
         <BakedRoom onLoaded={onReady} onProgress={onProgress} />
         <DeskMeter link={meter} shift={shift} reduced={reduced} />

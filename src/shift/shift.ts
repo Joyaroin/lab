@@ -53,13 +53,10 @@ const fullTearMs = SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS;
 /** A booked change. Objects, so a plan is found again by identity, never by its time. */
 type Change = { at: number };
 
-/** What the room needs from the tracker: may station `i`'s text show at this progress and time. */
-export type TextGate = {
-  ready: (station: number, progress: number, nowMs: number) => boolean;
-  /** Whether station `i`'s text resolves out of the tear when it shows (a first visit's full tear),
-   *  or just appears (a return, or a shift held back). */
-  resolves: (station: number) => boolean;
-};
+/** How a station's text stands: `held` back (arrival to the end of a first visit's tear, or not showing at
+ *  all), `resolving` out of the tear (a first visit's text, once it shows), or `showing` (a return's text, or
+ *  one that has finished resolving). */
+export type TextState = "held" | "resolving" | "showing";
 
 /** Timers are set a little past the moment they wait for (and a late timer is no problem), so that
  *  when one fires the moment has really come: the wait is over, the tear has snapped back. */
@@ -90,7 +87,7 @@ export type Mount = {
 export function createShift(reduced = false) {
   const visited = new Set<number>();
   const revealed = new Set<number>(); // stations whose text is out, until the visitor has left
-  const resolving = new Set<number>(); // stations whose text is held for a full tear
+  const resolving = new Set<number>(); // stations whose text resolves out of a full tear
   // Booked changes, pending ones included, and the last plan booked for each kind of play (the whole
   // view's tear, a page turn's flick) so it can be re-timed when the view really draws it.
   let changes: Change[] = [];
@@ -128,7 +125,11 @@ export function createShift(reduced = false) {
   /** Decide what the visitor's stay so far calls for: end a shift they left, fire one they waited for. */
   const check = (nowMs: number) => {
     const here = holdAt(progress);
-    if (here !== at) { at = here; since = nowMs; fired = false; }
+    if (here !== at) {
+      // The text that was showing stays through the fade out, until the visitor has left the panel.
+      if (at !== 0 && fired && nowMs >= readyAt) revealed.add(at);
+      at = here; since = nowMs; fired = false;
+    }
     // Leaving mid-shift ends it for the views: the bar and the desk meter go straight to the reading
     // for where the visitor is. The tear finishes its own length.
     if (active !== null && at !== active) { active = null; setCurrent(null); }
@@ -144,7 +145,7 @@ export function createShift(reduced = false) {
         setCurrent({ kind, id: ++playId });
       }
     }
-    wake?.(); // the text's gate may have opened
+    wake?.(); // the text may now show
   };
 
   const restore = (p: number) => {
@@ -191,6 +192,9 @@ export function createShift(reduced = false) {
         if (nowMs - mountedAt < RESTORE_WINDOW_MS) restore(p);
       }
       check(nowMs);
+      for (let i = 1; i <= STATION_COUNT; i++) { // a panel that has gone is forgotten (after check, which may keep it through the fade)
+        if (panelStrength(p, i) < PANEL_SHOWN) { revealed.delete(i); resolving.delete(i); }
+      }
       clearTimeout(waitTimer);
       waitTimer = setTimeout(() => check(performance.now()), waitFor(nowMs));
     },
@@ -212,21 +216,17 @@ export function createShift(reduced = false) {
     },
     /** The flick on the Work TV really began at `nowMs`: its changes count from here. */
     turnStarted(nowMs: number) { rebook("page", "short", nowMs); },
-    resolves: (station: number) => resolving.has(station),
-    /** May station `i`'s text show at this progress and time. On a first visit it is held back until
-     *  the full tear ends, so it resolves out of it; on a return it shows as soon as the wait ends. */
-    ready(station: number, p: number, nowMs: number): boolean {
-      if (reduced) return true;
-      if (panelStrength(p, station) < PANEL_SHOWN) { revealed.delete(station); resolving.delete(station); return false; }
-      if (revealed.has(station)) return true;
-      if (at === station && fired && nowMs >= readyAt) { revealed.add(station); return true; }
-      return false;
+    /** How station `i`'s text stands at this progress and time. A read: it changes nothing. On a first visit
+     *  it is held back until the full tear ends, so it resolves out of it; on a return it shows as soon as
+     *  the wait ends. A station whose panel isn't showing is held. */
+    textState(station: number, p: number, nowMs: number): TextState {
+      if (reduced || !mounted) return "showing"; // until the tour is up every text may show
+      if (panelStrength(p, station) < PANEL_SHOWN) return "held";
+      const shown = revealed.has(station) || (at === station && fired && nowMs >= readyAt);
+      if (!shown) return "held";
+      return resolving.has(station) ? "resolving" : "showing";
     },
   };
 }
 
 export type Shift = ReturnType<typeof createShift>;
-
-/** The link between the tour (which mounts the shift) and the room (which shows the text), until
- *  #119. Until the tour is up every station's text may show. */
-export const textGate = (): TextGate => ({ ready: () => true, resolves: () => false });
