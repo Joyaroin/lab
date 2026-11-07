@@ -81,6 +81,16 @@ describe("the power-on", () => {
     vi.advanceTimersByTime(40);
     expect(s.started).toHaveLength(1);
   });
+  it("plays nothing one ms before the power-on ends, and the full shift at the boundary", () => {
+    const s = setup({ quiet: false });
+    s.shift.observe(mid(1));
+    vi.advanceTimersByTime(POWER_ON_MS - 1);
+    s.shift.observe(mid(1)); // a scroll check, long past the wait, one ms early
+    expect(s.started).toEqual([]);
+    vi.advanceTimersByTime(1);
+    s.shift.observe(mid(1));
+    expect(s.started.map((p) => p.kind)).toEqual(["full"]);
+  });
   it("counts the quiet time from the mount, not from when the object was created", () => {
     const shift = createShift();
     vi.advanceTimersByTime(10_000); // a long boot screen
@@ -209,6 +219,44 @@ describe("the text", () => {
     expect(s.shift.ready(1, mid(1), fired + FULL_END_MS - 1)).toBe(false);
     expect(s.shift.ready(1, mid(1), fired + FULL_END_MS + 1)).toBe(true);
   });
+  it("waits for a tear that began late, such as on a slow device", () => {
+    const s = setup();
+    arrive(s, mid(1), WAIT_MS + 30);
+    const fired = performance.now();
+    expect(s.started).toHaveLength(1);
+    s.shift.tearStarted("full", fired + 300); // the view drew it 300 ms after it fired
+    expect(s.shift.ready(1, mid(1), fired + 300 + FULL_END_MS - 1)).toBe(false);
+    expect(s.shift.ready(1, mid(1), fired + 300 + FULL_END_MS + 1)).toBe(true);
+  });
+  it("is readable about a second after arrival on a first visit", () => {
+    const s = setup();
+    const arrival = performance.now();
+    arrive(s, mid(1), WAIT_MS + 30);
+    let t = arrival;
+    while (t - arrival < 5000 && !s.shift.ready(1, mid(1), t)) t++;
+    expect(t - arrival).toBeLessThanOrEqual(1200);
+  });
+  it("is readable about 0.3 s after arrival on a return", () => {
+    const s = setup();
+    arrive(s, mid(1)); arrive(s, 0, 100);
+    s.shift.ready(1, 0, performance.now()); // the room sees the text go
+    const arrival = performance.now();
+    arrive(s, mid(1), WAIT_MS + 30);
+    expect(s.started.map((p) => p.kind)).toEqual(["full", "short"]);
+    let t = arrival;
+    while (t - arrival < 5000 && !s.shift.ready(1, mid(1), t)) t++;
+    expect(t - arrival).toBeGreaterThanOrEqual(WAIT_MS);
+    expect(t - arrival).toBeLessThanOrEqual(WAIT_MS + 30);
+  });
+  it("is not held back by a short flick the view draws late", () => {
+    const s = setup();
+    arrive(s, mid(1)); arrive(s, 0, 100);
+    s.shift.ready(1, 0, performance.now());
+    arrive(s, mid(1), WAIT_MS + 30);
+    const fired = performance.now();
+    s.shift.tearStarted("short", fired + 200);
+    expect(s.shift.ready(1, mid(1), fired)).toBe(true);
+  });
   it("shows as soon as the wait ends on a return, without resolving", () => {
     const s = setup();
     arrive(s, mid(1)); arrive(s, 0, 100);
@@ -268,8 +316,12 @@ describe("limiting flashes", () => {
     expect(s.started).toHaveLength(1);
     expect(s.shift.ready(2, mid(2), performance.now())).toBe(true);
     expect(s.shift.resolves(2)).toBe(false);
-    arrive(s, 0, 3000); arrive(s, mid(2), 3000); // later it is still a first visit
+    arrive(s, mid(3), 300); // would fire at 910: 280, 680, 910 and 1120 are 4 within a window
+    expect(s.started).toHaveLength(1);
+    arrive(s, 0, 3000); arrive(s, mid(4), 300); // once the first tear's changes are long past: it fits again
     expect(s.started.map((p) => p.kind)).toEqual(["full", "full"]);
+    arrive(s, 0, 3000); arrive(s, mid(2), 3000); // a held-back visit was not counted: still a first visit
+    expect(s.started.map((p) => p.kind)).toEqual(["full", "full", "full"]);
   });
   it("counts from when the tear really began, if the view drew it late", () => {
     // The first tear fires at 280 and is booked 280, 680, 1120. A second fires at 1500: on the booked
