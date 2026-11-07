@@ -324,7 +324,7 @@ describe("ci.yml", () => {
   const yml = readFileSync(new URL("../.forgejo/workflows/ci.yml", import.meta.url), "utf8");
   it("every post step has continue-on-error: true", () => {
     const posts = yml.split(/\n      - /).filter((b) => b.includes("post-ci-failure.mjs"));
-    expect(posts).toHaveLength(6);
+    expect(posts).toHaveLength(7);
     for (const p of posts) expect(p).toMatch(/continue-on-error: true/);
   });
 });
