@@ -62,7 +62,7 @@ describe("tour", () => {
     expect(backward).toEqual(forward);
   });
 
-  it("changes the current station at the midpoint between two", () => {
+  it("changes the nearest stop at the midpoint between two", () => {
     const p1 = progressFor(1), p2 = progressFor(2);
     expect(tourAt(p1 + (p2 - p1) * 0.4, GAP, win()).nearestStop).toBe(1);
     expect(tourAt(p1 + (p2 - p1) * 0.6, GAP, win()).nearestStop).toBe(2);
