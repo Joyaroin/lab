@@ -358,6 +358,7 @@ for (const rate of [1, 10, 16]) {
 
 test("a shift that arrives during the power-on plays once it is over", async ({ page }) => {
   // When the tour (and the bar) appeared, on the page's clock: the power-on takes POWER_ON_SECONDS from about then.
+  await page.addInitScript(defineSnapWatcher);
   await page.addInitScript(() => {
     new MutationObserver((_, mo) => {
       if (document.querySelector("[data-meter-bar]")) { (window as unknown as { __barAt: number }).__barAt = performance.now(); mo.disconnect(); }
