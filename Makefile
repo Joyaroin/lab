@@ -1,5 +1,5 @@
 # CI runs these.
-.PHONY: room setup frontend backend integration browser facts
+.PHONY: room setup frontend backend integration browser browser-light facts
 room:
 	blender -b -P tools/room/build.py -- --out src/assets/room.glb
 	blender -b -P tools/room/resize.py -- src/assets/room.glb --size 2048
@@ -21,3 +21,6 @@ browser:
 	npm ci
 	npx playwright install --with-deps chromium
 	npx playwright test $(PW_ARGS)
+# The browser recipe without the timing and heavy-rendering tests. CI runs the full suite.
+browser-light:
+	$(MAKE) browser PW_ARGS='--grep-invert "@timing|@render" $(PW_ARGS)'

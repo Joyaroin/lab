@@ -222,7 +222,7 @@ test("clicking quickly back and forth ends on the right page and still flicks", 
 
 // The limit is on real changes: measured from when the filter really goes on and off, with no shrunk window.
 for (const every of [700, 715, 730]) {
-  test(`clicking every ${every} ms never puts more than 3 sudden changes in a real second`, async ({ page }) => {
+  test(`clicking every ${every} ms never puts more than 3 sudden changes in a real second`, { tag: "@timing" }, async ({ page }) => {
     test.setTimeout(60_000);
     await openWorkWatched(page);
     await clickEvery(page, every, Array.from({ length: 8 }, (_, k) => (k % 2 ? "solace" : "barracuda")));

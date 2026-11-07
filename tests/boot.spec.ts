@@ -224,7 +224,9 @@ for (const [name, size] of Object.entries(sizes)) {
 
 // Every panel must be fully inside the window at every station, at both sizes.
 for (const [name, size] of Object.entries(sizes)) {
-  test(`each station's panel appears, fully inside the window (${name})`, async ({ page }) => {
+  // Only the desktop run visits every station at desktop size: it carries @render.
+  const tag = name === "desktop" ? ["@render"] : [];
+  test(`each station's panel appears, fully inside the window (${name})`, { tag }, async ({ page }) => {
     await page.setViewportSize(size);
     await page.emulateMedia({ reducedMotion: "reduce" });
     await startTour(page);
@@ -469,7 +471,7 @@ test("the HUD's Résumé link points at the PDF", async ({ page, request }) => {
 // --- ticket 49: the text is on the glass, not a card on it ---
 const bigSizes = { "1280x800": { width: 1280, height: 800 }, "1920x1080": { width: 1920, height: 1080 } };
 for (const [name, size] of Object.entries(bigSizes)) {
-  test(`at every station the text sits on the glass with no card and no phosphor behind it (${name})`, async ({ page }) => {
+  test(`at every station the text sits on the glass with no card and no phosphor behind it (${name})`, { tag: "@render" }, async ({ page }) => {
     test.setTimeout(90_000); // six stops, each with a full-panel screenshot, on software WebGL
     await page.setViewportSize(size);
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -522,7 +524,7 @@ for (const [name, size] of Object.entries(bigSizes)) {
   });
 }
 
-test("the type is larger at 1920x1080 than at 1280x800 at every station", async ({ page }) => {
+test("the type is larger at 1920x1080 than at 1280x800 at every station", { tag: "@render" }, async ({ page }) => {
   test.setTimeout(120_000); // 12 stops, each re-sized and settled
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize(bigSizes["1280x800"]);

@@ -53,7 +53,7 @@ async function pixels(page: Page, shot: Buffer, points: [number, number][], scal
 const lum = ([r, g, b]: number[]) => 0.3 * r + 0.59 * g + 0.11 * b;
 
 for (const scale of [1, 2]) {
-  test(`every TV has its edge, plate and own note at ${scale}x`, async ({ browser }) => {
+  test(`every TV has its edge, plate and own note at ${scale}x`, { tag: "@render" }, async ({ browser }) => {
     test.setTimeout(300_000); // 2x draws four times the pixels on software WebGL
     const ctx = await browser.newContext({ viewport: size, deviceScaleFactor: scale });
     const page = await ctx.newPage();
