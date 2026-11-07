@@ -3,7 +3,8 @@ import { createRef, useEffect, useMemo, useRef, type MutableRefObject } from "re
 import { AdditiveBlending, CanvasTexture, CylinderGeometry, DoubleSide, SRGBColorSpace, Vector3, type Camera, type Mesh, type MeshBasicMaterial } from "three";
 import { textOnGlass } from "./tour";
 import { crts, CRT_GLASS, DESK_METER, NOTE_AT, PLATE_AT, type Crt } from "./crts";
-import { powerOn, setMeterShift, shiftDigits, type MeterLink } from "./nixie";
+import { powerOn, shiftDigits, type MeterLink } from "./nixie";
+import type { Shift } from "./shift";
 import { stations } from "./content";
 import { CARD_PX, MONO, drawPhosphor } from "./card";
 
@@ -94,7 +95,7 @@ function meterInView(camera: Camera, size: { width: number; height: number }, en
   return true;
 }
 
-export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean }) {
+export function DeskMeter({ link, shift, reduced }: { link: MeterLink; shift: Shift; reduced: boolean }) {
   const invalidate = useThree((s) => s.invalidate);
   const tubes = useMemo(() => Array.from({ length: 7 }, () => {
     const c = canvas(96, 108);
@@ -111,20 +112,22 @@ export function DeskMeter({ link, reduced }: { link: MeterLink; reduced: boolean
   const dotMat = useRef<MeshBasicMaterial>(null);
   const dotGlowMat = useRef<MeshBasicMaterial>(null);
   useEffect(() => { link.redraw = invalidate; return () => { link.redraw = undefined; }; }, [link, invalidate]);
+  useEffect(() => shift.setWake(invalidate), [shift, invalidate]); // the shift wakes the room through this
+  const played = useRef<{ id: number; at: number; done: boolean } | null>(null); // this meter's clock for the shift it is playing
 
   useFrame(({ camera, size, clock }) => {
-    if (link.on && link.onAt === null) link.onAt = clock.elapsedTime; // the boot screen just went
+    if (link.on && link.onAt === null) { link.onAt = clock.elapsedTime; shift.powerOnBegan(performance.now()); } // the boot screen just went
     const since = link.onAt === null ? 0 : clock.elapsedTime - link.onAt;
     const s = reduced && link.on ? powerOn(Infinity, link.digits) : powerOn(since, link.digits);
     let shifting = false;
-    if (link.shift && !reduced && s.done) {
-      if (link.shiftAt === null) link.shiftAt = clock.elapsedTime;
-      const step = shiftDigits(clock.elapsedTime - link.shiftAt, link.digits, link.shift);
-      if (step.done) setMeterShift(link, null); else { s.digits = step.digits; shifting = true; }
-    } else if (link.shift && reduced) setMeterShift(link, null); // reduced motion: no shift, show the plain reading
-    // (while the power-on is still running the shift stays pending and plays when it ends: the tour's
-    // quiet period is timed from when the tour mounts, the power-on from the first frame after, which
-    // on a slow device is later)
+    // The shift module decides whether a shift plays (power-on hold, reduced motion, leaving); this only draws it.
+    const play = reduced ? null : shift.playing;
+    if (play && played.current?.id !== play.id) played.current = { id: play.id, at: clock.elapsedTime, done: false };
+    if (!play) played.current = null;
+    if (play && played.current && !played.current.done) {
+      const step = shiftDigits(clock.elapsedTime - played.current.at, link.digits, play.kind);
+      if (step.done) played.current.done = true; else { s.digits = step.digits; shifting = true; }
+    }
     const digits = s.digits.replace(".", "");
     tubes.forEach((tube, i) => {
       // an unlit tube shows no digit, so it needs no redraw as the random digits change

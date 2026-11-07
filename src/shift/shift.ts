@@ -80,18 +80,13 @@ export type Mount = {
   startProgress: number;
   /** Reload and back/forward put the scroll position back after mounting; that is not an arrival. */
   navigationType: NavigationKind;
-  /** A shift starts playing. */
-  onStart: (play: Play) => void;
-  /** The shift that was playing ended early, because the visitor left its hold. */
-  onEnd: () => void;
-  /** Ask the room for a frame: the text's gate may have opened. */
-  wake: () => void;
 };
 
-/** One shift object per app. The app creates it; the tour `mount`s it (the meter's power-on starts
- *  then, so no shift starts for `POWER_ON_SECONDS` after) and calls `observe` on every scroll. The
- *  module sets its own timers, so a visitor who stops still gets the shift, and tells the tour through
- *  the three callbacks of `mount` (until #118 replaces them). Visits are kept in memory only. */
+/** One shift object per app. The app creates it; the tour `mount`s it and calls `observe` on every
+ *  scroll. The desk meter says when its power-on really began (`powerOnBegan`): no shift starts until
+ *  `POWER_ON_SECONDS` after that. The module sets its own timers, so a visitor who stops still gets the
+ *  shift. Views read `playing` and hear changes through `subscribe`; the room gives `setWake` the one
+ *  function that asks it for a frame. Visits are kept in memory only. */
 export function createShift(reduced = false) {
   const visited = new Set<number>();
   const revealed = new Set<number>(); // stations whose text is out, until the visitor has left
@@ -117,10 +112,18 @@ export function createShift(reduced = false) {
   };
 
   let at = 0, since = 0, fired = false, readyAt = 0;
-  let quietUntil = 0, mountedAt = 0, restoring = false, progress = 0, playId = 0;
+  let poweredOnAt: number | null = null; // when the desk meter says its power-on really began
+  let mountedAt = 0, restoring = false, progress = 0, playId = 0;
   let active: number | null = null; // the hold whose shift is playing
   let waitTimer: ReturnType<typeof setTimeout> | undefined, wakeTimer: ReturnType<typeof setTimeout> | undefined;
-  let link: Pick<Mount, "onStart" | "onEnd" | "wake"> | null = null;
+  let mounted = false, wake: (() => void) | null = null;
+  let current: Play | null = null; // the shift the bar and the desk meter are playing
+  const listeners = new Set<() => void>();
+  const setCurrent = (play: Play | null) => { current = play; listeners.forEach((l) => l()); };
+  /** How long to wait before looking again: the wait, or the rest of the power-on if that is longer. */
+  const waitFor = (nowMs: number) => Math.max(WAIT_MS, poweredOnAt === null ? 0 : quietEnd() - nowMs) + TIMER_SLACK_MS;
+  /** The power-on hold: no shift while the desk meter is still powering on, or before it has begun. */
+  const quietEnd = () => (poweredOnAt === null ? Infinity : poweredOnAt + POWER_ON_SECONDS * 1000);
 
   /** Decide what the visitor's stay so far calls for: end a shift they left, fire one they waited for. */
   const check = (nowMs: number) => {
@@ -128,8 +131,8 @@ export function createShift(reduced = false) {
     if (here !== at) { at = here; since = nowMs; fired = false; }
     // Leaving mid-shift ends it for the views: the bar and the desk meter go straight to the reading
     // for where the visitor is. The tear finishes its own length.
-    if (active !== null && at !== active) { active = null; link?.onEnd(); }
-    if (!(reduced || here === 0 || fired || nowMs - since < WAIT_MS || nowMs < quietUntil)) {
+    if (active !== null && at !== active) { active = null; setCurrent(null); }
+    if (!(reduced || here === 0 || fired || nowMs - since < WAIT_MS || nowMs < quietEnd())) {
       fired = true;
       const kind: ShiftKind = visited.has(here) ? "short" : "full";
       if (!book("whole", kind, nowMs)) readyAt = nowMs;
@@ -138,10 +141,10 @@ export function createShift(reduced = false) {
         if (kind === "full") { resolving.add(here); readyAt = nowMs + fullTearMs; }
         else { resolving.delete(here); readyAt = nowMs; } // a return: the text shows now, and the flick plays over it
         active = here;
-        link?.onStart({ kind, id: ++playId });
+        setCurrent({ kind, id: ++playId });
       }
     }
-    link?.wake(); // the text's gate may have opened
+    wake?.(); // the text's gate may have opened
   };
 
   const restore = (p: number) => {
@@ -151,17 +154,31 @@ export function createShift(reduced = false) {
   };
 
   return {
-    /** The tour is up, and the meter starts its power-on now. Returns the unmount. */
+    /** The tour is up. Returns the unmount. */
     mount(m: Mount): () => void {
-      link = m;
+      mounted = true;
       mountedAt = performance.now();
-      quietUntil = mountedAt + POWER_ON_SECONDS * 1000;
       restoring = m.navigationType === "reload" || m.navigationType === "back_forward";
       progress = m.startProgress;
-      at = holdAt(progress); fired = at !== 0; since = mountedAt; active = null;
+      at = holdAt(progress); fired = at !== 0; since = mountedAt; active = null; current = null;
       if (at) revealed.add(at);
-      return () => { clearTimeout(waitTimer); clearTimeout(wakeTimer); link = null; };
+      return () => { clearTimeout(waitTimer); clearTimeout(wakeTimer); mounted = false; };
     },
+    /** The desk meter's power-on really began at `nowMs` (its first frame, later than the tour's start on
+     *  a slow device). No shift starts until it has run its length from here. */
+    powerOnBegan(nowMs: number) {
+      poweredOnAt = nowMs;
+      if (!mounted) return;
+      clearTimeout(waitTimer);
+      waitTimer = setTimeout(() => check(performance.now()), waitFor(performance.now()));
+    },
+    /** The shift the bar and the desk meter are playing: null when none, or once the visitor has left its
+     *  hold. A new play is a new object (new `id`). The tear's own length is its own business. */
+    get playing(): Play | null { return current; },
+    /** Hear that `playing` changed. Returns the unsubscribe. */
+    subscribe(listener: () => void): () => void { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    /** The room's one function for asking for a frame. Returns the remove. */
+    setWake(fn: () => void): () => void { wake = fn; return () => { if (wake === fn) wake = null; }; },
     /** The hold the visitor is in, 0 for the entrance or travel. */
     get hold() { return at; },
     /** Where the visitor is now. Call on every scroll and resize; the module re-checks by itself once
@@ -175,7 +192,7 @@ export function createShift(reduced = false) {
       }
       check(nowMs);
       clearTimeout(waitTimer);
-      waitTimer = setTimeout(() => check(performance.now()), Math.max(WAIT_MS, quietUntil - nowMs) + TIMER_SLACK_MS);
+      waitTimer = setTimeout(() => check(performance.now()), waitFor(nowMs));
     },
     /** The tear actually began (the view is drawn a moment after the shift fires, more on a slow
      *  device): its changes count from here, the text follows `kind`'s length after that, never
@@ -185,7 +202,7 @@ export function createShift(reduced = false) {
       clearTimeout(wakeTimer);
       if (kind === "short") return; // a return's text is already showing
       readyAt = Math.max(readyAt, nowMs + fullTearMs);
-      wakeTimer = setTimeout(() => link?.wake(), SHIFT_SECONDS[kind] * 1000 + SNAP_BACK_MS + TIMER_SLACK_MS);
+      wakeTimer = setTimeout(() => wake?.(), SHIFT_SECONDS[kind] * 1000 + SNAP_BACK_MS + TIMER_SLACK_MS);
     },
     /** A Work page turn asks for the short flick on that TV. It plays unless reduced motion is on or
      *  it would put more than the limit of sudden changes in a second (quick clicks): the page turns
@@ -211,5 +228,5 @@ export function createShift(reduced = false) {
 export type Shift = ReturnType<typeof createShift>;
 
 /** The link between the tour (which mounts the shift) and the room (which shows the text), until
- *  #118. Until the tour is up every station's text may show. */
+ *  #119. Until the tour is up every station's text may show. */
 export const textGate = (): TextGate => ({ ready: () => true, resolves: () => false });

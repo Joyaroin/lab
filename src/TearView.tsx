@@ -1,6 +1,5 @@
-import { useEffect, useRef } from "react";
-import type { ShiftKind } from "./nixie";
-import type { Play } from "./shift";
+import { useEffect, useRef, useState } from "react";
+import type { Play, Shift } from "./shift";
 import { tearAt, TEAR_SEEDS } from "./tear";
 
 const FILTER = "shift-tear", TURN_FILTER = "shift-tear-page"; // the whole view's, and a Work page turn's
@@ -12,18 +11,23 @@ const BANDS = "0 .12 .86 .3 1 .5 0 .74 .95 .2 .6 .02 .9 .4";
 export type PageTurn = { el: HTMLElement; id: number };
 /** What a screen calls when its page turns, with its element. */
 export type OnPageTurn = (el: HTMLElement) => void;
-/** What the tear calls when it really starts drawing (a frame or more after the shift fired). */
-export type OnTearStart = (kind: ShiftKind, nowMs: number) => void;
+/** What a play tells the shift when it really starts drawing (a frame or more after the shift fired). */
+type OnTearStart = (kind: Play["kind"], nowMs: number) => void;
 
 /** The shift's tear, in plain SVG and CSS (no library): while a shift plays, the room's canvas is
  *  drawn through an SVG filter that slips horizontal bands sideways and splits a red and a cyan
  *  edge off them. It runs only for the length of the shift and takes the filter off afterwards, so
- *  at rest it costs nothing. A new `shift.id` starts one; `shift` null (or reduced motion) ends it.
+ *  at rest it costs nothing. It subscribes to the shift: each new play starts one, and it plays out its own
+ *  length even if the visitor leaves (the flash limit counted its snap back); reduced motion ends it.
+ *  It reports when it really began, and when a page turn's flick did, straight to the shift.
  *  `turn` is a Work page turn: the same short flick, on that TV's screen only, through its own copy of
  *  the filter so it never fights a tear of the whole view. */
-export function Tear({ shift, turn, reduced, onStart, onTurnStart }: { shift: Play | null; turn?: PageTurn | null; reduced: boolean; onStart?: OnTearStart; onTurnStart?: (nowMs: number) => void }) {
-  const whole = useTear(FILTER, () => document.querySelector<HTMLElement>("canvas"), shift, reduced, onStart);
-  const page = useTear(TURN_FILTER, () => turn?.el ?? null, turn ? { kind: "short", id: turn.id } : null, reduced, onTurnStart && ((_, nowMs) => onTurnStart(nowMs)));
+export function Tear({ shift, turn, reduced }: { shift: Shift; turn?: PageTurn | null; reduced: boolean }) {
+  const [play, setPlay] = useState<Play | null>(null);
+  // A null (the visitor left) is ignored: the tear finishes its own length.
+  useEffect(() => shift.subscribe(() => { const p = shift.playing; if (p) setPlay(p); }), [shift]);
+  const whole = useTear(FILTER, () => document.querySelector<HTMLElement>("canvas"), play, reduced, (kind, nowMs) => shift.tearStarted(kind, nowMs));
+  const page = useTear(TURN_FILTER, () => turn?.el ?? null, turn ? { kind: "short", id: turn.id } : null, reduced, (_, nowMs) => shift.turnStarted(nowMs));
   return (
     <svg aria-hidden="true" focusable="false" width="0" height="0" style={{ position: "absolute" }}>
       <TearFilter id={FILTER} refs={whole} />

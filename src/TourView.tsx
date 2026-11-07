@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
-import { setMeterShift, type MeterLink } from "./nixie";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type MutableRefObject } from "react";
+import type { MeterLink } from "./nixie";
 import { Tear, type PageTurn } from "./TearView";
 import { stations } from "./content";
 import { Hud } from "./Hud";
@@ -7,7 +7,7 @@ import { ScreenPanels } from "./ScreenPanels";
 import { Meter } from "./Meter";
 import { formatReading, gapLabel, type Gap } from "./gap";
 import { pendingDeploys } from "./useGap";
-import type { NavigationKind, Play, Shift, ShiftKind, TextGate } from "./shift";
+import type { NavigationKind, Shift, TextGate } from "./shift";
 import { progressFor, STATION_COUNT } from "./hold";
 import { tourAt } from "./tour";
 
@@ -29,10 +29,8 @@ export function Tour({ gap, progress, meter, gate, shift: shifts }: { gap: Gap |
   // The tour mounts as the meter starts its power-on, and tells the shift so (below). It reports where
   // the visitor is and that a page turned; the shift owns all the timing.
   const [reduced] = useState(prefersReducedMotion);
-  const [barShift, setBarShift] = useState<Play | null>(null);
-  // The tear is kept apart from the bar's shift: leaving mid-shift ends the bar's, but the tear plays
-  // out its own length, so its snap back is always where the flash limit counted it.
-  const [tearShift, setTearShift] = useState<Play | null>(null);
+  // The bar plays what the shift says is playing; leaving mid-shift ends it. The tear subscribes itself.
+  const barShift = useSyncExternalStore(shifts.subscribe, () => shifts.playing);
 
   // A Work page turn's flick, on that TV's screen only. The page turns whether or not it plays.
   const [turn, setTurn] = useState<PageTurn | null>(null);
@@ -41,30 +39,16 @@ export function Tour({ gap, progress, meter, gate, shift: shifts }: { gap: Gap |
     if (shifts.turn()) setTurn({ el, id: ++turnId.current });
   }, [shifts]);
 
-  const turnStarted = useCallback((nowMs: number) => shifts.turnStarted(nowMs), [shifts]);
-
-  // The tear starts a frame or more after the shift fires (later on a slow device): say when it began.
-  const tearStarted = useCallback((kind: ShiftKind, nowMs: number) => shifts.tearStarted(kind, nowMs), [shifts]);
-
   useEffect(() => {
     gate.ready = shifts.ready; gate.resolves = shifts.resolves;
     return () => { gate.ready = () => true; gate.resolves = () => false; };
   }, [gate, shifts]);
 
   useEffect(() => {
-    let id = 0;
     const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
     const unmount = shifts.mount({
       startProgress: scrollProgress(),
       navigationType: (nav?.type ?? "navigate") as NavigationKind,
-      onStart: ({ kind }) => {
-        setMeterShift(meter, kind);
-        const next: Play = { kind, id: ++id };
-        setBarShift(next); setTearShift(next);
-      },
-      // Leaving mid-shift ends the bar's and the desk meter's shift. The tear finishes its own length.
-      onEnd: () => { setMeterShift(meter, null); setBarShift(null); },
-      wake: () => meter.redraw?.(),
     });
     const onScroll = () => {
       progress.current = scrollProgress(); setP(progress.current);
@@ -74,7 +58,7 @@ export function Tour({ gap, progress, meter, gate, shift: shifts }: { gap: Gap |
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     return () => { unmount(); window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); };
-  }, [progress, shifts, meter]);
+  }, [progress, shifts]);
 
   const jump = useCallback((station: number) => {
     const max = document.documentElement.scrollHeight - window.innerHeight;
@@ -92,7 +76,7 @@ export function Tour({ gap, progress, meter, gate, shift: shifts }: { gap: Gap |
   return (
     <>
       <div aria-hidden style={{ height: `${SCROLL_SCREENS * 100}vh` }} />
-      <Tear shift={tearShift} turn={turn} reduced={reduced} onStart={tearStarted} onTurnStart={turnStarted} />
+      <Tear shift={shifts} turn={turn} reduced={reduced} />
       <ScreenPanels onTurn={pageTurned} />
       <Hud nearestStop={t.nearestStop} onJump={jump} />
       <div style={{ position: "fixed", left: 0, right: 0, bottom: "1rem", zIndex: 10, display: "flex", justifyContent: "center", pointerEvents: "none" }}>

@@ -83,11 +83,16 @@ Where the code for each concept lives. Tests sit beside their code. Only modules
 get a folder; the rest are still flat files in `src/`.
 
 - **`src/shift/`**: the shift, start to finish. `createShift(reduced)` makes the one shift object; the app
-  creates it and passes it to the tour as a prop. The tour `mount`s it (which starts the quiet time, the
-  meter's power-on), calls `observe(progress)` on every scroll and `turn()` on a Work page turn, and says
-  when a tear really began (`tearStarted`, `turnStarted`). The module owns the wait timer, the tear-over
-  wake-up, the restore window after a reload, the leaving rule, the page-turn limit and the shift's lengths
-  (`SHIFT_SECONDS`). `src/nixie.ts` re-exports `SHIFT_SECONDS` for the browser specs. `shift.hold` is the hold the visitor is in. Until #118 it tells the
-  tour through three callbacks (`onStart`, `onEnd`, `wake`) and the text gate (`ready`, `resolves`).
+  creates it and passes it to the room and the tour as a prop. Views read `shift.playing` (the shift the
+  bar and the desk meter play; null once the visitor leaves its hold) and hear changes with
+  `shift.subscribe`: the bar subscribes, the tear subscribes (and plays out its own length when `playing`
+  goes null), and the desk meter reads it every frame. The tour `mount`s it, calls `observe(progress)` on
+  every scroll and `turn()` on a Work page turn. The tear reports straight to it (`tearStarted`,
+  `turnStarted`), and the desk meter reports when its power-on really began (`powerOnBegan`). The room
+  gives it one function to ask for a frame (`setWake`). The module owns the wait timer, the power-on hold,
+  the tear-over wake-up, the restore window after a reload, the leaving rule, the page-turn limit and the
+  shift's lengths (`SHIFT_SECONDS`). `src/nixie.ts` re-exports `SHIFT_SECONDS` for the browser specs.
+  `shift.hold` is the hold the visitor is in. Until #119 the room still reads the text through the text
+  gate (`ready`, `resolves`).
 - The tour view (`TourView.tsx`) reads scroll and renders. The room (`Room.tsx`, `Effects.tsx`) draws the
   scene and the desk meter. The nixie module (`nixie.ts`) is the meter's digits and power-on.

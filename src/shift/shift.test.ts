@@ -11,12 +11,17 @@ const mid = progressFor;
 const FULL_END_MS = SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS;
 const POWER_ON_MS = POWER_ON_SECONDS * 1000;
 
-/** A shift mounted with spies. `quiet` runs out the power-on first, as most tests want. */
-const setup = ({ reduced = false, startProgress = 0, navigationType = "navigate" as NavigationKind, quiet = true } = {}) => {
+/** A shift mounted with spies: `started` collects each new play, `ended` counts the times the views were told
+ *  it ended. The desk meter's power-on begins at the mount, as on a fast device; `quiet` runs it out first,
+ *  as most tests want. */
+const setup = ({ reduced = false, startProgress = 0, navigationType = "navigate" as NavigationKind, quiet = true, powerOn = true } = {}) => {
   const shift = createShift(reduced);
   const started: Play[] = [];
   const ended = vi.fn(), wake = vi.fn();
-  const unmount = shift.mount({ startProgress, navigationType, onStart: (p) => started.push(p), onEnd: ended, wake });
+  shift.subscribe(() => { if (shift.playing) started.push(shift.playing); else ended(); });
+  shift.setWake(wake);
+  const unmount = shift.mount({ startProgress, navigationType });
+  if (powerOn) shift.powerOnBegan(performance.now());
   if (quiet) vi.advanceTimersByTime(POWER_ON_MS + 1);
   return { shift, started, ended, wake, unmount };
 };
@@ -91,14 +96,34 @@ describe("the power-on", () => {
     s.shift.observe(mid(1));
     expect(s.started.map((p) => p.kind)).toEqual(["full"]);
   });
-  it("counts the quiet time from the mount, not from when the object was created", () => {
-    const shift = createShift();
-    vi.advanceTimersByTime(10_000); // a long boot screen
-    const started: Play[] = [];
-    shift.mount({ startProgress: 0, navigationType: "navigate", onStart: (p) => started.push(p), onEnd() {}, wake() {} });
-    shift.observe(mid(1));
-    vi.advanceTimersByTime(POWER_ON_MS - 5);
-    expect(started).toEqual([]);
+  it("counts the quiet time from when the desk meter says its power-on began, not from the mount", () => {
+    const s = setup({ quiet: false, powerOn: false });
+    s.shift.observe(mid(1));
+    vi.advanceTimersByTime(1000); // a slow device: the desk meter's first frame comes late
+    s.shift.powerOnBegan(performance.now());
+    vi.advanceTimersByTime(POWER_ON_MS - 5); // past 1400 ms from the mount, still inside the power-on
+    expect(s.started).toEqual([]);
+    vi.advanceTimersByTime(60); // the module's own timer fires it once the power-on is over
+    expect(s.started.map((p) => p.kind)).toEqual(["full"]);
+  });
+  it("starts nothing while the desk meter has not reported a power-on", () => {
+    const s = setup({ quiet: false, powerOn: false });
+    s.shift.observe(mid(1)); vi.advanceTimersByTime(20_000);
+    expect(s.started).toEqual([]);
+  });
+  it("fires on arriving during the power-on only after it is over, when the visitor is still there", () => {
+    const s = setup({ quiet: false });
+    vi.advanceTimersByTime(300); s.shift.observe(mid(1));
+    vi.advanceTimersByTime(POWER_ON_MS - 300 - 5);
+    expect(s.started).toEqual([]);
+    vi.advanceTimersByTime(60);
+    expect(s.started).toHaveLength(1);
+  });
+  it("does not play for a visitor who left before the power-on ended", () => {
+    const s = setup({ quiet: false });
+    s.shift.observe(mid(1)); vi.advanceTimersByTime(500); s.shift.observe(0);
+    vi.advanceTimersByTime(5000);
+    expect(s.started).toEqual([]);
   });
 });
 
@@ -370,5 +395,41 @@ describe("a Work page turn", () => {
     arrive(s, mid(1), WAIT_MS + 30); // fired: 280, 680, 1120
     vi.advanceTimersByTime(450);
     expect(s.shift.turn()).toBe(false);
+  });
+});
+
+describe("what the views read", () => {
+  it("reads the play that is on, and a subscriber hears each change", () => {
+    const s = setup();
+    expect(s.shift.playing).toBeNull();
+    arrive(s, mid(1));
+    expect(s.shift.playing).toEqual({ kind: "full", id: 1 });
+    expect(s.shift.playing).toBe(s.shift.playing); // stable between changes
+  });
+  it("plays nothing for the bar, the tear or the desk meter under reduced motion", () => {
+    const s = setup({ reduced: true });
+    const heard = vi.fn(); s.shift.subscribe(heard);
+    arrive(s, mid(1)); arrive(s, mid(2), 3000); arrive(s, 0, 100); arrive(s, mid(1), 3000);
+    expect(s.shift.playing).toBeNull(); // the bar and the desk meter read this
+    expect(heard).not.toHaveBeenCalled(); // the tear hears this
+    expect(s.shift.turn()).toBe(false); // the Work page flick
+  });
+  it("ends what the meters play on leaving mid-shift, while the tear's own length is still its own", () => {
+    const s = setup();
+    const tear: Play[] = []; // what the tear does: start on each new play, ignore the end
+    s.shift.subscribe(() => { if (s.shift.playing) tear.push(s.shift.playing); });
+    s.shift.observe(mid(1)); vi.advanceTimersByTime(WAIT_MS + 60);
+    expect(s.shift.playing).toEqual({ kind: "full", id: 1 });
+    s.shift.observe(0);
+    expect(s.shift.playing).toBeNull(); // the bar and the desk meter go straight to the reading
+    expect(tear).toEqual([{ kind: "full", id: 1 }]); // the tear got its play and is never told to stop
+    s.shift.tearStarted("full", performance.now()); // it still reports when it began, so the limit counts its snap back
+    s.shift.observe(mid(2)); vi.advanceTimersByTime(WAIT_MS + 60);
+    expect(s.started.map((p) => p.id)).toEqual([1]); // held back: the snap back of the first tear is inside the window
+    expect(s.shift.playing).toBeNull();
+  });
+  it("wakes the room through the one function it gave, and stops after it is removed", () => {
+    const s = setup(); const off = s.shift.setWake(vi.fn()); const w = vi.fn(); s.shift.setWake(w);
+    off(); s.shift.observe(mid(1)); expect(w).toHaveBeenCalled();
   });
 });

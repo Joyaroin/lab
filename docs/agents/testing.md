@@ -13,7 +13,7 @@ Checked against the code on 2026-11-07, at 1257325.
 ## Commands
 - `make frontend`: `npm ci`, the typecheck, `npm test` and the build
 - `make integration`: `make frontend`, then the integration test
-- `make browser`: the full Playwright suite. Installs browsers and system packages on every run
+- `make browser`: the full Playwright suite. Installs browsers and system packages only in CI
 - `make browser-light`: the `browser` recipe without `@timing` and `@render`. Passes `PW_ARGS` through
 - `make facts`: every path, command and tag the docs name exists
 - One spec on the VM: `heavy npx playwright test tests/<spec> --workers=1`
