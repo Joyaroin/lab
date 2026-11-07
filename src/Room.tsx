@@ -10,7 +10,7 @@ import { holdSpan, PANEL_SHOWN, panelStrength } from "./hold";
 import { parallax, textOnGlass, parallaxStrength, tourAt } from "./tour";
 import { Bezels, DeskMeter, Phosphor, Rain } from "./Effects";
 import type { MeterLink } from "./nixie";
-import type { TextGate } from "./shift";
+import type { Shift, TextGate } from "./shift";
 import { markMore } from "./ScreenPanels";
 
 // Pins each station's HTML panel (a DOM element with data-screen="<id>") to its real CRT in the
@@ -134,8 +134,8 @@ function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; 
   return null;
 }
 
-export default function Room({ onReady, onProgress, progress, reduced, meter, gate }: {
-  onReady: () => void; onProgress: () => void; progress: MutableRefObject<number>; reduced: boolean; meter: MeterLink; gate: TextGate;
+export default function Room({ onReady, onProgress, progress, reduced, meter, gate, shift }: {
+  onReady: () => void; onProgress: () => void; progress: MutableRefObject<number>; reduced: boolean; meter: MeterLink; gate: TextGate; shift: Shift;
 }) {
   return (
     // Drawn on demand, not 60 times a second: the baked room is costly to draw (texture
@@ -150,7 +150,7 @@ export default function Room({ onReady, onProgress, progress, reduced, meter, ga
       <ScreenPins progress={progress} gate={gate} />
       <Suspense fallback={null}>
         <BakedRoom onLoaded={onReady} onProgress={onProgress} />
-        <DeskMeter link={meter} reduced={reduced} />
+        <DeskMeter link={meter} shift={shift} reduced={reduced} />
         <Phosphor progress={progress} />
         <Bezels />
         <Rain />

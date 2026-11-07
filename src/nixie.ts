@@ -51,12 +51,6 @@ export const digitsToShow = (reading: string, scrambled: string | null, shifting
  *  are the room's. */
 export type MeterLink = {
   digits: string; next: () => void; on: boolean; onAt: number | null; redraw?: () => void;
-  /** A shift to play on the digits; the room stamps `shiftAt` (its clock) when it first sees it. */
-  shift: ShiftKind | null; shiftAt: number | null;
 };
 
-/** Start a shift on the meter (`kind`), or end it (null). The one place the link's shift fields are
- *  set; the room stamps `shiftAt` when it first sees the shift. */
-export const setMeterShift = (link: MeterLink, kind: ShiftKind | null) => { link.shift = kind; link.shiftAt = null; };
-
-export const meterLink = (): MeterLink => ({ digits: "0.000000", next: () => {}, on: false, onAt: null, shift: null, shiftAt: null });
+export const meterLink = (): MeterLink => ({ digits: "0.000000", next: () => {}, on: false, onAt: null });
