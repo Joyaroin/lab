@@ -70,3 +70,18 @@ The language of this project: its terms, what each one means, and what it doesn'
   tear starting, a re-cut, the snap back), counted over a little more than a second to cover late
   frames; a shift held back by that still shows its text. Visits are kept in memory only, and nothing
   on screen shows where you have been.
+
+## Modules
+
+Where the code for each concept lives. Tests sit beside their code. Only modules that have been deepened
+get a folder; the rest are still flat files in `src/`.
+
+- **`src/shift/`**: the shift, start to finish. `createShift(reduced)` makes the one shift object; the app
+  creates it and passes it to the tour as a prop. The tour `mount`s it (which starts the quiet time, the
+  meter's power-on), calls `observe(progress)` on every scroll and `turn()` on a Work page turn, and says
+  when a tear really began (`tearStarted`, `turnStarted`). The module owns the wait timer, the tear-over
+  wake-up, the restore window after a reload, the leaving rule, the page-turn limit and the shift's lengths
+  (`SHIFT_SECONDS`). `src/nixie.ts` re-exports `SHIFT_SECONDS` for the browser specs. Until #118 it tells the
+  tour through three callbacks (`onStart`, `onEnd`, `wake`) and the text gate (`ready`, `resolves`).
+- The tour view (`TourView.tsx`) reads scroll and renders. The room (`Room.tsx`, `Effects.tsx`) draws the
+  scene and the desk meter. The nixie module (`nixie.ts`) is the meter's digits and power-on.

@@ -24,11 +24,10 @@ function scramble(u: number, digits: string, from: number, spread: number, rand:
   }).join("");
 }
 
-// The shift: when it fires the digits scramble and lock back onto the reading. The full version
-// is about the length of the tear; the short one is a quick flick.
-export const SHIFT_SECONDS = { full: 0.8, short: 0.25 } as const;
-
-export type ShiftKind = keyof typeof SHIFT_SECONDS;
+// The shift's lengths live in src/shift; the browser specs still read SHIFT_SECONDS from here.
+import { SHIFT_SECONDS, type ShiftKind } from "./shift/lengths";
+export { SHIFT_SECONDS };
+export type { ShiftKind };
 
 // Where in a shift's run the tubes start locking (`from`) and how much of it they take (`spread`).
 const SHIFT_LOCK = { from: 0.3, spread: 0.6 } as const;

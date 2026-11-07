@@ -1,4 +1,4 @@
-import { SHIFT_SECONDS, type ShiftKind } from "./nixie";
+import { SHIFT_SECONDS, type ShiftKind } from "./shift/lengths";
 
 // The tear: horizontal bands of the view slip sideways with a red and cyan edge, then snap back.
 // This is only the timing: how far the bands slip and how wide the edge is, `t` seconds in. The
