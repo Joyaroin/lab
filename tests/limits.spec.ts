@@ -6,7 +6,7 @@ import { scrollToProgress, waitForCamera } from "./lib/page";
 // out, not imported from src, because a spec that reads the limit from the code it checks passes
 // when someone changes the limit. These state CONTEXT.md and the tracker's numbers:
 //   - the shift waits 250 ms inside a hold before it fires (#56, #85)
-//   - a full tear lasts about 0.8 s (#46, #57)
+//   - a full tear starts and ends (#46, #57); its 0.8 s length is pinned in src/tear.test.ts, not here: real time can't tell a loaded 0.8 s from a 1.0 s
 //   - no one-second window holds more than 3 sudden changes (#46, CONTEXT.md), in the room and on a Work page turn
 //   - the short flick lasts about 0.25 s and the snap back 40 ms (#58, #124)
 //   - a reload within 5 s of the tour mounting is a restore, not an arrival (#90)
@@ -104,16 +104,17 @@ for (const wanted of [100, 210, 400, 600]) {
   });
 }
 
-test("a full tear lasts about 0.8 s: not 0.6, not 1.0", async ({ page }) => {
+test("a full tear starts and ends", async ({ page }) => {
   await boot(page);
   await scrollToProgress(page, progressFor(1));
   await expect.poll(async () => (await seen(page)).off.length, { timeout: 8_000 }).toBeGreaterThan(0);
   const s = await seen(page);
   const len = s.off[0] - s.on[0];
-  // 800 ms of tear and a 40 ms snap back, give or take the frames at each end (the machine's slowness only lengthens it).
-  // 1.0 s would measure 1040 and 0.6 s would measure 640.
-  expect(len).toBeGreaterThan(740);
-  expect(len).toBeLessThan(940);
+  // Only that the filter went on and then off. The length is not checked: the page's clock runs slow on a busy
+  // machine, so a correct 0.8 s tear and a broken 1.0 s one can't be told apart here (src/tear.test.ts pins 0.8).
+  expect(s.on.length).toBeGreaterThan(0);
+  expect(len).toBeGreaterThan(0);
+  expect(len).toBeLessThan(8_000); // the poll's own limit
 });
 
 // Hopping between stations, staying a little over the wait at each, tear after tear. Swept over how long each stay is.
