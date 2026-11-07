@@ -33,10 +33,14 @@ export type Frame = {
   scratch: Scratch;
 };
 
+/** What each panel was last drawn as: held ("true"), resolving, or neither. Kept here, so the text never
+ *  decides from the element; `data-gated` is only written out for the CSS and the browser specs. */
+const drawn = new WeakMap<PanelEl, "true" | "resolving" | undefined>();
+
 /**
  * Places one station's panel for this frame: its opacity and visibility, whether it takes the wheel,
- * and where it sits over its CRT. `k` is the station's index in `crts`. What it last drew is kept on
- * the element (`data-gated`), so the resolve starts once when held text comes out, and a return's text
+ * and where it sits over its CRT. `k` is the station's index in `crts`. What it last drew is kept in this
+ * module (and written to `data-gated` for the CSS), so the resolve starts once when held text comes out, and a return's text
  * just appears. Whether the text is held, resolving or showing is the shift's to say (`textState`).
  */
 export function placeText(el: PanelEl, crt: Crt, k: number, f: Frame) {
@@ -47,11 +51,14 @@ export function placeText(el: PanelEl, crt: Crt, k: number, f: Frame) {
   const strength = panelStrength(progress, k + 1);
   const state = shift.textState(k + 1, progress, f.nowMs);
   const out = state !== "held";
-  if (out && el.dataset.gated === "true") { // only a first visit's text resolves; a return's just appears
-    if (state === "resolving") el.dataset.gated = "resolving"; else delete el.dataset.gated;
+  const before = drawn.get(el);
+  let now = before;
+  if (out && before === "true") now = state === "resolving" ? "resolving" : undefined; // only a first visit's text resolves; a return's just appears
+  else if (!out) now = strength >= PANEL_SHOWN ? "true" : undefined;
+  if (now !== before) {
+    drawn.set(el, now);
+    if (now) el.dataset.gated = now; else delete el.dataset.gated;
   }
-  else if (!out && strength >= PANEL_SHOWN) el.dataset.gated = "true";
-  else if (!out) delete el.dataset.gated;
   el.style.opacity = String(out ? strength : 0);
   el.style.visibility = strength < PANEL_SHOWN ? "hidden" : "visible";
   // Only during the hold does the panel take the wheel. Outside it the panel is shrinking or

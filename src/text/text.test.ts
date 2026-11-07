@@ -65,6 +65,19 @@ describe("a station's text", () => {
     s.observe(0); vi.advanceTimersByTime(100); s.place(1, 0); // leaving clears it for the next arrival
     expect(s.el.dataset.gated).toBeUndefined();
   });
+  it("decides from what the module drew, not from `data-gated` on the element", () => {
+    const s = setup();
+    s.observe(mid(1));
+    vi.advanceTimersByTime(WAIT_MS + 30 + FULL_MS);
+    delete s.el.dataset.gated; // tampered between frames: held text still resolves when it comes out
+    s.place(1, mid(1));
+    expect(s.el.dataset.gated).toBe("resolving");
+    s.el.dataset.gated = "true"; // tampered again: it stays resolving, not re-held
+    vi.advanceTimersByTime(100); s.place(1, mid(1));
+    expect(s.el.dataset.gated).toBe("true"); // not rewritten, but not read either
+    s.observe(0); vi.advanceTimersByTime(100); s.place(1, 0);
+    expect(s.el.dataset.gated).toBeUndefined();
+  });
   it("just appears on a return: it never resolves", () => {
     const s = setup();
     s.observe(mid(1)); vi.advanceTimersByTime(WAIT_MS + 30 + FULL_MS); s.place(1, mid(1)); vi.advanceTimersByTime(1000); s.place(1, mid(1));

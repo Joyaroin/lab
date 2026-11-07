@@ -99,7 +99,7 @@ get a folder; the rest are still flat files in `src/`.
   `data-glass`, `data-more`, the "more" cue). `TextPins` runs inside the canvas every frame, after the camera
   moves, and calls `placeText` for each panel: opacity, visibility, whether it takes the wheel, and its place
   over the glass or pinned beside the CRT. The room only mounts `TextPins`. The text keeps only what it last
-  drew, on the element (`data-gated`): the resolve starts once when held text comes out, and a return just
+  drew, in the module (a per-panel record, never read back from the element), and writes it out as `data-gated` for the CSS and the browser specs: the resolve starts once when held text comes out, and a return just
   appears. Whether the text is held, resolving or showing is the shift's to say (`textState`); the text module
   does not repeat that rule. The meter's check for text covering it asks `textCovers`, and nothing outside
   the module reads the panels' inline styles (the tear view only sets its filter).
