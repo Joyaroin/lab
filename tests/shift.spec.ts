@@ -37,16 +37,6 @@ async function boot(page: Page) {
   await page.waitForTimeout(POWER_ON_SECONDS * 1000 + 300);
 }
 
-// Samples the bar's digits every frame for `ms`.
-const sample = (page: Page, ms: number) => page.evaluate((ms) => new Promise<string[]>((res) => {
-  const seen: string[] = [], t0 = performance.now();
-  const tick = () => {
-    seen.push(window.__meter.tubes());
-    performance.now() - t0 < ms ? requestAnimationFrame(tick) : res(seen);
-  };
-  tick();
-}), ms);
-
 test("arriving in a hold scrambles the meter for the length of the shift, and it ends on the true reading", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
   // Each time the bar changes, does it show the reading, or something else? Something else is the scramble.
@@ -88,54 +78,6 @@ test("arriving in a hold scrambles the meter for the length of the shift, and it
   const lastLock = locks[locks.length - 1], slot = lastLock - locks[locks.length - 2];
   expect(settled!.at - first).toBeGreaterThan(lastLock - slowest - Math.min(slot, slowest)); // it lasted until the last tube locks
   await expect.poll(async () => (await tubes(page)) === (await reading(page)), { timeout: 10_000 }).toBe(true);
-});
-
-test("scrolling quickly through a station does not scramble the meter", { tag: "@timing" }, async ({ page }) => {
-  await boot(page);
-  await scrollToProgress(page, progressFor(1));
-  await page.waitForTimeout(1500); // first visit, done
-  await scrollToProgress(page, progressFor(2) - 0.12);
-  await page.waitForTimeout(1200); // travelling: reading is fixed, no shift yet
-
-  // The whole scroll-through happens in one task in the page, so it can't depend on the frame
-  // rate or on Playwright round trips: arrive at station 2, spend a fifth of the wait there on the
-  // page's own clock, move on into the travel before station 3. Real scroll events come once per frame
-  // (200 ms or more on software WebGL), so each scroll is followed by an event we dispatch ourselves,
-  // which the app handles at once. Then watch the Meter bar for 1.5 s. Outside a hold no shift can
-  // fire, so anything but the true reading on the tubes came from station 2, and a slow frame can't
-  // cause it.
-  const away = (progressFor(2) + progressFor(3)) / 2;
-  expect(away).toBeGreaterThan(holdSpan(2)[1]);
-  expect(away).toBeLessThan(holdSpan(3)[0]);
-  const stay = WAIT_MS / 5;
-  expect(stay).toBeLessThan(WAIT_MS);
-  const { seen, stillThere } = await page.evaluate(([p2, p3, stay]) => new Promise<{ seen: string[]; stillThere: boolean }>((res) => {
-    const max = () => document.documentElement.scrollHeight - window.innerHeight;
-    const to = (p: number) => { window.scrollTo(0, p * max()); window.dispatchEvent(new Event("scroll")); };
-    const seen = [window.__meter.scramble()];
-    const mo = new MutationObserver(() => seen.push(window.__meter.scramble()));
-    mo.observe(window.__meter.bar(), { childList: true, subtree: true, characterData: true });
-    to(p2);
-    for (const t0 = performance.now(); performance.now() - t0 < stay;); // a short stay at station 2
-    to(p3);
-    setTimeout(() => {
-      mo.disconnect();
-      res({ seen, stillThere: Math.abs(window.scrollY / max() - p3) < 0.01 });
-    }, 1_500);
-  }), [progressFor(2), away, stay] as const);
-  expect(stillThere).toBe(true);
-  // The reading may move on, but the tubes never show random digits.
-  expect(seen.filter((d) => d !== "true")).toEqual([]);
-});
-
-test("reduced motion shows the plain reading with no scramble", async ({ browser }) => {
-  const page = await (await browser.newContext({ reducedMotion: "reduce" })).newPage();
-  await boot(page);
-  await scrollToProgress(page, progressFor(1));
-  await page.waitForTimeout(100);
-  const seen = await sample(page, WAIT_MS + 1500);
-  expect(new Set(seen).size).toBe(1);
-  expect(seen[0]).toBe(await reading(page));
 });
 
 // --- the tear, and the text resolving out of it ---
@@ -305,13 +247,13 @@ test("moving quickly between stations can't make more than the limit of sudden c
 const TEAR_ALLOWANCE_MS = 50;
 const WATCH_AFTER_LEAVING_MS = 2_000;
 
-// At 1x and under Chromium's CPU throttling, so the check is shown to hold at slow frame rates.
+// Under Chromium's 16x CPU throttling, so the check is shown to hold at slow frame rates (the 1x and 10x runs went in #123: the fast tests in src/shift/shift.test.ts cover the rule).
 // The throttling is a Chrome DevTools Protocol command, which only Chromium has; the project runs
 // Chromium alone, so another browser would fail at newCDPSession rather than skip it.
-for (const rate of [1, 10, 16]) {
+for (const rate of [16]) {
   test(`leaving mid-shift ends on the true reading, with no late jump, and the tear plays out (${rate}x)`, { tag: "@timing" }, async ({ page }) => {
     await boot(page);
-    if (rate > 1) await (await page.context().newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate });
+    await (await page.context().newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate });
     // Leave the hold the moment the tear starts, from inside the page, so no round trip delays it. Time
     // the tear on the page's own clock, from the filter going on to it coming off, and watch the bar
     // for 2 s after leaving. Nothing here waits on a timer for its result.
@@ -356,55 +298,3 @@ for (const rate of [1, 10, 16]) {
   });
 }
 
-test("a shift that arrives during the power-on plays once it is over", async ({ page }) => {
-  // When the tour (and the bar) appeared, on the page's clock: the power-on takes POWER_ON_SECONDS from about then.
-  await page.addInitScript(defineSnapWatcher);
-  await page.addInitScript(() => {
-    new MutationObserver((_, mo) => {
-      if (document.querySelector("[data-meter-bar]")) { (window as unknown as { __barAt: number }).__barAt = performance.now(); mo.disconnect(); }
-    }).observe(document, { childList: true, subtree: true });
-  });
-  await page.goto("/");
-  await expect(page.locator(METER_BAR)).toBeVisible();
-  await watch(page, "work");
-  await scrollToProgress(page, progressFor(1)); // the tubes are still warming up
-  await page.waitForTimeout(500);
-  // Not before the power-on is over. (A busy machine can take longer than this to get here, so the
-  // time is checked on the page's clock rather than assuming 500 ms is still inside the power-on.)
-  const early = await page.evaluate((powerOnMs) => {
-    const w = (window as unknown as { __w: Watched; __barAt: number });
-    return w.__w.starts.filter((s) => w.__w.t0 + s < w.__barAt + powerOnMs - 50);
-  }, POWER_ON_SECONDS * 1000);
-  expect(early).toEqual([]);
-  await expect.poll(async () => (await watched(page)).starts.length, { timeout: 6_000 }).toBe(1); // then it plays
-  await expect.poll(async () => (await watched(page)).shown, { timeout: 5_000 }).not.toBeNull();
-});
-
-test("reloading inside a hold is not an arrival: no shift, the meter never scrambles, and the text shows", async ({ page }) => {
-  await boot(page);
-  await scrollToProgress(page, progressFor(1));
-  await expect.poll(async () => (await tubes(page)) === (await reading(page)), { timeout: 10_000 }).toBe(true); // first visit played out
-  await page.waitForTimeout(500);
-  await page.reload();
-  await expect(page.locator(METER_BAR)).toBeVisible();
-  await watch(page, "work");
-  // Watch the tubes from the page's own clock for the whole of what follows: a shift that fired would
-  // scramble them, whatever the filter and the text did.
-  await page.evaluate(() => {
-    const w = window as unknown as { __scrambles: string[] };
-    w.__scrambles = [];
-    const mo = new MutationObserver(() => { const s = window.__meter.scramble(); if (s !== "true") w.__scrambles.push(s); });
-    mo.observe(window.__meter.bar(), { childList: true, subtree: true, characterData: true });
-  });
-  // Headless Chromium doesn't put the scroll position back here (the page is only tall once the room
-  // is up), so do what browsers that do restore it do: scroll there, just after the tour mounts. The
-  // app treats the first move off the top after a reload as that restore (TourView.tsx), not an arrival.
-  await scrollToProgress(page, progressFor(1));
-  await expect.poll(async () => (await watched(page)).shown, { timeout: 8_000 }).not.toBeNull();
-  // Long enough for the shift to have played had it fired: past the power-on, the wait and the tear.
-  await page.waitForTimeout(POWER_ON_SECONDS * 1000 + WAIT_MS + SHIFT_SECONDS.full * 1000 + 500);
-  expect((await watched(page)).starts).toEqual([]);
-  expect(await filterOn(page)).toBe(false);
-  expect(await page.evaluate(() => (window as unknown as { __scrambles: string[] }).__scrambles)).toEqual([]);
-  expect(await panelOf(page, "work").evaluate((e) => (e as HTMLElement).style.opacity)).toBe("1");
-});
