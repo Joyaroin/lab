@@ -1,88 +1,14 @@
 import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, type MutableRefObject } from "react";
-import { MeshBasicMaterial, Vector3, type Mesh, type MeshStandardMaterial } from "three";
+import { MeshBasicMaterial, type Mesh, type MeshStandardMaterial } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import roomUrl from "./assets/room.glb?url";
-import { CAMERA_FOV, crts, ENTRANCE, glassEdge, panelPoint } from "./crts";
-import { glassBox } from "./glass";
-import { fitPanel, glassFontSize } from "./pin";
-import { holdSpan, PANEL_SHOWN, panelStrength } from "./hold";
-import { parallax, textOnGlass, parallaxStrength, tourAt } from "./tour";
+import { CAMERA_FOV, ENTRANCE } from "./crts";
+import { parallax, parallaxStrength, tourAt } from "./tour";
 import { Bezels, DeskMeter, Phosphor, Rain } from "./Effects";
 import type { MeterLink } from "./nixie";
 import type { Shift } from "./shift";
-import { markMore } from "./ScreenPanels";
-
-// Pins each station's HTML panel (a DOM element with data-screen="<id>") to its real CRT in the
-// baked room: every frame it projects the CRT's panel point (the CRT's place in room-layout.json, via crts.ts) into
-// the window and places the panel there (on a phone, the station's phone pin if it has one), as
-// wide as the CRT looks, kept inside the window by fitPanel. The text stays real HTML, so it is
-// sharp at any size, selectable, and its links work. Only the current station's panel is shown.
-function ScreenPins({ progress, shift }: { progress: MutableRefObject<number>; shift: Shift }) {
-  const c = useMemo(() => new Vector3(), []);
-  const e = useMemo(() => new Vector3(), []);
-  const p = useMemo(() => new Vector3(), []);
-  useFrame(({ camera, size }) => {
-    camera.updateMatrixWorld(); // CameraRig just moved it; project from where it is now
-    crts.forEach((crt, k) => {
-      const el = document.querySelector<HTMLElement>(`[data-screen="${crt.id}"]`);
-      if (!el) return;
-      // Full for the whole hold. Held back (but still in the page, for readers and selection)
-      // from arrival until the shift ends, then (first visit) it resolves out of the effect. A return's
-      // text shows when the wait ends and the flick plays over it.
-      const strength = panelStrength(progress.current, k + 1);
-      const state = shift.textState(k + 1, progress.current, performance.now());
-      const out = state !== "held";
-      if (out && el.dataset.gated === "true") { // only a first visit's text resolves; a return's just appears
-        if (state === "resolving") el.dataset.gated = "resolving"; else delete el.dataset.gated;
-      }
-      else if (!out && strength >= PANEL_SHOWN) el.dataset.gated = "true";
-      else if (!out) delete el.dataset.gated;
-      el.style.opacity = String(out ? strength : 0);
-      el.style.visibility = strength < PANEL_SHOWN ? "hidden" : "visible";
-      // Only during the hold does the panel take the wheel. Outside it the panel is shrinking or
-      // growing with the camera, so its text overflows differently every frame and would eat the
-      // wheel steps that should move the tour on.
-      const [h0, h1] = holdSpan(k + 1);
-      el.style.pointerEvents = out && progress.current >= h0 && progress.current <= h1 ? "auto" : "none";
-      if (strength < PANEL_SHOWN) return;
-      if (textOnGlass(progress.current, k + 1, size.width / size.height)) {
-        // Desktop: the camera is square to the glass, so the text is laid exactly over it.
-        const { left, top, width, height } = glassBox(crt, camera, size);
-        el.style.width = `${width}px`;
-        el.style.height = `${height}px`;
-        if (el.style.maxHeight !== "none") el.style.maxHeight = "none"; // the fixed height is the limit
-        el.style.fontSize = `${glassFontSize(width)}px`;
-        el.dataset.glass = "true";
-        el.style.transform = `translate(${left}px, ${top}px)`;
-        markMore(el);
-        return;
-      }
-      el.style.height = "";
-      el.style.fontSize = "";
-      delete el.dataset.glass;
-      const [x, y, z] = crt.screen;
-      c.set(x, y, z).project(camera);
-      e.set(...glassEdge(crt)).project(camera);
-      p.set(...panelPoint(crt, size.width / size.height)).project(camera);
-      const px = (p.x * 0.5 + 0.5) * size.width, py = (-p.y * 0.5 + 0.5) * size.height;
-      const crtWidth = Math.hypot((e.x - c.x) * size.width, (e.y - c.y) * size.height);
-      // Set the width first, then measure the natural height at that width and fit, so the
-      // panel settles in this one frame: frames are only drawn on demand.
-      el.style.width = `${fitPanel(size, px, py, crtWidth, 0).width}px`;
-      // With no height limit nothing overflows, so the browser resets scrollTop to 0: keep it and
-      // put it back once the limit is restored (it is clamped to the new range if the panel shrank).
-      const kept = el.scrollTop;
-      el.style.maxHeight = "none";
-      const f = fitPanel(size, px, py, crtWidth, el.scrollHeight);
-      el.style.maxHeight = `${f.maxHeight}px`;
-      el.scrollTop = kept;
-      el.style.transform = `translate(${f.left}px, ${f.top}px)`;
-      markMore(el);
-    });
-  });
-  return null;
-}
+import { TextPins } from "./text/TextPins";
 
 // The baked room (tools/room/build.py): one mesh whose lighting is already in its texture, so
 // it is drawn unlit. Lazy-loaded, so three.js and the model stay out of the first screen.
@@ -148,7 +74,7 @@ export default function Room({ onReady, onProgress, progress, reduced, meter, sh
       camera={{ position: ENTRANCE.camera, fov: CAMERA_FOV }}
     >
       <CameraRig progress={progress} reduced={reduced} />
-      <ScreenPins progress={progress} shift={shift} />
+      <TextPins progress={progress} shift={shift} />
       <Suspense fallback={null}>
         <BakedRoom onLoaded={onReady} onProgress={onProgress} />
         <DeskMeter link={meter} shift={shift} reduced={reduced} />

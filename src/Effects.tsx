@@ -2,6 +2,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { createRef, useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { AdditiveBlending, CanvasTexture, CylinderGeometry, DoubleSide, SRGBColorSpace, Vector3, type Camera, type Mesh, type MeshBasicMaterial } from "three";
 import { textOnGlass } from "./tour";
+import { textCovers } from "./text/place";
 import { crts, CRT_GLASS, DESK_METER, NOTE_AT, PLATE_AT, type Crt } from "./crts";
 import { powerOn, shiftDigits, type MeterLink } from "./nixie";
 import type { Shift } from "./shift";
@@ -88,7 +89,7 @@ function meterInView(camera: Camera, size: { width: number; height: number }, en
   const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
   const box = { l: Math.min(...xs), r: Math.max(...xs), t: Math.min(...ys), b: Math.max(...ys) };
   for (const el of document.querySelectorAll<HTMLElement>("[data-screen], [data-meter-bar]")) {
-    if (el.style.visibility === "hidden" || el.dataset.meterBar === undefined && Number(el.style.opacity) < 0.3) continue;
+    if (el.dataset.meterBar === undefined ? !textCovers(el) : el.style.visibility === "hidden") continue;
     const r = el.getBoundingClientRect();
     if (box.l < r.right && box.r > r.left && box.t < r.bottom && box.b > r.top) return false;
   }

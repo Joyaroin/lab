@@ -3,7 +3,7 @@ import type { MeterLink } from "./nixie";
 import { Tear, type PageTurn } from "./TearView";
 import { stations } from "./content";
 import { Hud } from "./Hud";
-import { ScreenPanels } from "./ScreenPanels";
+import { ScreenPanels } from "./text/ScreenPanels";
 import { Meter } from "./Meter";
 import { formatReading, gapLabel, type Gap } from "./gap";
 import { pendingDeploys } from "./useGap";

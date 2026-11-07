@@ -95,5 +95,13 @@ get a folder; the rest are still flat files in `src/`.
   `shift.hold` is the hold the visitor is in. The room asks it one question per station per frame,
   `shift.textState(station, progress, nowMs)`: `held`, `resolving` or `showing`. Asking changes nothing; the
   module's state changes when it learns something (a shift fires, the visitor leaves, a reload restores).
+- **`src/text/`**: a station's text. `ScreenPanels` renders the panels and holds their CSS states (`data-gated`,
+  `data-glass`, `data-more`, the "more" cue). `TextPins` runs inside the canvas every frame, after the camera
+  moves, and calls `placeText` for each panel: opacity, visibility, whether it takes the wheel, and its place
+  over the glass or pinned beside the CRT. The room only mounts `TextPins`. The text keeps only what it last
+  drew, on the element (`data-gated`): the resolve starts once when held text comes out, and a return just
+  appears. Whether the text is held, resolving or showing is the shift's to say (`textState`); the text module
+  does not repeat that rule. The meter's check for text covering it asks `textCovers`, and nothing outside
+  the module reads the panels' inline styles (the tear view only sets its filter).
 - The tour view (`TourView.tsx`) reads scroll and renders. The room (`Room.tsx`, `Effects.tsx`) draws the
   scene and the desk meter. The nixie module (`nixie.ts`) is the meter's digits and power-on.

@@ -1,9 +1,10 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import type { OnPageTurn } from "./TearView";
-import { pageSwitch, stations, type Diagram, type Station } from "./content";
+import { markMore } from "./more";
+import type { OnPageTurn } from "../TearView";
+import { pageSwitch, stations, type Diagram, type Station } from "../content";
 
-// Each station's text as real HTML. The room (Room.tsx) pins each panel to its CRT screen and
-// sets its position, size and opacity; this file only holds how it looks: green phosphor with
+// Each station's text as real HTML. place.ts (run per frame by TextPins, which the room mounts)
+// pins each panel to its CRT screen and sets its position, size and opacity; this file holds how it looks: green phosphor with
 // fine scanlines and a curved-glass vignette, all drawn by CSS behind the text so it stays sharp.
 // When the text runs past the panel's height, a fade and a "more" hint sit at its bottom edge
 // until the visitor has scrolled to the end.
@@ -106,12 +107,6 @@ function DiagramFigure({ d }: { d: Diagram }) {
   );
 }
 const figure: CSSProperties = { margin: "0 0 0.7em", padding: 0 };
-
-/** Marks a panel whose text runs on below its bottom edge, which shows the "more" cue. */
-export function markMore(el: HTMLElement) {
-  const more = el.scrollHeight - el.clientHeight - el.scrollTop > 4;
-  if (el.dataset.more !== String(more)) el.dataset.more = String(more);
-}
 
 const css = `
 .crt-panel { padding: 0.9em 1em; border: 1px solid #2f7a4d; border-radius: 14px;
