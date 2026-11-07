@@ -35,3 +35,11 @@ describe("checkBudget", () => {
     expect(r.errors[0]).toMatch(/whole site/);
   });
 });
+
+describe("the budgets themselves", () => {
+  // Written out, so a change to the limits (which the spec says to ask about first) fails here.
+  it("are about 100 KB for the first screen and 15 MB for the whole site, in gzip bytes", async () => {
+    const { BUDGETS } = await import("./check-budget.mjs");
+    expect(BUDGETS).toEqual({ firstScreen: 100 * 1024, total: 15 * 1024 * 1024 });
+  });
+});

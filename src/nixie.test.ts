@@ -20,6 +20,10 @@ describe("meter power-on", () => {
       expect(powerOn(t, digits)).toEqual({ digits, glow: 1, done: true });
     }
   });
+  it("lasts 1.4 s: still warming at 1.39 s, done at 1.4 s (#71)", () => {
+    expect(powerOn(1.39, digits).done).toBe(false);
+    expect(powerOn(1.4, digits).done).toBe(true);
+  });
   it("settles tubes left to right", () => {
     const s = powerOn(POWER_ON_SECONDS * 0.85, "0.000000", () => 0.99);
     expect(s.digits.startsWith("0.0")).toBe(true);

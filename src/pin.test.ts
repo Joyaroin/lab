@@ -23,6 +23,12 @@ describe("fitPanel", () => {
     expect(fitPanel(phone, 195, 400, 200, 2000).maxHeight).toBeLessThanOrEqual(free / 2);
     expect(fitPanel(wins[0], 640, 400, 400, 2000).maxHeight).toBe(wins[0].height - TOP_CLEAR - BOTTOM_CLEAR);
   });
+  it("never makes the panel wider than 640 px, however wide the window and the CRT (#49)", () => {
+    const wide = { width: 2560, height: 1440 };
+    expect(fitPanel(wide, 1280, 700, 1500, 300).width).toBe(640);
+    expect(fitPanel(wide, 1280, 700, 640, 300).width).toBe(640);
+    expect(fitPanel(wide, 1280, 700, 639, 300).width).toBe(639); // under the cap it follows the CRT
+  });
   it("centres on the CRT when there is room", () => {
     const f = fitPanel(wins[0], 640, 400, 400, 200);
     expect(f.left + f.width / 2).toBe(640);

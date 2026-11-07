@@ -1,4 +1,4 @@
-# Runs on every branch. A PR needs all five green before it merges.
+# Runs on every branch. A PR needs all six green before it merges.
 name: ci
 on:
   push:
@@ -137,6 +137,70 @@ jobs:
           EXIT_FILE: ${{ runner.temp }}/exit
           START_FILE: ${{ runner.temp }}/start
           REPORT: ${{ runner.temp }}/playwright.json
+          MASK_ENV: TOKEN
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/post-ci-failure.mjs
+  # Takes every station at desktop and phone size on the GPU and puts them on the branch's open PR,
+  # replacing the last push's comment. With no open PR it passes and attaches nothing. A shot that
+  # can't be taken, or can't be attached, fails the job.
+  screenshots:
+    runs-on: docker
+    steps:
+      - name: Record start time
+        id: start
+        run: date +%s > "${{ runner.temp }}/start"
+      - uses: actions/checkout@v4
+        id: checkout
+      - name: Find the open PR
+        id: pr
+        env:
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/post-screenshots.mjs find
+      # CI only: the same drivers as the browser job.
+      - name: Install the graphics drivers
+        id: drivers
+        if: steps.pr.outputs.pr != ''
+        run: apt-get update && apt-get install -y libgl1-mesa-dri libegl-mesa0 libgbm1 mesa-vulkan-drivers
+      - name: Take the screenshots
+        id: run
+        if: steps.pr.outputs.pr != ''
+        env:
+          SHOTS_DIR: ${{ runner.temp }}/shots
+        run: |
+          set -o pipefail
+          { npm ci && npx playwright install --with-deps chromium && npx playwright test -c playwright.screenshots.config.ts --reporter=list; } 2>&1 | tee "${{ runner.temp }}/out.log" || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
+      - name: Attach them to the PR
+        id: post
+        if: steps.pr.outputs.pr != ''
+        env:
+          PR: ${{ steps.pr.outputs.pr }}
+          SHOTS_DIR: ${{ runner.temp }}/shots
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/post-screenshots.mjs post
+      # Forgejo has no job-log API, so put the failure on the PR. Best effort: it never changes
+      # the job result, and a failed post is only logged.
+      - name: Post the failure on the PR
+        if: failure()
+        continue-on-error: true
+        env:
+          JOB: screenshots
+          STEPS: start=${{ steps.start.outcome }} checkout=${{ steps.checkout.outcome }} pr=${{ steps.pr.outcome }} drivers=${{ steps.drivers.outcome }} run=${{ steps.run.outcome }} post=${{ steps.post.outcome }}
+          RUN_STEP: run
+          CMD: npx playwright test -c playwright.screenshots.config.ts
+          OUT_FILE: ${{ runner.temp }}/out.log
+          EXIT_FILE: ${{ runner.temp }}/exit
+          START_FILE: ${{ runner.temp }}/start
           MASK_ENV: TOKEN
           SERVER_URL: ${{ github.server_url }}
           REPOSITORY: ${{ github.repository }}

@@ -324,7 +324,22 @@ describe("ci.yml", () => {
   const yml = readFileSync(new URL("../.forgejo/workflows/ci.yml", import.meta.url), "utf8");
   it("every post step has continue-on-error: true", () => {
     const posts = yml.split(/\n      - /).filter((b) => b.includes("post-ci-failure.mjs"));
-    expect(posts).toHaveLength(5);
+    expect(posts).toHaveLength(6);
     for (const p of posts) expect(p).toMatch(/continue-on-error: true/);
+  });
+});
+
+describe("ci.yml screenshots job", () => {
+  const yml = readFileSync(new URL("../.forgejo/workflows/ci.yml", import.meta.url), "utf8");
+  const job = yml.slice(yml.indexOf("  screenshots:"), yml.indexOf("  secret-scan:"));
+  it("masks the token in its failure report and takes it from GITHUB_TOKEN only", () => {
+    expect(job).toMatch(/MASK_ENV: TOKEN/);
+    expect(job.match(/TOKEN: (.*)/g)?.every((l) => l.endsWith("${{ secrets.GITHUB_TOKEN }}"))).toBe(true);
+  });
+  it("skips the browser steps when there is no open PR", () => {
+    for (const id of ["drivers", "run", "post"]) {
+      const step = job.slice(job.indexOf(`id: ${id}`)).split("\n      - ")[0];
+      expect(step, id).toContain("if: steps.pr.outputs.pr != ''");
+    }
   });
 });
