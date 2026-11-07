@@ -61,7 +61,7 @@ export function Tour({ gap, progress, meter, shift: shifts }: { gap: Gap | null;
   }, []);
 
   const deploys = gap ? gap.deploys : pendingDeploys;
-  const t = tourAt(p, deploys, { width: window.innerWidth, height: window.innerHeight });
+  const t = tourAt(p, deploys);
   const label = gap ? gapLabel(gap) : "reading prod and staging…";
   const next = t.nearestStop >= STATION_COUNT ? 0 : t.nearestStop + 1;
   const digits = formatReading(Math.round(t.reading));

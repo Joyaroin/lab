@@ -4,7 +4,8 @@ import { MeshBasicMaterial, type Mesh, type MeshStandardMaterial } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import roomUrl from "./assets/room.glb?url";
 import { CAMERA_FOV, ENTRANCE } from "./crts";
-import { parallax, parallaxStrength, tourAt } from "./tour";
+import { framingFor } from "./framing";
+import { parallax } from "./tour";
 import { Bezels, DeskMeter, Phosphor, Rain } from "./Effects";
 import type { MeterLink } from "./nixie";
 import type { Shift } from "./shift";
@@ -46,10 +47,11 @@ function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; 
     return () => { window.removeEventListener("scroll", redraw); window.removeEventListener("pointermove", redraw); };
   }, [invalidate]);
   useFrame(({ gl, camera, pointer, size }, dt) => {
-    const { camera: target, look } = tourAt(progress.current, 0, { width: size.width, height: size.height, reduced });
+    const framing = framingFor(size);
+    const { camera: target, look } = framing.cameraAt(progress.current, reduced);
     // dt is large after an idle spell, so cap it: the first frame of a move still eases.
     const k = reduced ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 6);
-    const [px, py, pz] = reduced ? [0, 0, 0] : parallax(target, look, pointer, parallaxStrength(progress.current, size.width / size.height));
+    const [px, py, pz] = reduced ? [0, 0, 0] : parallax(target, look, pointer, framing.parallaxStrength(progress.current));
     const dx = target[0] + px - camera.position.x, dy = target[1] + py - camera.position.y, dz = target[2] + pz - camera.position.z;
     camera.position.x += dx * k;
     camera.position.y += dy * k;

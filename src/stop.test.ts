@@ -3,14 +3,14 @@ import { PerspectiveCamera } from "three";
 import { CAMERA_FOV, crts } from "./crts";
 import { glassBox, glassOnScreen } from "./glass";
 import { progressFor } from "./hold";
-import { tourAt } from "./tour";
+import { framingFor } from "./framing";
 import { BOTTOM_CLEAR, SIDE, TOP_CLEAR } from "./pin";
 import { squareStop } from "./stop";
 
 /** The glass on screen at station `i`'s hold, through the code the app runs: the tour's camera
- *  (tourAt, as CameraRig sets it) and the projection Room.tsx pins the text with (glassOnScreen). */
+ *  (the framing's camera, as CameraRig sets it) and the projection Room.tsx pins the text with (glassOnScreen). */
 function glassAtHold(i: number, w: number, h: number) {
-  const t = tourAt(progressFor(i + 1), 0, { width: w, height: h });
+  const t = framingFor({ width: w, height: h }).cameraAt(progressFor(i + 1));
   const cam = new PerspectiveCamera(CAMERA_FOV, w / h, 0.1, 1000); // react-three-fiber's default near and far
   cam.position.set(...t.camera);
   cam.lookAt(...t.look);

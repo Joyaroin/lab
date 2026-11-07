@@ -4,7 +4,7 @@ import { CAMERA_FOV, crts } from "../crts";
 import { holdSpan, progressFor } from "../hold";
 import { createShift, WAIT_MS } from "../shift";
 import { POWER_ON_SECONDS, SHIFT_SECONDS } from "../nixie";
-import { tourAt } from "../tour";
+import { framingFor } from "../framing";
 import { markMore } from "./more";
 import { placeText, scratch, textCovers, type PanelEl } from "./place";
 
@@ -32,7 +32,7 @@ function setup(window = { width: 1280, height: 800 }) {
   const el = fakeEl();
   /** The visitor moves to `p` (the camera follows at once) and the text for station `i` is placed once. */
   const place = (i: number, p: number, node = el) => {
-    const t = tourAt(p, 0, window);
+    const t = framingFor(window).cameraAt(p);
     cam.position.set(...t.camera); cam.lookAt(...t.look); cam.updateMatrixWorld();
     placeText(node, crts[i - 1], i - 1, { camera: cam, size: window, progress: p, nowMs: performance.now(), shift, scratch: sc });
   };

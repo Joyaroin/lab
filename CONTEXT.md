@@ -66,6 +66,11 @@ The language of this project: its terms, what each one means, and what it doesn'
 - **HUD**: the small always-on corner overlay with résumé, contact and station links.
 - **Phone stop**: a station's own camera stop, look point and text pin used on a portrait window instead of
   the pulled-back view, where that view would be mostly dark. Only MediaSafe and WC2026 have one.
+- **Framing**: how the camera and the text are set for the window's shape. Two exist. **Square** (a window
+  at least as wide as tall): each station's own square stop, worked out from the window; the text is laid
+  over the glass; no mouse parallax in a hold. **Portrait** (taller than wide): the pull-back, or the phone
+  stop where a station has one; the text pinned beside the CRT; full parallax. Chosen from the current
+  window each time, so rotating or resizing switches it. In code: `framingFor(window)` in `src/framing`.
 - **Shift**: the moment of arrival at a station, when the view tears and the meter scrambles and locks
   onto the reading. It fires once the visitor has stayed inside a hold, not when scrolling past. Full on
   a station's first visit, a short flick after. Never at the entrance, never with reduced motion. The
@@ -103,5 +108,11 @@ get a folder; the rest are still flat files in `src/`.
   appears. Whether the text is held, resolving or showing is the shift's to say (`textState`); the text module
   does not repeat that rule. The meter's check for text covering it asks `textCovers`, and nothing outside
   the module reads the panels' inline styles (the tear view only sets its filter).
+- **`src/framing/`**: the framing. `framingFor({ width, height })` picks Square or Portrait, and is called with
+  the current window each time. The framing answers `cameraAt(progress, reduced)` (camera and look),
+  `textOnGlass(progress, station)`, `parallaxStrength(progress)` and `panelPoint(crt)`; nothing else decides
+  the portrait split. The tour module (`src/tour.ts`) keeps the legs, arcs and readings: `tourAt(progress, gap)`
+  gives the nearest stop and reading from progress alone, and `flyAlong` flies the legs between the stops a
+  framing supplies. The narrow-window width check in `src/pin.ts` (`NARROW`) is a different rule and stays.
 - The tour view (`TourView.tsx`) reads scroll and renders. The room (`Room.tsx`, `Effects.tsx`) draws the
   scene and the desk meter. The nixie module (`nixie.ts`) is the meter's digits and power-on.

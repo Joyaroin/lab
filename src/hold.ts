@@ -21,7 +21,7 @@ export const progressFor = (i: number) => {
 };
 
 /** How much travel (as a share of one stretch) the text takes to fade out. It is gone before the
- *  mouse parallax starts (`PARALLAX_FROM` in tour.ts), so flat text never sits over tilting glass. */
+ *  mouse parallax starts (`PARALLAX_FROM` in src/framing), so flat text never sits over tilting glass. */
 export const TEXT_FADE = 0.18;
 
 /** How strongly station `i`'s text panel shows at scroll progress `progress`: full for the whole

@@ -3,7 +3,7 @@ import { PerspectiveCamera, Vector3 } from "three";
 import { stations } from "../src/content";
 import { CAMERA_FOV, crts, CRT_GLASS, NOTE_AT, PLATE_AT } from "../src/crts";
 import { PER_STATION, TOTAL, TRAVEL, progressFor } from "../src/hold";
-import { tourAt } from "../src/tour";
+import { framingFor } from "../src/framing";
 
 // Each TV's bezel has a crisp dark edge round the glass, a maker's plate and its own sticky note.
 // This flies to each TV the way the page does, projects points on the bezel from the tour's own
@@ -13,7 +13,7 @@ import { tourAt } from "../src/tour";
 const size = { width: 1280, height: 800 };
 const WIDE = 0.6; // far enough into the travel that the whole bezel is in frame
 
-const cameraAt = (p: number) => tourAt(p, 0, size).camera;
+const cameraAt = (p: number) => framingFor(size).cameraAt(p).camera;
 
 async function scrollToProgress(page: Page, p: number) {
   await page.evaluate((p) => scrollTo(0, p * (document.documentElement.scrollHeight - innerHeight)), p);
@@ -27,7 +27,7 @@ async function scrollToProgress(page: Page, p: number) {
 
 /** Window-pixel position of the point `x` metres right and `y` up from TV `i`'s glass centre. */
 function onBezel(i: number, p: number, x: number, y: number): [number, number] {
-  const s = tourAt(p, 0, size);
+  const s = framingFor(size).cameraAt(p);
   const cam = new PerspectiveCamera(CAMERA_FOV, size.width / size.height, 0.01, 50);
   cam.position.set(...s.camera); cam.lookAt(new Vector3(...s.look)); cam.updateMatrixWorld();
   const c = crts[i], a = (c.yaw * Math.PI) / 180;

@@ -4,7 +4,7 @@
 // The numbers live in room-layout.json, which tools/room/build.py also reads to place the CRTs,
 // so the room and the tour can't drift apart. Change a CRT's place there, then re-bake (`make room`).
 // Positions are in site axes: x across, y up, +z toward the room's door.
-// `with { type: "json" }` so a Playwright test can import this file (and tour.ts) in plain Node,
+// `with { type: "json" }` so a Playwright test can import this file (and the framing) in plain Node,
 // which refuses a JSON import without it. useGap.ts imports its JSON bare: only Vite loads that one.
 import layout from "./room-layout.json" with { type: "json" };
 
@@ -13,7 +13,7 @@ type V3 = [number, number, number];
 export type Stop = { camera: V3; look: V3; panel: V3 };
 /** `panel` is where the station's text is pinned: the CRT screen, unless the layout gives a
  *  point beside it so the text leaves the station's subject in view (the home lab's rack).
- *  `portrait` is how much further back the camera stands on a portrait window (see tour.ts).
+ *  `portrait` is how much further back the camera stands on a portrait window (see src/framing).
  *  `phone`, if set, replaces that pull-back with its own stop on a portrait window, to bring lit
  *  parts of the room into a tall, narrow frame. Desktop never uses it. */
 export type Crt = { id: string; screen: V3; yaw: number; camera: V3; look: V3; panel: V3; portrait: number; phone?: Stop };
@@ -39,18 +39,12 @@ export const crts: Crt[] = (layout.crts as LayoutCrt[]).map((c) => ({
   ...(c.phone && { phone: { camera: v3(c.phone.camera), look: v3(c.phone.look), panel: v3(c.phone.panel ?? c.panel ?? c.screen) } }),
 }));
 
-/** A window taller than it is wide (aspect is width over height). Phones in portrait. */
-export const isPortrait = (aspect: number) => aspect < 1;
-
-/** Where a station's text is pinned in a window of this shape. */
-export const panelPoint = (crt: Crt, aspect: number): V3 => (isPortrait(aspect) && crt.phone ? crt.phone.panel : crt.panel);
-
 /** The camera's vertical field of view, in degrees. */
 export const CAMERA_FOV = 55;
 
 /** Where the camera stands at the entrance, which is not a station, and what it looks at: close
  *  on the desk meter. `reveal` is the wide view of the room the camera pulls back through on its
- *  way to the first station (see tour.ts). */
+ *  way to the first station (see src/framing). */
 const entrance: { camera: number[]; look: number[]; portrait?: number; reveal: { camera: number[]; look: number[] } } = layout.entrance;
 export const ENTRANCE = {
   camera: v3(entrance.camera), look: v3(entrance.look), portrait: entrance.portrait ?? 1,
@@ -87,5 +81,5 @@ export function glassCorners(crt: Crt): V3[] {
 }
 
 /** One wide view of the room per leg between stations (leg 1 is the first station to the second):
- *  where the camera and its look point are halfway along that leg (see tour.ts). */
+ *  where the camera and its look point are halfway along that leg (see src/framing). */
 export const ARCS: { camera: V3; look: V3 }[] = (layout.arcs as { camera: number[]; look: number[] }[]).map((a) => ({ camera: v3(a.camera), look: v3(a.look) }));
