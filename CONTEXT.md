@@ -114,5 +114,11 @@ get a folder; the rest are still flat files in `src/`.
   the portrait split. The tour module (`src/tour.ts`) keeps the legs, arcs and readings: `tourAt(progress, gap)`
   gives the nearest stop and reading from progress alone, and `flyAlong` flies the legs between the stops a
   framing supplies. The narrow-window width check in `src/pin.ts` (`NARROW`) is a different rule and stays.
+- **`src/content.ts`**: all copy in the app: station text, links, the bezel and timeline words, and `ui`, the
+  rest of what visitors see or hear (HUD, meter aria labels, boot log, signal lost, the gap's sentence).
+  Templates take `{name}` placeholders through `fill`. Components hold none of it; a test fails if a `ui`
+  word turns up quoted in other `src` code. `validateContent` covers every key. Only the name, title and page
+  title are also in `index.html`, so they show before the script runs; a test checks they match. Failure
+  codes such as `no-webgl` and the other identifiers stay in code: they are ids, not copy.
 - The tour view (`TourView.tsx`) reads scroll and renders. The room (`Room.tsx`, `Effects.tsx`) draws the
   scene and the desk meter. The nixie module (`nixie.ts`) is the meter's digits and power-on.

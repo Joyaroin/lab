@@ -1,15 +1,25 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { identity } from "./content";
+import { readdirSync } from "node:fs";
 
-it("index.html shows the same name and title as content, before any script runs", () => {
-  const html = readFileSync("index.html", "utf8");
+// index.html keeps the name, title and page title so they show before any script runs.
+const html = readFileSync("index.html", "utf8");
+const escaped = (s: string) => s.replace(/&/g, "&amp;");
+describe("index.html matches content", () => {
   const root = html.slice(html.indexOf('<div id="root">'), html.indexOf("<script"));
-  expect(root).toContain(identity.name);
-  expect(root).toContain(identity.title.replace("&", "&amp;"));
+  it("shows the name in the heading", () => {
+    expect(root).toContain(`>${escaped(identity.name)}</h1>`);
+  });
+  it("shows the title under it", () => {
+    expect(root).toContain(`>${escaped(identity.title)}</p>`);
+  });
+  it("has the page title", () => {
+    expect(html).toContain(`<title>${escaped(identity.pageTitle)}</title>`);
+  });
 });
 
-import { validateContent, content, pageSwitch, type Diagram, type Station } from "./content";
+import { validateContent, content, pageSwitch, ui, fill, type Diagram, type Station } from "./content";
 import { WORK_COPY } from "../tests/fixtures/work-copy";
 
 const good = () => structuredClone(content);
@@ -278,5 +288,68 @@ describe("timeline words", () => {
     const c = good();
     (c.pageSwitch as Record<string, string>).extra = "";
     expect(validateContent(c).join("\n")).toContain("pageSwitch.extra: missing");
+  });
+});
+
+// Every other word the app shows or announces: the HUD, the meter's labels, the boot log, the signal
+// lost screen, the gap's sentence. They move here from the components, so validation covers them.
+describe("interface words", () => {
+  const keys = Object.keys(ui);
+  it("accepts the shipped words", () => {
+    expect(validateContent(content)).toEqual([]);
+  });
+  it.each(keys)("rejects %s when it is removed or empty", (k) => {
+    const c = good();
+    delete (c.ui as Record<string, string>)[k];
+    expect(validateContent(c).join("\n")).toContain(`ui.${k}: missing`);
+    (c.ui as Record<string, string>)[k] = " ";
+    expect(validateContent(c).join("\n")).toContain(`ui.${k}: missing`);
+  });
+  it("rejects a missing ui block, not a crash", () => {
+    const c = good();
+    delete (c as Partial<typeof c>).ui;
+    expect(validateContent(c).join("\n")).toContain("ui.entrance: missing");
+  });
+  it("rejects a template that lost its placeholder", () => {
+    const c = good();
+    c.ui.meterButton = "Meter. Click for the next station";
+    expect(validateContent(c).join("\n")).toContain("ui.meterButton: must contain {label}");
+  });
+  it("blocks a phone number in them like other copy", () => {
+    const c = good();
+    c.ui.entrance = "Call 613-555-0142";
+    expect(validateContent(c).join("\n")).toContain("ui.entrance: looks like a phone number");
+  });
+  it("fill puts values in their placeholders", () => {
+    expect(fill("a {x} b {y}", { x: "1", y: "2" })).toBe("a 1 b 2");
+  });
+  it("keeps the words visitors saw before", () => {
+    expect(ui.entrance).toBe("Entrance");
+    expect(ui.more).toBe("more ▾");
+    expect(ui.readingPending).toBe("reading prod and staging…");
+    expect(fill(ui.meterButton, { label: "L" })).toBe("Meter. L. Click for the next station");
+    expect(fill(ui.meterReading, { digits: "0.000214" })).toBe("Reading 0.000214");
+    expect([ui.loadProgress, ui.bootLog, ui.signalLost]).toEqual(["Load progress", "Boot log", "SIGNAL LOST"]);
+    expect(fill(ui.logDone, { step: ui.stepCode })).toBe("[ ok ] room code");
+    expect(fill(ui.logPending, { step: ui.stepScene })).toBe("[ .. ] room scene");
+    expect(ui.logPowerOn).toBe("[ ok ] meter power-on");
+    expect(ui.stepCapability).toBe("capability check");
+  });
+});
+
+// No copy sits in app code outside the content module: no component or helper holds one of these
+// words as a quoted string or as text between tags.
+describe("no copy outside the content module", () => {
+  const files = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? files(`${dir}/${e.name}`) : /\.tsx?$/.test(e.name) && !/\.test\./.test(e.name) && e.name !== "content.ts" ? [`${dir}/${e.name}`] : []);
+  const sources = files("src").map((f) => [f, readFileSync(f, "utf8")] as const);
+  const words = [...Object.values(ui), ...Object.values(identity)].filter((w) => w.length >= 4);
+  it("finds the source files", () => expect(sources.length).toBeGreaterThan(15));
+  it.each(sources)("%s", (_f, src) => {
+    for (const w of words) {
+      for (const q of ['"', "'", "`"]) expect(src, w).not.toContain(`${q}${w}${q}`);
+      expect(src, w).not.toContain(`>${w}<`);
+    }
   });
 });

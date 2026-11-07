@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { formatReading } from "./gap";
+import { fill, ui } from "./content";
 import { digitsToShow, shiftDigits, type ShiftKind } from "./nixie";
 
 /** The digits the bar shows: the reading, except for a moment while a shift scrambles them. Frames
@@ -37,9 +38,9 @@ export function Meter({ reading, label, live, pending = false, shift, onClick }:
   const shown = useShifted(digits, shift);
   return (
     <button type="button" onClick={onClick} style={button} data-meter-bar data-desk-meter="out-of-view"
-      aria-label={`Meter. ${label}. Click for the next station`}>
+      aria-label={fill(ui.meterButton, { label })}>
       <style>{css}</style>
-      <span role="img" aria-label={`Reading ${digits}`} className="meter-digits">
+      <span role="img" aria-label={fill(ui.meterReading, { digits })} className="meter-digits">
         {[...shown].map((ch, i) =>
           ch === "." ? <span key={i} className="meter-dot">.</span> : <span key={i} className="meter-tube" data-testid="tube">{ch}</span>,
         )}

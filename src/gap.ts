@@ -1,3 +1,5 @@
+import { fill, ui } from "./content";
+
 // The gap: MediaSafe staging deploys since the last promotion to prod (ADR-0003).
 // Commit history in, gap out. The browser reads it; a build-time value is the fallback.
 export const GAP_URL =
@@ -49,7 +51,7 @@ export async function readGap(fetchFn: typeof fetch, saved: SavedGap, timeoutMs 
 export const formatReading = (n: number) => (n / 1e6).toFixed(6);
 
 export function gapLabel(g: Gap): string {
-  const noun = g.deploys === 1 ? "deploy" : "deploys";
-  const base = `prod is ${g.complete ? "" : "at least "}${g.deploys} ${noun} behind staging`;
-  return g.live ? base : `${base} (saved value, not live)`;
+  const noun = g.deploys === 1 ? ui.deploy : ui.deploys;
+  const base = fill(g.complete ? ui.gapBehind : ui.gapBehindAtLeast, { n: g.deploys, noun });
+  return g.live ? base : fill(ui.gapSaved, { gap: base });
 }

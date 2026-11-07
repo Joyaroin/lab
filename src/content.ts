@@ -1,10 +1,12 @@
-// All visitor-facing text and links. Change copy here and nowhere else: no 3D code holds copy.
+// All copy in the app: visible text, aria labels, boot log lines, the signal lost screen and the
+// gap's sentence, plus links. Change copy here and nowhere else: no component or 3D code holds copy.
+// Only the name, title and page title are also written into index.html (see below).
 // `validateContent` runs in the tests (and so in `make frontend`); it blocks phone numbers and
 // private or tailnet addresses. Internal employer names are NOT caught here: Adham's review of
 // any content PR catches those.
 //
-// The name and title are also written into index.html so they show before any script runs:
-// keep the two in step (a test checks this).
+// The name, title and page title are also written into index.html so they show before any script
+// runs: keep the two in step (a test checks this).
 
 export type Link = { label: string; href: string };
 export type Station = {
@@ -38,11 +40,50 @@ export type Diagram = { description: string; steps: string[]; hops: string[] };
 /** The words on the timeline that switches a station's pages. `openMark` and `closedMark` sit before
  *  a segment's tag: the open page is `openMark open`, the others just `closedMark`. */
 export const pageSwitch = { name: "Pages", hint: "Click a job to read it", open: "open", openMark: "▸", closedMark: "›" };
+/** The app's other words. Strings with `{name}` in them are templates: `fill` puts the values in. */
+export const ui = {
+  /** the HUD's link to the entrance, and the nav's aria label */
+  entrance: "Entrance",
+  hud: "HUD",
+  /** the cue at the foot of a panel with more text below */
+  more: "more ▾",
+  /** the meter's label while the gap is still being read */
+  readingPending: "reading prod and staging…",
+  /** the meter button's aria label ({label}), and the digits' ({digits}) */
+  meterButton: "Meter. {label}. Click for the next station",
+  meterReading: "Reading {digits}",
+  /** the gap's sentence: {n} deploys, {noun} one of the two nouns */
+  gapBehind: "prod is {n} {noun} behind staging",
+  gapBehindAtLeast: "prod is at least {n} {noun} behind staging",
+  gapSaved: "{gap} (saved value, not live)",
+  deploy: "deploy",
+  deploys: "deploys",
+  /** the boot screen */
+  loadProgress: "Load progress",
+  bootLog: "Boot log",
+  stepCapability: "capability check",
+  stepCode: "room code",
+  stepScene: "room scene",
+  logDone: "[ ok ] {step}",
+  logPending: "[ .. ] {step}",
+  logPowerOn: "[ ok ] meter power-on",
+  /** the signal lost screen; {reason} is the failure's code, which is not copy */
+  signalLost: "SIGNAL LOST",
+  signalLostReason: "The 3D room could not start in this browser ({reason}).",
+};
+/** The placeholders each template must keep. */
+const PLACEHOLDERS: Record<string, string[]> = {
+  meterButton: ["label"], meterReading: ["digits"], gapBehind: ["n", "noun"], gapBehindAtLeast: ["n", "noun"],
+  gapSaved: ["gap"], logDone: ["step"], logPending: ["step"], signalLostReason: ["reason"],
+};
+export const fill = (template: string, values: Record<string, string | number>) =>
+  template.replace(/\{(\w+)\}/g, (m, k) => (k in values ? String(values[k]) : m));
 export type Content = {
-  identity: { name: string; title: string; availability: string };
+  identity: { name: string; title: string; pageTitle: string; availability: string };
   links: Link[];
   stations: Station[];
   pageSwitch: typeof pageSwitch;
+  ui: typeof ui;
 };
 
 // Links that more than one station or the HUD uses, written once.
@@ -69,9 +110,11 @@ const BARRACUDA = [
 
 export const content: Content = {
   pageSwitch,
+  ui,
   identity: {
     name: "Adham Sedik",
     title: "SWE & Platform",
+    pageTitle: "Adham Sedik · Lab",
     availability: "Graduating Dec 2027. Open to co-op and full-time.",
   },
 
@@ -243,8 +286,16 @@ export function validateContent(c: Content): string[] {
   };
 
   for (const [f, v] of Object.entries(c.pageSwitch ?? {})) tvText(`pageSwitch.${f}`, v);
+  // Every shipped key must be present, and a key added to the given content is checked too.
+  const words: Record<string, unknown> = c.ui ?? {};
+  for (const k of new Set([...Object.keys(ui), ...Object.keys(words)])) {
+    text(`ui.${k}`, words[k]);
+    const v = words[k];
+    if (typeof v === "string") for (const ph of PLACEHOLDERS[k] ?? []) if (!v.includes(`{${ph}}`)) problems.push(`ui.${k}: must contain {${ph}}`);
+  }
   text("identity.name", c.identity?.name);
   text("identity.title", c.identity?.title);
+  text("identity.pageTitle", c.identity?.pageTitle);
   text("identity.availability", c.identity?.availability);
   linkList("links", c.links);
   if (!Array.isArray(c.stations) || c.stations.length === 0) problems.push("stations: missing");

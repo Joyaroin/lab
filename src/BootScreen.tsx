@@ -1,4 +1,4 @@
-import { identity } from "./content";
+import { fill, identity, ui } from "./content";
 
 export type Step = { label: string; done: boolean };
 
@@ -14,10 +14,10 @@ export function BootScreen({ steps, fading = false }: { steps: Step[]; fading?: 
     }}>
       <h1 style={{ margin: 0, fontSize: "clamp(2rem, 6vw, 4rem)" }}>{identity.name}</h1>
       <p style={{ margin: "0.5rem 0 2rem", fontSize: "clamp(1rem, 2.5vw, 1.5rem)" }}>{identity.title}</p>
-      <progress aria-label="Load progress" max={steps.length} value={done} style={{ marginTop: "2rem" }} />
-      <pre aria-label="Boot log" style={{ margin: "1rem 0 0", opacity: 0.8 }}>
-        {steps.map((s) => `[ ${s.done ? "ok" : ".."} ] ${s.label}`).join("\n")}
-        {fading ? "\n[ ok ] meter power-on" : ""}
+      <progress aria-label={ui.loadProgress} max={steps.length} value={done} style={{ marginTop: "2rem" }} />
+      <pre aria-label={ui.bootLog} style={{ margin: "1rem 0 0", opacity: 0.8 }}>
+        {steps.map((s) => fill(s.done ? ui.logDone : ui.logPending, { step: s.label })).join("\n")}
+        {fading ? `\n${ui.logPowerOn}` : ""}
       </pre>
     </main>
   );

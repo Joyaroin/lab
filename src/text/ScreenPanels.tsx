@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { markMore } from "./more";
 import type { OnPageTurn } from "../TearView";
-import { pageSwitch, stations, type Diagram, type Station } from "../content";
+import { pageSwitch, stations, ui, type Diagram, type Station } from "../content";
 
 // Each station's text as real HTML. place.ts (run per frame by TextPins, which the room mounts)
 // pins each panel to its CRT screen and sets its position, size and opacity; this file holds how it looks: green phosphor with
@@ -41,7 +41,7 @@ function StationPanel({ s, onTurn }: { s: Station; onTurn?: OnPageTurn }) {
       {s.diagram && <DiagramFigure d={s.diagram} />}
       {s.pages && <Timeline pages={s.pages} open={open} onOpen={(i) => { if (i !== open && ref.current) onTurn?.(ref.current); setOpen(i); }} />}
       {(page ? page.body : s.body).map((b, i) => <p key={i} style={para}>{b}</p>)}
-      <div className="crt-more" aria-hidden="true"><span>more ▾</span></div>
+      <div className="crt-more" aria-hidden="true"><span>{ui.more}</span></div>
     </section>
   );
 }

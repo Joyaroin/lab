@@ -7,6 +7,7 @@ import { useGap } from "./useGap";
 import { meterLink } from "./nixie";
 import { createShift } from "./shift";
 import { watchForStall } from "./stall";
+import { ui } from "./content";
 import { Component, type ReactNode } from "react";
 
 const loadRoom = () => import("./Room");
@@ -68,9 +69,9 @@ export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
   if (failed) return <SignalLost reason={failed} />;
 
   const steps = [
-    { label: "capability check", done: true },
-    { label: "room code", done: codeLoaded },
-    { label: "room scene", done: sceneReady },
+    { label: ui.stepCapability, done: true },
+    { label: ui.stepCode, done: codeLoaded },
+    { label: ui.stepScene, done: sceneReady },
   ];
   return (
     <>
