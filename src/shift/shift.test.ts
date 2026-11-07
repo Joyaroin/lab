@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { busiestWindow, changeOffsets, createShift, MAX_CHANGES_PER_SECOND, RESTORE_WINDOW_MS, SNAP_BACK_MS, WAIT_MS, type NavigationKind, type Play } from "./index";
 import { SHIFT_SECONDS, POWER_ON_SECONDS } from "../nixie";
+import { tearAt } from "../tear";
 import { holdSpan, progressFor, STATION_COUNT } from "../hold";
 
 // Fake timers also fake performance.now, so the module's own clock and timers are what's under test.
@@ -8,7 +9,7 @@ beforeEach(() => { vi.useFakeTimers(); });
 afterEach(() => { vi.useRealTimers(); });
 
 const mid = progressFor;
-const FULL_END_MS = SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS;
+const FULL_END_MS = 840; // when a first visit's text may show: pinned as a literal, #124 must not move it
 const POWER_ON_MS = POWER_ON_SECONDS * 1000;
 
 /** A shift mounted with spies: `started` collects each new play, `ended` counts the times the views were told
@@ -335,8 +336,18 @@ describe("limiting flashes", () => {
     return { changes, started: s.started.length };
   };
   it("counts the start, the re-cut and the snap back of a tear", () => {
-    expect(changeOffsets("full")).toEqual([0, 400, 800 + SNAP_BACK_MS]);
-    expect(changeOffsets("short")).toEqual([0, 250 + SNAP_BACK_MS]);
+    // the snap back is counted when it is drawn (the slip reaches 0, at 0.85 of the length), not when the tear's own length ends
+    expect(changeOffsets("full")).toEqual([0, 400, 680]);
+    expect(changeOffsets("short")).toEqual([0, 212.5]);
+  });
+  it("counts the snap back where the drawn tear reaches 0, and the text still waits for the tear's full length and SNAP_BACK_MS", () => {
+    for (const kind of ["full", "short"] as const) {
+      const snap = changeOffsets(kind).at(-1)! / 1000;
+      expect(tearAt(snap - 0.001, kind).slip).toBeGreaterThan(0);
+      expect(tearAt(snap, kind).slip).toBe(0);
+    }
+    expect(SNAP_BACK_MS).toBe(40);
+    expect(SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS).toBe(FULL_END_MS);
   });
   it("never holds more than 3 sudden changes in any second, across back-to-back tears", () => {
     for (const hop of [WAIT_MS + 60, 400, 600, 777]) {
@@ -361,8 +372,8 @@ describe("limiting flashes", () => {
     expect(s.started.map((p) => p.kind)).toEqual(["full", "full", "full"]);
   });
   it("counts from when the tear really began, if the view drew it late", () => {
-    // The first tear fires at 280 and is booked 280, 680, 1120. A second fires at 1500: on the booked
-    // times it fits; if the view drew the first 300 ms late (580, 980, 1420) it does not.
+    // The first tear fires at 280 and is booked 280, 680, 960. A second fires at 1500: on the booked
+    // times it fits; if the view drew the first 300 ms late (580, 980, 1260) it does not.
     for (const [late, plays] of [[0, 2], [300, 1]]) {
       const s = setup();
       arrive(s, mid(1), WAIT_MS + 30);
@@ -387,7 +398,7 @@ describe("a Work page turn", () => {
     expect(played.length).toBeLessThan(40);
     expect(busiestWindow(played.flatMap((t) => changeOffsets("short").map((o) => t + o)))).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
   });
-  it("holds a click 0.7 s after a flick, because the snap back is drawn a frame late", () => {
+  it("holds a click 0.7 s after a flick, while its start, snap back and the new flick would be 4 changes in a window", () => {
     const s = setup();
     expect(s.shift.turn()).toBe(true);
     vi.advanceTimersByTime(710);

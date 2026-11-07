@@ -4,6 +4,7 @@ import { holdSpan } from "../src/hold";
 import { SHIFT_SECONDS } from "../src/nixie";
 import { busiestWindow, MAX_CHANGES_PER_SECOND, SNAP_BACK_MS } from "../src/shift";
 import { countDraws, draws, frames, panelOf, waitForCamera, waitForPanel, waitUntilStill } from "./lib/page";
+import { defineSnapWatcher } from "./lib/snap";
 import { WORK_COPY } from "./fixtures/work-copy";
 
 // Ticket 55: Work is two pages on one TV, switched by a timeline of two buttons.
@@ -125,12 +126,13 @@ test("leaving Work, every wheel step over the panel moves the page on", async ({
 
 // Ticket 58: turning the page plays the short flick on the Work TV only.
 // Watches the panel's and the canvas's filter from inside the page; returns what it saw.
-// `on`/`off` are when the panel's filter really went on and came off, in ms from the watch's start.
-type Seen = { on: number[]; off: number[]; canvas: number };
-const watchFilters = (page: Page) => page.evaluate(() => {
+// `on`/`off` are when the panel's filter really went on and came off, `snaps` when the flick's snap back was visible
+// (its displacement scale reaching 0), in ms from the watch's start.
+type Seen = { on: number[]; off: number[]; snaps: number[]; canvas: number };
+const watchFilters = async (page: Page) => { await page.evaluate(defineSnapWatcher); await page.evaluate(() => {
   const w = window as unknown as { __f: Seen };
   const panelEl = document.querySelector<HTMLElement>('[data-screen="work"]')!, canvas = document.querySelector("canvas")!;
-  w.__f = { on: [], off: [], canvas: 0 };
+  w.__f = { on: [], off: [], snaps: [], canvas: 0 };
   let on = false;
   const t0 = performance.now();
   new MutationObserver(() => {
@@ -140,7 +142,8 @@ const watchFilters = (page: Page) => page.evaluate(() => {
     on = now;
   }).observe(panelEl, { attributes: true, attributeFilter: ["style"] });
   new MutationObserver(() => { if (canvas.style.filter.includes("shift-tear")) w.__f.canvas++; }).observe(canvas, { attributes: true, attributeFilter: ["style"] });
-});
+  window.__watchSnap("shift-tear-page", () => w.__f.snaps.push(performance.now() - t0));
+}); };
 const filters = (page: Page) => page.evaluate(() => (window as unknown as { __f: Seen }).__f);
 
 /** Opens Work (waiting out the arrival's own tear) and starts watching the filters. */
@@ -195,7 +198,7 @@ test("reduced motion swaps the page with no effect", async ({ browser }) => {
   await expect(seg(page, "barracuda")).toHaveAttribute("aria-pressed", "true");
   expect(await shown(page)).toEqual(expect.arrayContaining(work.pages![1].body));
   await pastAFlick(page);
-  expect(await filters(page)).toEqual({ on: [], off: [], canvas: 0 });
+  expect(await filters(page)).toEqual({ on: [], off: [], snaps: [], canvas: 0 });
 });
 
 // Clicks arrive at a set pace: the pause between them is the stimulus, not a wait for something.
@@ -220,7 +223,8 @@ test("clicking quickly back and forth ends on the right page and still flicks", 
   expect(f.canvas).toBe(0);
 });
 
-// The limit is on real changes: measured from when the filter really goes on and off, with no shrunk window.
+// The limit is on real changes: measured from when the filter goes on and when the snap back is visible (the displacement
+// scale reaching 0, not the filter coming off, #124), with no shrunk window.
 for (const every of [700, 715, 730]) {
   test(`clicking every ${every} ms never puts more than 3 sudden changes in a real second`, { tag: "@timing" }, async ({ page }) => {
     test.setTimeout(60_000);
@@ -230,7 +234,8 @@ for (const every of [700, 715, 730]) {
     const f = await filters(page);
     expect(f.on.length).toBeGreaterThan(1); // it flicks more than once
     expect(f.off.length).toBe(f.on.length);
-    expect(busiestWindow([...f.on, ...f.off])).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
+    expect(f.snaps.length, "every flick's snap back was seen").toBe(f.on.length);
+    expect(busiestWindow([...f.on, ...f.snaps])).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
     await expect(seg(page, "solace")).toHaveAttribute("aria-pressed", "true"); // 8 clicks, ends on the last one
   });
 }

@@ -1,6 +1,6 @@
 import { holdSpan, PANEL_SHOWN, panelStrength, STATION_COUNT } from "../hold";
 import { POWER_ON_SECONDS } from "../nixie";
-import { TEAR_POSES } from "../tear";
+import { snapBackMs, TEAR_POSES } from "../tear";
 import { SHIFT_SECONDS, type ShiftKind } from "./lengths";
 
 // The shift: a moment of arrival at a station. This module runs it from start to finish (the wait, the
@@ -21,8 +21,9 @@ const holdAt = (progress: number) => {
   return 0; // the entrance, or travelling
 };
 
-/** The text follows a moment after the tear has snapped back, so the two never overlap, even when a
- *  frame comes late. */
+/** The text follows a moment after the tear's own length ends, so the two never overlap, even when a
+ *  frame comes late. This sets only when the text shows; the flash count uses the visible snap back
+ *  (snapBackMs in tear.ts), which is earlier. */
 export const SNAP_BACK_MS = 40;
 
 /** The most sudden changes (a jump in the view) in any window of a little over a second (see
@@ -41,10 +42,10 @@ export const busiestWindow = (times: number[], windowMs = 1000) =>
   Math.max(0, ...times.map((a) => times.filter((b) => b >= a && b < a + windowMs).length));
 
 /** When a shift's tear jumps the view, in ms after it starts: the tear starting, each re-cut of the
- *  bands, and the snap back. The tear and this list both come from TEAR_POSES and SHIFT_SECONDS. */
+ *  bands, and the snap back, when it is visible (snapBackMs). The tear and this list both come from TEAR_POSES and tear.ts. */
 export const changeOffsets = (kind: ShiftKind): number[] => {
   const len = SHIFT_SECONDS[kind] * 1000, poses = TEAR_POSES[kind];
-  return [0, ...Array.from({ length: poses - 1 }, (_, k) => ((k + 1) / poses) * len), len + SNAP_BACK_MS];
+  return [0, ...Array.from({ length: poses - 1 }, (_, k) => ((k + 1) / poses) * len), snapBackMs(kind)];
 };
 
 /** How long after a full tear starts its text may show: the tear, then a moment for the snap back. */

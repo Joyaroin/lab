@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { holdSpan, progressFor } from "../src/hold";
 import { POWER_ON_SECONDS, SHIFT_SECONDS } from "../src/nixie";
 import { busiestWindow, MAX_CHANGES_PER_SECOND, WAIT_MS, SNAP_BACK_MS } from "../src/shift";
+import { defineSnapWatcher } from "./lib/snap";
 import { lockTimesMs } from "./lib/lock";
 import { panelOf, scrollToProgress } from "./lib/page";
 
@@ -29,6 +30,7 @@ const installMeterReaders = (page: Page) => page.addInitScript(() => {
  *  as the tour mounts, about when the bar appears) with a margin, so no test starts inside it. */
 async function boot(page: Page) {
   await installMeterReaders(page);
+  await page.addInitScript(defineSnapWatcher);
   await page.goto("/");
   await expect(page.locator(METER_BAR)).toBeVisible();
   await expect(page.getByLabel("Boot log")).toBeHidden();
@@ -141,14 +143,14 @@ test("reduced motion shows the plain reading with no scramble", async ({ browser
 const filterOn = (page: Page) => page.evaluate(() => document.querySelector("canvas")!.style.filter.includes("shift-tear"));
 
 /** What `watch` records, in ms on the page's own clock from `t0`: when the tear started, re-cut and
- *  ended, when the panel was fully out, and what the machine's slowest frame was. */
-type Watched = { cuts: number[]; starts: number[]; ends: number[]; shown: number | null; t0: number; litDuringTear: boolean; visibleDuringTear: boolean; slowestFrame: number; resolved: boolean };
+ *  ended (the filter coming off), when its snap back was visible (the displacement scale reaching 0), when the panel was fully out, and what the machine's slowest frame was. */
+type Watched = { cuts: number[]; starts: number[]; ends: number[]; snaps: number[]; shown: number | null; t0: number; litDuringTear: boolean; visibleDuringTear: boolean; slowestFrame: number; resolved: boolean };
 
 // Watches the canvas's filter and the panel's opacity from inside the page, on its own clock.
 const watch = (page: Page, id: string) => page.evaluate((id) => {
   const w = window as unknown as { __w: Watched };
   const canvas = document.querySelector("canvas")!, el = document.querySelector<HTMLElement>(`[data-screen="${id}"]`)!;
-  const st: Watched = { cuts: [], starts: [], ends: [], shown: null, t0: performance.now(), litDuringTear: false, visibleDuringTear: true, slowestFrame: 0, resolved: false };
+  const st: Watched = { cuts: [], starts: [], ends: [], snaps: [], shown: null, t0: performance.now(), litDuringTear: false, visibleDuringTear: true, slowestFrame: 0, resolved: false };
   let last = performance.now();
   w.__w = st;
   let on = false;
@@ -156,6 +158,7 @@ const watch = (page: Page, id: string) => page.evaluate((id) => {
   // noise seed changing while it is on. One observer for both, so the records arrive in the order they happened.
   const turb = document.querySelector("filter#shift-tear feTurbulence")!;
   let seed = turb.getAttribute("seed");
+  window.__watchSnap("shift-tear", () => st.snaps.push(performance.now() - st.t0));
   const mo = new MutationObserver((records) => {
     for (const r of records) {
       const t = performance.now() - st.t0;
@@ -215,6 +218,13 @@ test("a first visit tears the view for about 0.8 s, and the text resolves as it 
   // it lasts that long, give or take a frame at each end.
   expect(len).toBeGreaterThan(SHIFT_SECONDS.full * 1000 - w.slowestFrame);
   expect(len).toBeLessThan(SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS + 2 * w.slowestFrame + 60);
+  // The snap back is visible when the slip reaches 0, at 0.85 of the length: 680 ms. Its time is recorded for CI's report.
+  const snap = w.snaps[0] - w.starts[0];
+  test.info().annotations.push({ type: "snap-back-ms", description: `full tear: ${snap.toFixed(0)} ms after the filter went on (design 680), filter off at ${len.toFixed(0)} ms, slowest frame ${w.slowestFrame.toFixed(0)} ms` });
+  console.log(`snap-back-ms full ${snap.toFixed(0)} (design 680; filter off ${len.toFixed(0)}; slowest frame ${w.slowestFrame.toFixed(0)})`);
+  expect(w.snaps).toHaveLength(1);
+  expect(snap).toBeGreaterThan(SHIFT_SECONDS.full * 850 - w.slowestFrame);
+  expect(snap).toBeLessThan(SHIFT_SECONDS.full * 850 + 2 * w.slowestFrame + 60);
   expect(w.shown! - w.starts[0]).toBeGreaterThan(len - 100); // not before the tear ends...
   expect(w.shown! - w.starts[0]).toBeLessThan(len + TEXT_RESOLVE_MS + 2 * w.slowestFrame + 150); // ...and soon after, once it has resolved
   expect(w.shown!).toBeLessThan(lateBy(1_090, w)); // see lateBy
@@ -234,6 +244,12 @@ test("a return shows its text when the 250 ms wait ends, and the flick plays ove
   const len = w.ends[0] - w.starts[0];
   expect(len).toBeGreaterThan(SHIFT_SECONDS.short * 1000 - w.slowestFrame);
   expect(len).toBeLessThan(SHIFT_SECONDS.short * 1000 + SNAP_BACK_MS + 2 * w.slowestFrame + 60);
+  const snap = w.snaps[0] - w.starts[0];
+  test.info().annotations.push({ type: "snap-back-ms", description: `short flick: ${snap.toFixed(0)} ms after the filter went on (design 212.5), filter off at ${len.toFixed(0)} ms, slowest frame ${w.slowestFrame.toFixed(0)} ms` });
+  console.log(`snap-back-ms short ${snap.toFixed(0)} (design 212.5; filter off ${len.toFixed(0)}; slowest frame ${w.slowestFrame.toFixed(0)})`);
+  expect(w.snaps).toHaveLength(1);
+  expect(snap).toBeGreaterThan(SHIFT_SECONDS.short * 850 - w.slowestFrame);
+  expect(snap).toBeLessThan(SHIFT_SECONDS.short * 850 + 2 * w.slowestFrame + 60);
   expect(w.litDuringTear).toBe(true); // the text is out while the flick plays over it...
   expect(w.resolved).toBe(false); // ...with no resolve animation
   expect(w.shown! - w.starts[0]).toBeLessThan(2 * w.slowestFrame + 100); // out as the flick starts, not after it
@@ -271,11 +287,12 @@ test("moving quickly between stations can't make more than the limit of sudden c
     setTimeout(() => { clearInterval(id); res(); }, 6_000);
   }), [[1, 2, 3, 4, 5, 6].map(progressFor), WAIT_MS] as const);
   await page.waitForTimeout(1500);
-  // A sudden change is the tear starting, each re-cut (watched: the noise seed changing) and the snap back.
-  const { starts, ends, cuts } = await watched(page);
+  // A sudden change is the tear starting, each re-cut (watched: the noise seed changing) and the visible snap back (the displacement scale reaching 0, #124).
+  const { starts, snaps, cuts } = await watched(page);
   expect(starts.length).toBeGreaterThan(1); // it did tear, more than once
   expect(cuts.length).toBeGreaterThan(0); // and the re-cut was seen, not assumed
-  const changes = [...starts, ...cuts, ...ends];
+  expect(snaps.length).toBe(starts.length); // every tear's visible snap back was seen
+  const changes = [...starts, ...cuts, ...snaps];
   // The real times, in a full second: the limit's own padding covers the frames, the test doesn't shrink the window.
   expect(busiestWindow(changes)).toBeLessThanOrEqual(MAX_CHANGES_PER_SECOND);
 });

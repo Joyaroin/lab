@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { progressFor } from "../src/hold";
 import { scrollToProgress, waitForCamera } from "./lib/page";
+import { defineSnapWatcher } from "./lib/snap";
 
 // Ticket 131: specs for stated limits that no other spec pins on its own. Every number here is written
 // out, not imported from src, because a spec that reads the limit from the code it checks passes
@@ -8,28 +9,35 @@ import { scrollToProgress, waitForCamera } from "./lib/page";
 //   - the shift waits 250 ms inside a hold before it fires (#56, #85)
 //   - a full tear starts and ends (#46, #57); its 0.8 s length is pinned in src/tear.test.ts, not here: real time can't tell a loaded 0.8 s from a 1.0 s
 //   - no one-second window holds more than 3 sudden changes (#46, CONTEXT.md), in the room and on a Work page turn
-//   - the short flick lasts about 0.25 s and the snap back 40 ms (#58, #124)
+//   - the short flick lasts about 0.25 s; its snap back is visible when the displacement scale reaches 0, at 0.85 of its length (#58, #124)
 //   - a reload within 5 s of the tour mounting is a restore, not an arrival (#90)
 //   - a visit makes one call to GitHub (ADR-0003: 60 an hour is GitHub's, one call per visit is ours)
 // Each one that depends on speed sweeps a range of speeds.
+// The flash limit counts the snap back when it is visible: the displacement map's scale reaching 0 (tests/lib/snap.ts), at
+// 680 ms into a full tear and about 212 ms into a short one. The filter coming off is later (800 and 250 ms) and is not what
+// the eye sees. Counting that was the mistake #124 corrected: the specs below count `snaps`, not `off`. (SNAP_BACK_MS, 40 ms,
+// only delays a first visit's text; it is not the snap back.)
 test.setTimeout(90_000);
 
-/** What the tear did, in ms on the page's clock: when the canvas's filter went on, off, and when the
- *  bands were re-cut (the filter's noise seed changing while it is on). */
-type Seen = { on: number[]; off: number[]; cuts: number[]; t0: number };
+/** What the tear did, in ms on the page's clock: when the canvas's filter went on and off, when the
+ *  bands were re-cut (the filter's noise seed changing while it is on), and when the snap back was
+ *  visible (the displacement scale reaching 0). */
+type Seen = { on: number[]; off: number[]; cuts: number[]; snaps: number[]; t0: number };
 
 /** Installs the observer once; it runs again in every document the page loads. */
 async function watchTear(page: Page) {
+  await page.addInitScript(defineSnapWatcher);
   await page.addInitScript(() => {
     window.addEventListener("DOMContentLoaded", () => {
       const w = window as unknown as { __seen: Seen };
-      const seen: Seen = { on: [], off: [], cuts: [], t0: performance.now() };
+      const seen: Seen = { on: [], off: [], cuts: [], snaps: [], t0: performance.now() };
       w.__seen = seen;
       let on = false;
       const watch = () => {
         const canvas = document.querySelector("canvas"), turb = document.querySelector("filter#shift-tear feTurbulence");
         if (!canvas || !turb) return requestAnimationFrame(watch);
         let seed = turb.getAttribute("seed");
+        if (!window.__watchSnap("shift-tear", () => seen.snaps.push(performance.now() - seen.t0))) return requestAnimationFrame(watch);
         const mo = new MutationObserver((records) => {
           for (const r of records) {
             const t = performance.now() - seen.t0;
@@ -149,15 +157,15 @@ for (const [kind, stays] of [["cold", [450, 700, 1000]], ["warm", [450, 550, 650
       const s = await seen(page);
       const since = (ts: number[]) => ts.slice(kind === "warm" ? before : 0); // warm: only what the hopping did
       expect(s.on.length - (kind === "warm" ? before : 0), "it did tear").toBeGreaterThan(0);
-      expect(busiest([...since(s.on), ...since(s.cuts), ...since(s.off)])).toBeLessThanOrEqual(3);
+      expect(busiest([...since(s.on), ...since(s.cuts), ...since(s.snaps)])).toBeLessThanOrEqual(3);
     });
   }
 }
 
-// The short flick on a return lasts about 0.25 s, plus the snap back's frame or two: 250 ms of tear, then the filter comes
-// off on the first frame after it. The bounds leave 100 ms above 290 for frame timing (a slow machine only lengthens it).
-// A flick of 0.15 s measures about 190 and one of 0.4 s about 440. The 40 ms snap back (SNAP_BACK_MS) is the app's own
-// bookkeeping of that frame: raising it does not move when the filter really comes off, so no browser spec can see it.
+// The short flick on a return lasts about 0.25 s: 250 ms of tear, then the filter comes off on the first frame after it.
+// The bounds leave 100 ms above 290 for frame timing (a slow machine only lengthens it). A flick of 0.15 s measures about
+// 190 and one of 0.4 s about 440. The visible snap back comes before that, about 212 ms in (the displacement scale reaching 0),
+// and is what the flash limit counts; tests/shift.spec.ts records its time.
 test("a return plays the short flick: about 0.25 s", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
   await scrollToProgress(page, progressFor(1));
@@ -190,9 +198,10 @@ for (const [after, fires] of [[3_000, false], [7_000, true]] as const) {
 }
 
 // The limit of 3 counts a Work page turn too: it flicks the Work TV only, so its changes are the panel's filter going on
-// and off. Turning the page every `every` ms, never more than 3 changes in a real second.
+// and its snap back. Turning the page every `every` ms, never more than 3 changes in a real second.
 for (const every of [400, 700]) {
   test(`turning the Work page every ${every} ms never puts more than 3 sudden changes in a real second`, { tag: "@timing" }, async ({ page }) => {
+    await page.addInitScript(defineSnapWatcher);
     await page.goto("/");
     await expect(page.getByLabel("Boot log")).toBeHidden();
     await page.getByRole("navigation", { name: "HUD" }).locator('a[href="#work"]').click();
@@ -207,9 +216,10 @@ for (const every of [400, 700]) {
       let on = false;
       new MutationObserver(() => {
         const now = el.style.filter.includes("shift-tear");
-        if (now !== on) times.push(performance.now() - t0);
+        if (now && !on) times.push(performance.now() - t0); // the flick starting; its end is the snap back, below
         on = now;
       }).observe(el, { attributes: true, attributeFilter: ["style"] });
+      window.__watchSnap("shift-tear-page", () => times.push(performance.now() - t0));
       let k = 0;
       const turn = () => el.querySelector<HTMLElement>(`button[data-page="${ids[k++ % 2]}"]`)!.click();
       turn();
