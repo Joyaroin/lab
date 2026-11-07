@@ -78,7 +78,9 @@ The language of this project: its terms, what each one means, and what it doesn'
   that TV's screen only (not the room); the same limit counts it. On a return the text shows as soon as
   the wait ends and the flick plays over it; on a first visit it waits for the tear, then resolves out of
   it. The full tear re-cuts its bands once. No one-second window holds more than 3 sudden changes (the
-  tear starting, a re-cut, the snap back), counted over a little more than a second to cover late
+  tear starting, a re-cut, the snap back), the snap back counted where it is visible (the slip reaches 0, at
+  0.85 of the tear's length: 680 ms of a full tear, 212.5 ms of a short one, `snapBackMs` in `src/tear.ts`),
+  not where the tear's length ends; the text still waits for the full length plus `SNAP_BACK_MS`. Counted over a little more than a second to cover late
   frames; a shift held back by that still shows its text. Visits are kept in memory only, and nothing
   on screen shows where you have been.
 

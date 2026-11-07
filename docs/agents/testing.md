@@ -16,6 +16,8 @@ Checked against the code on 2026-11-07, at 1257325.
 - `make browser`: the full Playwright suite. Installs browsers and system packages only in CI
 - `make browser-light`: the `browser` recipe without `@timing` and `@render`. Passes `PW_ARGS` through
 - `make facts`: every path, command and tag the docs name exists
+- A flash limit spec counts the tear's visible snap back (the displacement map's scale reaching 0, `tests/lib/snap.ts`), never the filter coming off
+- `tests/shift.spec.ts` records the snap back's measured time as a `snap-back-ms` test annotation and a log line, for CI's browser job report
 - One spec on the VM: `heavy npx playwright test tests/<spec> --workers=1`
 
 ## What CI runs
