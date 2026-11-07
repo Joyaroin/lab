@@ -54,7 +54,7 @@ function npmScripts(root) {
 // Job keys (two-space indent) under jobs: in a workflow. A regex, not a YAML parser: the repo has none.
 function jobs(file) {
   if (!existsSync(file)) return [];
-  const block = readFileSync(file, "utf8").split(/^jobs:[ \t]*$/m)[1] ?? "";
+  const block = readFileSync(file, "utf8").split(/^jobs:[ \t]*(?:#.*)?$/m)[1] ?? "";
   return [...block.matchAll(/^  ([A-Za-z0-9_-]+):/gm)].map((m) => m[1]);
 }
 
@@ -90,12 +90,21 @@ export function checkFacts(root) {
         if (/^#{1,6}\s+What CI runs\s*$/.test(text)) ciSection = { line: i + 1, named: new Set() };
       }
       const say = (message) => problems.push({ doc, line: i + 1, message });
-      if (ciSection && /^\s*[-*]\s+`/.test(text)) {
-        for (const name of spans(text.split(":")[0])) {
+      const jobBullet = ciSection && text.match(/^[-*]\s+((?:`[^`]+`(?:,\s*)?)+):/);
+      if (jobBullet) {
+        for (const name of spans(jobBullet[1])) {
           ciSection.named.add(name);
           if (!defined.has(name)) say(`${name}: no such CI job`);
         }
       }
+      // A path or bare file name must exist. Placeholders, absolute and relative paths are skipped.
+      const checkPath = (span) => {
+        if (/[\s*<>$~{}]|^\/|^\.\.|:\/\//.test(span)) return;
+        const p = span.replace(LOCATION, "");
+        if (p.includes("/")) {
+          if ((p.endsWith("/") || FILE.test(p)) && !existsSync(join(root, p))) say(`${p} doesn't exist`);
+        } else if (FILE.test(p) && !names.has(p)) say(`${p} doesn't exist`);
+      };
       for (const span of spans(text)) {
         const make = makeTarget(span);
         const npm = span.match(/^npm\s+(?:run\s+([A-Za-z0-9:_.-]+)|(test|start))\b/);
@@ -107,18 +116,12 @@ export function checkFacts(root) {
           scripts ??= npmScripts(root);
           if (!scripts?.has(name)) say(`${span}: no such script in package.json`);
         } else if (/^node\s+[^\s-]/.test(span)) {
-          const p = span.split(/\s+/)[1];
-          if (FILE.test(p) && !existsSync(join(root, p))) say(`${p} doesn't exist`);
+          checkPath(span.split(/\s+/)[1]);
         } else if (doc === TESTING && /^@[a-z][a-z0-9-]*$/.test(span)) {
           const whole = new RegExp(`${span}(?![A-Za-z0-9_-])`);
           const used = tests.some((p) => whole.test(readFileSync(join(root, p), "utf8")));
           if (!used) say(`${span} tags no test`);
-        } else if (!/[\s*<>$~{}]|^\/|^\.\.|:\/\//.test(span)) {
-          const p = span.replace(LOCATION, "");
-          if (p.includes("/")) {
-            if ((p.endsWith("/") || FILE.test(p)) && !existsSync(join(root, p))) say(`${p} doesn't exist`);
-          } else if (FILE.test(p) && !names.has(p)) say(`${p} doesn't exist`);
-        }
+        } else checkPath(span);
       }
       if (i === lines.length - 1) endSection();
     });

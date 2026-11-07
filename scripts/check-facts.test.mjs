@@ -150,6 +150,24 @@ describe("checkFacts", () => {
       expect(checkFacts(dir)).toEqual([]);
     });
 
+    it("ignores indented sub-bullets, and a bullet with no colon names no job", () => {
+      const dir = repo({
+        ".forgejo/workflows/ci.yml": ci,
+        "docs/agents/testing.md": testing(
+          "- `frontend`, `facts`: x\n  - `sub`: x\n- `other` runs here, nothing else",
+        ),
+      });
+      expect(checkFacts(dir)).toEqual([]);
+    });
+
+    it("reads jobs after a jobs: line with a trailing comment", () => {
+      const dir = repo({
+        ".forgejo/workflows/ci.yml": ci.replace("jobs:", "jobs: # all"),
+        "docs/agents/testing.md": testing("- `frontend`, `facts`: x"),
+      });
+      expect(checkFacts(dir)).toEqual([]);
+    });
+
     it("reports a ci.yml job the section doesn't name, at the heading", () => {
       const dir = repo({
         ".forgejo/workflows/ci.yml": ci,
@@ -173,6 +191,14 @@ describe("checkFacts", () => {
       "CLAUDE.md": "`node scripts/x.mjs` `node scripts/gone.mjs --flag` `node -e foo` `node --version` `node scripts/noext`\n",
     });
     expect(said(checkFacts(dir))).toEqual(["CLAUDE.md:1 scripts/gone.mjs doesn't exist"]);
+  });
+
+  it("skips placeholders, relative and absolute paths in a node <path> span, and finds a bare name", () => {
+    const dir = repo({
+      "scripts/x.mjs": "",
+      "CLAUDE.md": "`node scripts/<name>.mjs` `node ../x.mjs` `node /abs/x.mjs` `node x.mjs` `node gone.mjs`\n",
+    });
+    expect(said(checkFacts(dir))).toEqual(["CLAUDE.md:1 gone.mjs doesn't exist"]);
   });
 
   it("counts a tag only as a whole word", () => {
