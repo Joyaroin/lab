@@ -45,7 +45,7 @@ const sample = (page: Page, ms: number) => page.evaluate((ms) => new Promise<str
   tick();
 }), ms);
 
-test("arriving in a hold scrambles the meter for the length of the shift, and it ends on the true reading", async ({ page }) => {
+test("arriving in a hold scrambles the meter for the length of the shift, and it ends on the true reading", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
   // Each time the bar changes, does it show the reading, or something else? Something else is the scramble.
   // The visible scramble ends when the last tube locks, not at the shift's end. How many frames draw by then depends on the machine (under
@@ -88,7 +88,7 @@ test("arriving in a hold scrambles the meter for the length of the shift, and it
   await expect.poll(async () => (await tubes(page)) === (await reading(page)), { timeout: 10_000 }).toBe(true);
 });
 
-test("scrolling quickly through a station does not scramble the meter", async ({ page }) => {
+test("scrolling quickly through a station does not scramble the meter", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
   await scrollToProgress(page, progressFor(1));
   await page.waitForTimeout(1500); // first visit, done
@@ -200,7 +200,7 @@ const settled = (page: Page) => expect.poll(async () => { const w = await watche
 const TEXT_RESOLVE_MS = 220; // the text's own resolve animation (ScreenPanels.tsx)
 const lateBy = (design: number, w: Watched, resolve = TEXT_RESOLVE_MS) => design + resolve + 4 * w.slowestFrame + 300;
 
-test("a first visit tears the view for about 0.8 s, and the text resolves as it ends", async ({ page }) => {
+test("a first visit tears the view for about 0.8 s, and the text resolves as it ends", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
   await watch(page, "work");
   await scrollToProgress(page, progressFor(1));
@@ -221,7 +221,7 @@ test("a first visit tears the view for about 0.8 s, and the text resolves as it 
   expect(await filterOn(page)).toBe(false);
 });
 
-test("a return shows its text when the 250 ms wait ends, and the flick plays over it", async ({ page }) => {
+test("a return shows its text when the 250 ms wait ends, and the flick plays over it", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
   await scrollToProgress(page, progressFor(1));
   await page.waitForTimeout(2500);
@@ -242,7 +242,7 @@ test("a return shows its text when the 250 ms wait ends, and the flick plays ove
   expect(w.shown!).toBeLessThan(lateBy(WAIT_MS, w, 0));
 });
 
-test("reduced motion gets no tear, and the text is there straight away", async ({ browser }) => {
+test("reduced motion gets no tear, and the text is there straight away", { tag: "@timing" }, async ({ browser }) => {
   const page = await (await browser.newContext({ reducedMotion: "reduce" })).newPage();
   await boot(page);
   await watch(page, "work");
@@ -255,7 +255,7 @@ test("reduced motion gets no tear, and the text is there straight away", async (
   expect(w.shown!).toBeLessThan(700); // no held-back text: only the camera arriving
 });
 
-test("moving quickly between stations can't make more than the limit of sudden changes in a second, tear after tear", async ({ page }) => {
+test("moving quickly between stations can't make more than the limit of sudden changes in a second, tear after tear", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
   await watch(page, "work");
   // Hop between the stations, spending a little over the wait at each, for 6 s.
@@ -292,7 +292,7 @@ const WATCH_AFTER_LEAVING_MS = 2_000;
 // The throttling is a Chrome DevTools Protocol command, which only Chromium has; the project runs
 // Chromium alone, so another browser would fail at newCDPSession rather than skip it.
 for (const rate of [1, 10, 16]) {
-  test(`leaving mid-shift ends on the true reading, with no late jump, and the tear plays out (${rate}x)`, async ({ page }) => {
+  test(`leaving mid-shift ends on the true reading, with no late jump, and the tear plays out (${rate}x)`, { tag: "@timing" }, async ({ page }) => {
     await boot(page);
     if (rate > 1) await (await page.context().newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate });
     // Leave the hold the moment the tear starts, from inside the page, so no round trip delays it. Time

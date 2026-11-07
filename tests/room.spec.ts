@@ -6,7 +6,7 @@ import { boxOf, meanBrightness, openTour, scrollToProgress, stationIds, waitForC
 // Baked room loads and the tour still moves the camera. Screenshots go to test-results/.
 // Seven software-WebGL screenshots: each waits for a drawn frame, which is slow on a loaded machine.
 test.setTimeout(60_000);
-test("baked room loads and the entrance and every station render", async ({ page }) => {
+test("baked room loads and the entrance and every station render", { tag: "@render" }, async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   const glb = page.waitForResponse((r) => r.url().includes("room-") && r.url().endsWith(".glb") && r.ok());
@@ -49,7 +49,7 @@ test("on a phone, MediaSafe and WC2026 Predictor frame lit parts of the room", a
 // Ticket 48: on desktop each station stops square to its TV, the text is laid over the glass, and
 // moving the pointer inside a hold doesn't move either.
 for (const [w, h] of [[1280, 800], [1920, 1080]]) {
-  test(`desktop ${w}x${h}: text sits on the glass at every station and the pointer does not move it`, async ({ page }) => {
+  test(`desktop ${w}x${h}: text sits on the glass at every station and the pointer does not move it`, { tag: "@render" }, async ({ page }) => {
     test.setTimeout(150_000); // six stations, each waits for the camera on software WebGL
     await page.setViewportSize({ width: w, height: h });
     await openTour(page);

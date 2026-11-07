@@ -1,4 +1,4 @@
-# Runs on every branch. A PR needs all six green before it merges.
+# Runs on every branch. A PR needs every job green before it merges.
 name: ci
 on:
   push:
@@ -28,6 +28,39 @@ jobs:
           STEPS: start=${{ steps.start.outcome }} checkout=${{ steps.checkout.outcome }} run=${{ steps.run.outcome }}
           RUN_STEP: run
           CMD: make frontend
+          OUT_FILE: ${{ runner.temp }}/out.log
+          EXIT_FILE: ${{ runner.temp }}/exit
+          START_FILE: ${{ runner.temp }}/start
+          MASK_ENV: TOKEN
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/post-ci-failure.mjs
+  facts:
+    runs-on: docker
+    steps:
+      - name: Record start time
+        id: start
+        run: date +%s > "${{ runner.temp }}/start"
+      - uses: actions/checkout@v4
+        id: checkout
+      - name: Run make facts
+        id: run
+        run: |
+          set -o pipefail
+          make facts 2>&1 | tee "${{ runner.temp }}/out.log" || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
+      # Forgejo has no job-log API, so put the failure on the PR. Best effort: it never changes
+      # the job result, and a failed post is only logged.
+      - name: Post the failure on the PR
+        if: failure()
+        continue-on-error: true
+        env:
+          JOB: facts
+          STEPS: start=${{ steps.start.outcome }} checkout=${{ steps.checkout.outcome }} run=${{ steps.run.outcome }}
+          RUN_STEP: run
+          CMD: make facts
           OUT_FILE: ${{ runner.temp }}/out.log
           EXIT_FILE: ${{ runner.temp }}/exit
           START_FILE: ${{ runner.temp }}/start

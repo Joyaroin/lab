@@ -6,7 +6,8 @@
 - Run `make setup` once per clone. It stops pushes to `main`.
 
 ## Checks
-`make frontend`, `make backend`, `make integration` and `make browser`.
+Which tests exist, where each runs, and what CI runs: `docs/agents/testing.md`.
+`make facts` checks that every path, command and tag these docs name exists, so update a doc in the same PR as the change that makes it wrong.
 
 ## Deploys
 Merging to `main` deploys to staging. Staging follows the `staging` branch, which only `release.yml`

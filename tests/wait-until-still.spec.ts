@@ -9,14 +9,14 @@ test("waits through a slow settle and returns where it stopped", async () => {
   expect(got).toBe(6);
 });
 
-test("fails, at its timeout, when the value never stops changing", async () => {
+test("fails, at its timeout, when the value never stops changing", { tag: "@timing" }, async () => {
   let n = 0;
   const t0 = Date.now();
   await expect(waitUntilStill(async () => n++, 50, 1_000)).rejects.toThrow();
   expect(Date.now() - t0).toBeGreaterThan(900);
 });
 
-test("a test left at the default 30 s limit fails with the last values read, not a plain timeout", async () => {
+test("a test left at the default 30 s limit fails with the last values read, not a plain timeout", { tag: "@timing" }, async () => {
   test.setTimeout(8_000); // stands in for the 30 s default: shorter than STILL_LIMIT_MS
   let n = 0;
   const t0 = Date.now();

@@ -47,7 +47,7 @@ test("scrolling and pointer movement still draw, and then it goes idle again", a
 // After the room starts, the only thing left to draw is the power-on:
 // a frame after frame for about a second and a half, then nothing. Counting frames (not draw
 // calls) tells that from the one or two frames the room draws when it appears.
-test("the power-on draws frame after frame, then stops", async ({ page }) => {
+test("the power-on draws frame after frame, then stops", { tag: "@timing" }, async ({ page }) => {
   await countDraws(page);
   await bootDone(page);
   await page.waitForTimeout(3_000);

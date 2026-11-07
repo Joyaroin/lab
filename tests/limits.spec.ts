@@ -81,7 +81,7 @@ const busiest = (times: number[]) => Math.max(0, ...times.map((a) => times.filte
 // ms leaves before the check at any speed. A long stay is retried until its measured stay really is long.
 for (const wanted of [100, 210, 400, 600]) {
   const fires = wanted >= 250;
-  test(`staying ${wanted} ms in a hold ${fires ? "fires the shift" : "fires no shift"}`, async ({ page }) => {
+  test(`staying ${wanted} ms in a hold ${fires ? "fires the shift" : "fires no shift"}`, { tag: "@timing" }, async ({ page }) => {
     await boot(page);
     await scrollToProgress(page, progressFor(1)); // the first visit, played out
     await expect.poll(async () => (await seen(page)).off.length, { timeout: 8_000 }).toBeGreaterThan(0);
@@ -133,7 +133,7 @@ const hop = (page: Page, stops: number[], every: number) => page.evaluate(([stop
 }), [stops, every] as const);
 for (const [kind, stays] of [["cold", [450, 700, 1000]], ["warm", [450, 550, 650]]] as const) {
   for (const stay of stays) {
-    test(`hopping ${kind === "cold" ? "between stations" : "back and forth between two visited stations"} every ${stay} ms never puts more than 3 sudden changes in a real second`, async ({ page }) => {
+    test(`hopping ${kind === "cold" ? "between stations" : "back and forth between two visited stations"} every ${stay} ms never puts more than 3 sudden changes in a real second`, { tag: "@timing" }, async ({ page }) => {
       await boot(page);
       if (kind === "warm") {
         for (const k of [1, 2]) { // visit both, and let each play out and show its text
@@ -158,7 +158,7 @@ for (const [kind, stays] of [["cold", [450, 700, 1000]], ["warm", [450, 550, 650
 // off on the first frame after it. The bounds leave 100 ms above 290 for frame timing (a slow machine only lengthens it).
 // A flick of 0.15 s measures about 190 and one of 0.4 s about 440. The 40 ms snap back (SNAP_BACK_MS) is the app's own
 // bookkeeping of that frame: raising it does not move when the filter really comes off, so no browser spec can see it.
-test("a return plays the short flick: about 0.25 s", async ({ page }) => {
+test("a return plays the short flick: about 0.25 s", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
   await scrollToProgress(page, progressFor(1));
   await expect.poll(async () => (await seen(page)).off.length, { timeout: 8_000 }).toBeGreaterThan(0); // the first visit played out
@@ -176,7 +176,7 @@ test("a return plays the short flick: about 0.25 s", async ({ page }) => {
 // of that is the restore (no shift), later than that it is an arrival (a shift). Real time: 3 s and 7 s,
 // 2 s either side of the edge. The bar appearing is about when the tour mounts.
 for (const [after, fires] of [[3_000, false], [7_000, true]] as const) {
-  test(`after a reload, going into a hold ${after / 1000} s later ${fires ? "is an arrival: it shifts" : "is the restore: no shift"}`, async ({ page }) => {
+  test(`after a reload, going into a hold ${after / 1000} s later ${fires ? "is an arrival: it shifts" : "is the restore: no shift"}`, { tag: "@timing" }, async ({ page }) => {
     await boot(page);
     await page.reload();
     await expect(page.locator("[data-meter-bar]")).toBeVisible();
@@ -192,7 +192,7 @@ for (const [after, fires] of [[3_000, false], [7_000, true]] as const) {
 // The limit of 3 counts a Work page turn too: it flicks the Work TV only, so its changes are the panel's filter going on
 // and off. Turning the page every `every` ms, never more than 3 changes in a real second.
 for (const every of [400, 700]) {
-  test(`turning the Work page every ${every} ms never puts more than 3 sudden changes in a real second`, async ({ page }) => {
+  test(`turning the Work page every ${every} ms never puts more than 3 sudden changes in a real second`, { tag: "@timing" }, async ({ page }) => {
     await page.goto("/");
     await expect(page.getByLabel("Boot log")).toBeHidden();
     await page.getByRole("navigation", { name: "HUD" }).locator('a[href="#work"]').click();

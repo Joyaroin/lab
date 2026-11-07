@@ -148,7 +148,7 @@ function scoreOf(want: Expected, seen: number[]) {
   return unique.map((u) => alike(left, u));
 }
 
-test("every TV shows its own title card from the wide view", async ({ page }) => {
+test("every TV shows its own title card from the wide view", { tag: "@render" }, async ({ page }) => {
   test.setTimeout(120_000);
   await page.setViewportSize(size);
   await page.route("https://api.github.com/**", (r) => r.fulfill({ status: 403, json: {} }));

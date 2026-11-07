@@ -13,6 +13,9 @@ const gpuArgs = existsSync("/dev/dri/renderD128")
   : [];
 
 export default defineConfig({
+  // On the VM (TEST_PORT set) one worker, so one session can't take the CPU from the other.
+  // CI and the Mac keep Playwright's default.
+  workers: process.env.TEST_PORT ? 1 : undefined,
   testDir: "tests",
   testMatch: "*.spec.ts",
   webServer: {
