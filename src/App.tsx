@@ -78,7 +78,7 @@ export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
       {!booted && <BootScreen steps={steps} fading={sceneReady} />}
       <SceneBoundary onFail={() => setFailed("scene-error")}>
         <Suspense fallback={null}>
-          {codeLoaded && <Room onReady={() => setSceneReady(true)} onProgress={onLoadProgress} progress={progress} reduced={reduced} meter={meter} gate={gate} />}
+          {codeLoaded && <Room onReady={() => setSceneReady(true)} onProgress={onLoadProgress} progress={progress} reduced={reduced} meter={meter} gate={gate} shift={shift} />}
         </Suspense>
       </SceneBoundary>
       {sceneReady && <Tour gap={gap} progress={progress} meter={meter} gate={gate} shift={shift} />}
