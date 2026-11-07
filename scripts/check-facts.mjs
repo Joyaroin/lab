@@ -21,6 +21,22 @@ function files(root, dir = root, out = []) {
   return out;
 }
 
+// A tag counts only in a real test file: *.spec.* or *.test.*
+const TEST_FILE = /\.(spec|test)\.[cm]?[jt]sx?$/;
+// A line range, column or #L anchor after a path: :12  :12-20  :12:3  #L3  #L3-L9
+const LOCATION = /(:\d+(-\d+)?){1,2}$|#L\d+(-L?\d+)?$/;
+
+// The first target after `make`, skipping flags and the argument of -C, -f, -I, -o and -W.
+function makeTarget(span) {
+  const words = span.split(/\s+/);
+  if (words[0] !== "make") return null;
+  for (let i = 1; i < words.length; i++) {
+    if (/^-[CfIoW]$/.test(words[i])) i++;
+    else if (!words[i].startsWith("-")) return words[i].match(/^[A-Za-z0-9_.][A-Za-z0-9_.-]*/);
+  }
+  return null;
+}
+
 const spans = (line) => [...line.matchAll(/`([^`]+)`/g)].map((m) => m[1].trim());
 
 function makeTargets(root) {
@@ -39,7 +55,7 @@ function npmScripts(root) {
 export function checkFacts(root) {
   const all = files(root);
   const names = new Set(all.map((p) => p.split("/").pop()));
-  const code = all.filter((p) => !p.endsWith(".md"));
+  const tests = all.filter((p) => TEST_FILE.test(p));
   let targets, scripts;
   const problems = [];
 
@@ -49,20 +65,20 @@ export function checkFacts(root) {
     readFileSync(path, "utf8").split("\n").forEach((text, i) => {
       const say = (message) => problems.push({ doc, line: i + 1, message });
       for (const span of spans(text)) {
-        const make = span.match(/^make\s+([A-Za-z0-9_.-]+)/);
+        const make = makeTarget(span);
         const npm = span.match(/^npm\s+(?:run\s+([A-Za-z0-9:_.-]+)|(test|start))\b/);
         if (make) {
           targets ??= makeTargets(root);
-          if (!targets?.has(make[1])) say(`make ${make[1]}: no such target in the Makefile`);
+          if (!targets?.has(make[0])) say(`make ${make[0]}: no such target in the Makefile`);
         } else if (npm) {
           const name = npm[1] ?? npm[2];
           scripts ??= npmScripts(root);
           if (!scripts?.has(name)) say(`${span}: no such script in package.json`);
         } else if (doc === TESTING && /^@[a-z][a-z0-9-]*$/.test(span)) {
-          const used = code.some((p) => readFileSync(join(root, p), "utf8").includes(span));
+          const used = tests.some((p) => readFileSync(join(root, p), "utf8").includes(span));
           if (!used) say(`${span} tags no test`);
         } else if (!/[\s*<>$~{}]|^\/|^\.\.|:\/\//.test(span)) {
-          const p = span.replace(/:\d+$/, "");
+          const p = span.replace(LOCATION, "");
           if (p.includes("/")) {
             if ((p.endsWith("/") || FILE.test(p)) && !existsSync(join(root, p))) say(`${p} doesn't exist`);
           } else if (FILE.test(p) && !names.has(p)) say(`${p} doesn't exist`);

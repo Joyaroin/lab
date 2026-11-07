@@ -13,6 +13,8 @@ function repo(files) {
   }
   return dir;
 }
+// Tags are built at runtime, so the literal text never appears in this file for the checker to find.
+const tag = (name) => "@" + name;
 const said = (problems) => problems.map((p) => `${p.doc}:${p.line} ${p.message}`);
 
 describe("checkFacts", () => {
@@ -72,18 +74,48 @@ describe("checkFacts", () => {
 
   it("checks that each tag in the testing facts tags at least one test", () => {
     const dir = repo({
-      "tests/limits.spec.ts": 'test("a tear @timing", () => {});\n',
-      "docs/agents/testing.md": "| Timing | `@timing` |\n| Heavy rendering | `@render` |\n",
+      "tests/limits.spec.ts": `test("a tear ${tag("timing")}", () => {});\n`,
+      "docs/agents/testing.md": `| Timing | \`${tag("timing")}\` |\n| Heavy rendering | \`${tag("render")}\` |\n`,
     });
-    expect(said(checkFacts(dir))).toEqual(["docs/agents/testing.md:2 @render tags no test"]);
+    expect(said(checkFacts(dir))).toEqual([`docs/agents/testing.md:2 ${tag("render")} tags no test`]);
   });
 
   it("doesn't count a tag that only appears in the docs", () => {
     const dir = repo({
-      "README.md": "`@render` marks heavy specs\n",
-      "docs/agents/testing.md": "`@render`\n",
+      "README.md": `\`${tag("render")}\` marks heavy specs\n`,
+      "docs/agents/testing.md": `\`${tag("render")}\`\n`,
     });
-    expect(said(checkFacts(dir))).toEqual(["docs/agents/testing.md:1 @render tags no test"]);
+    expect(said(checkFacts(dir))).toEqual([`docs/agents/testing.md:1 ${tag("render")} tags no test`]);
+  });
+
+  it("doesn't count a tag that only appears in non-test files", () => {
+    const dir = repo({
+      "src/helper.ts": `export const t = "${tag("render")}";\n`,
+      "package.json": `{"scripts":{"x":"${tag("render")}"}}`,
+      "scripts/other.mjs": `// ${tag("render")}\n`,
+      "docs/agents/testing.md": `\`${tag("render")}\`\n`,
+    });
+    expect(said(checkFacts(dir))).toEqual([`docs/agents/testing.md:1 ${tag("render")} tags no test`]);
+  });
+
+  it("checks a path that carries a line range, a column or a #L anchor", () => {
+    const dir = repo({
+      "CLAUDE.md": "`src/gone.ts:12-20` `src/gone.ts#L3` `src/gone.ts:12:3` `src/gone.ts#L3-L9` `src/gone.ts:12`\n",
+    });
+    expect(said(checkFacts(dir))).toEqual(Array(5).fill("CLAUDE.md:1 src/gone.ts doesn't exist"));
+  });
+
+  it("accepts a path with a line range or anchor when the file exists", () => {
+    const dir = repo({ "src/a.ts": "", "CLAUDE.md": "`src/a.ts:12-20` `src/a.ts#L3` `src/a.ts:1:2`\n" });
+    expect(checkFacts(dir)).toEqual([]);
+  });
+
+  it("doesn't read a make flag as a target", () => {
+    const dir = repo({
+      Makefile: "x:\n\ttrue\nbrowser:\n\ttrue\n",
+      "CLAUDE.md": "`make -C sub x` and `make -j4 browser` and `make -C sub nope`\n",
+    });
+    expect(said(checkFacts(dir))).toEqual(["CLAUDE.md:1 make nope: no such target in the Makefile"]);
   });
 
   it("reads only the project's own docs, not the generic tracker docs", () => {
