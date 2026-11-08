@@ -128,10 +128,23 @@ describe("the power-on", () => {
   });
 });
 
+describe("a gone panel", () => {
+  it("forgets that a first visit's text resolved, so a return's text just shows", () => {
+    const s = setup();
+    arrive(s, mid(1)); vi.advanceTimersByTime(2000); // first visit: resolving
+    expect(s.shift.textState(1, mid(1), performance.now())).toBe("resolving");
+    s.shift.tearStarted("full", performance.now()); // the flash limit will now hold the return back
+    s.shift.observe(0); // the panel has gone
+    s.shift.observe(mid(1)); vi.advanceTimersByTime(WAIT_MS + 30);
+    expect(s.started).toHaveLength(1); // held back by the limit
+    expect(s.shift.textState(1, mid(1), performance.now())).toBe("showing");
+  });
+});
+
 describe("a reload", () => {
   it("does not play a shift for the hold the page opened in, and shows its text", () => {
     const s = setup({ startProgress: mid(2), navigationType: "reload" });
-    expect(s.shift.textState(2, mid(2), performance.now())).not.toBe("held");
+    expect(s.shift.textState(2, mid(2), performance.now())).toBe("showing");
     arrive(s, mid(2), 3000);
     expect(s.started).toEqual([]);
     arrive(s, 0, 100); arrive(s, mid(2), 1000); // leaving and coming back is an arrival, nothing was remembered
@@ -142,7 +155,7 @@ describe("a reload", () => {
     s.shift.observe(0);
     vi.advanceTimersByTime(POWER_ON_MS + 100);
     s.shift.observe(mid(4)); // the browser put the visitor back
-    expect(s.shift.textState(4, mid(4), performance.now())).not.toBe("held");
+    expect(s.shift.textState(4, mid(4), performance.now())).toBe("showing");
     vi.advanceTimersByTime(3000);
     expect(s.started).toEqual([]);
   });
@@ -191,7 +204,7 @@ describe("leaving", () => {
     arrive(s, mid(1)); s.shift.observe(0); arrive(s, mid(2), 3000); s.shift.observe(0);
     expect(s.ended).toHaveBeenCalledTimes(2);
   });
-  it("reports where the visitor is", () => {
+  it("reports the hold the visitor is in", () => {
     const s = setup();
     s.shift.observe(mid(3)); expect(s.shift.hold).toBe(3);
     s.shift.observe(holdSpan(3)[1] + 0.02); expect(s.shift.hold).toBe(0);
@@ -243,7 +256,7 @@ describe("the text", () => {
     const fired = performance.now();
     expect(s.shift.textState(1, mid(1), fired + FULL_END_MS + 1)).toBe("resolving");
     expect(s.shift.textState(1, mid(1), fired + FULL_END_MS - 1)).toBe("held");
-    expect(s.shift.textState(1, mid(1), fired + FULL_END_MS + 1)).not.toBe("held");
+    expect(s.shift.textState(1, mid(1), fired + FULL_END_MS + 1)).toBe("resolving");
   });
   it("waits for a tear that began late, such as on a slow device", () => {
     const s = setup();
@@ -252,7 +265,7 @@ describe("the text", () => {
     expect(s.started).toHaveLength(1);
     s.shift.tearStarted("full", fired + 300); // the view drew it 300 ms after it fired
     expect(s.shift.textState(1, mid(1), fired + 300 + FULL_END_MS - 1)).toBe("held");
-    expect(s.shift.textState(1, mid(1), fired + 300 + FULL_END_MS + 1)).not.toBe("held");
+    expect(s.shift.textState(1, mid(1), fired + 300 + FULL_END_MS + 1)).toBe("resolving");
   });
   it("is readable about a second after arrival on a first visit", () => {
     const s = setup();
@@ -279,7 +292,7 @@ describe("the text", () => {
     arrive(s, mid(1), WAIT_MS + 30);
     const fired = performance.now();
     s.shift.tearStarted("short", fired + 200);
-    expect(s.shift.textState(1, mid(1), fired)).not.toBe("held");
+    expect(s.shift.textState(1, mid(1), fired)).toBe("showing");
   });
   it("shows as soon as the wait ends on a return, without resolving", () => {
     const s = setup();
@@ -287,16 +300,15 @@ describe("the text", () => {
     s.shift.observe(mid(1));
     expect(s.shift.textState(1, mid(1), performance.now() + WAIT_MS - 1)).toBe("held");
     vi.advanceTimersByTime(WAIT_MS + 30);
-    expect(s.shift.textState(1, mid(1), performance.now())).not.toBe("held");
     expect(s.shift.textState(1, mid(1), performance.now())).toBe("showing");
   });
   it("stays through the fade out on leaving, and is held back again on the next arrival", () => {
     const s = setup();
     arrive(s, mid(1)); vi.advanceTimersByTime(2000);
-    expect(s.shift.textState(1, mid(1), performance.now())).not.toBe("held");
+    expect(s.shift.textState(1, mid(1), performance.now())).toBe("resolving");
     const out = holdSpan(1)[1] + 0.005;
     s.shift.observe(out);
-    expect(s.shift.textState(1, out, performance.now())).not.toBe("held");
+    expect(s.shift.textState(1, out, performance.now())).toBe("resolving");
     expect(s.shift.textState(1, 0, performance.now())).toBe("held");
     s.shift.observe(0); // the visitor scrolls on, the panel is gone
     s.shift.observe(holdSpan(1)[0] + 1e-4);
@@ -359,12 +371,11 @@ describe("limiting flashes", () => {
   });
   it("holds a second tear back until its changes fit, and shows its text at once without counting the visit", () => {
     const s = setup();
-    arrive(s, mid(1), WAIT_MS + 50); // fires at 280: changes 280, 680, 1120
-    arrive(s, mid(2), 300); // would fire at 550 after the hop: 4 changes within a second
+    arrive(s, mid(1), WAIT_MS + 50); // fires at 280: changes 280, 680, 960
+    arrive(s, mid(2), 300); // would fire at 580 after the hop: 4 changes within a second
     expect(s.started).toHaveLength(1);
-    expect(s.shift.textState(2, mid(2), performance.now())).not.toBe("held");
     expect(s.shift.textState(2, mid(2), performance.now())).toBe("showing");
-    arrive(s, mid(3), 300); // would fire at 910: 280, 680, 910 and 1120 are 4 within a window
+    arrive(s, mid(3), 300); // would fire at 880: 280, 680, 880 and 960 are 4 within a window
     expect(s.started).toHaveLength(1);
     arrive(s, 0, 3000); arrive(s, mid(4), 300); // once the first tear's changes are long past: it fits again
     expect(s.started.map((p) => p.kind)).toEqual(["full", "full"]);
@@ -415,9 +426,16 @@ describe("a Work page turn", () => {
   });
   it("counts against the flash limit with a tear that is already playing", () => {
     const s = setup();
-    arrive(s, mid(1), WAIT_MS + 30); // fired: 280, 680, 1120
+    arrive(s, mid(1), WAIT_MS + 30); // fired: 280, 680, 960
     vi.advanceTimersByTime(450);
     expect(s.shift.turn()).toBe(false);
+  });
+  it("holds a tear back when it would land just after a page turn, and its changes don't fit", () => {
+    const s = setup();
+    expect(s.shift.turn()).toBe(true); // flick: 0, 212.5, snap back
+    arrive(s, mid(1), WAIT_MS + 30); // the tear fires about 280 ms after the turn: 3 more changes in a window
+    expect(s.started).toHaveLength(0);
+    expect(s.shift.textState(1, mid(1), performance.now())).toBe("showing"); // held back, so its text shows at once
   });
 });
 
@@ -454,5 +472,19 @@ describe("what the views read", () => {
   it("wakes the room through the one function it gave, and stops after it is removed", () => {
     const s = setup(); const off = s.shift.setWake(vi.fn()); const w = vi.fn(); s.shift.setWake(w);
     off(); s.shift.observe(mid(1)); expect(w).toHaveBeenCalled();
+    const removeW = s.shift.setWake(w); w.mockClear();
+    removeW(); s.shift.observe(mid(2)); vi.advanceTimersByTime(5000);
+    expect(w).not.toHaveBeenCalled(); // its own remove has run: nothing calls it
+  });
+  it("wakes the room when the wait timer fires a shift, with no further observe", () => {
+    const s = setup();
+    s.shift.observe(mid(1)); s.wake.mockClear();
+    vi.advanceTimersByTime(WAIT_MS + 60); // only the timer runs
+    expect(s.started).toHaveLength(1);
+    expect(s.wake).toHaveBeenCalled();
+  });
+  it("shows every station's text before the tour mounts", () => {
+    const shift = createShift(false);
+    for (let i = 1; i <= STATION_COUNT; i++) expect(shift.textState(i, mid(i), 0)).toBe("showing");
   });
 });
