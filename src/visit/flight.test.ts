@@ -2,20 +2,19 @@ import { describe, it, expect } from "vitest";
 import { CAMERA_FOV, crts, glassCorners, OVERVIEW } from "../crts";
 import { framingFor } from "../framing";
 import { nearestSurface } from "../../tests/lib/room-mesh";
-import { flightPose, type Pose } from "./flight";
+import { flightFov, flightPose, type Pose } from "./flight";
 
 type V3 = [number, number, number];
 const CLEAR = 0.15, GLASS_CLEAR = 0.6, SAMPLES = 40;
-const TAN = Math.tan((CAMERA_FOV * Math.PI) / 360);
 const sub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const dot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const norm = (a: V3): V3 => { const l = Math.hypot(...a); return [a[0] / l, a[1] / l, a[2] / l]; };
 const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 
 /** Where a point lands in a frame of this aspect, -1..1 each way, by the camera's own projection
- *  (vertical field CAMERA_FOV, looking at `look` with world up). Null if it is behind the camera. */
+ *  (vertical field the pose's fov, or CAMERA_FOV, looking at `look` with world up). Null if it is behind the camera. */
 function project(pose: Pose, p: V3, aspect: number): [number, number] | null {
-  const f = norm(sub(pose.look, pose.camera)), r = norm(cross(f, [0, 1, 0])), u = cross(r, f), d = sub(p, pose.camera), z = dot(d, f);
+  const f = norm(sub(pose.look, pose.camera)), r = norm(cross(f, [0, 1, 0])), u = cross(r, f), d = sub(p, pose.camera), z = dot(d, f), TAN = Math.tan(((pose.fov ?? CAMERA_FOV) * Math.PI) / 360);
   return z <= 0 ? null : [dot(d, r) / z / (TAN * aspect), dot(d, u) / z / TAN];
 }
 
@@ -29,6 +28,23 @@ describe("the overview", () => {
         expect(Math.abs(q![1]), `${crt.id} up`).toBeLessThanOrEqual(1);
       }
     });
+  it("has its own field of view, wider than the stations' and no more than 75 degrees", () => {
+    expect(OVERVIEW.fov).toBeGreaterThan(CAMERA_FOV);
+    expect(OVERVIEW.fov).toBeLessThanOrEqual(75);
+  });
+  it("is in front of every TV's glass in the in-frame set, as each station's stop is", () => {
+    for (const crt of crts) {
+      const a = (crt.yaw * Math.PI) / 180;
+      const d = sub(OVERVIEW.camera, crt.screen);
+      expect(d[0] * Math.sin(a) + d[2] * Math.cos(a), crt.id).toBeGreaterThan(0.5);
+    }
+  });
+  it("has the camera inside the room", () => {
+    const [x, y, z] = OVERVIEW.camera;
+    expect(Math.abs(x)).toBeLessThan(1.9);
+    expect(Math.abs(z)).toBeLessThan(1.9);
+    expect(y).toBeLessThan(2.5);
+  });
   it("has the camera clear of the room's surfaces, both poses", () => {
     expect(nearestSurface(OVERVIEW.camera, CLEAR)).toBe(Infinity);
     expect(nearestSurface(OVERVIEW.portrait.camera, CLEAR)).toBe(Infinity);
@@ -38,8 +54,25 @@ describe("the overview", () => {
 describe("flightPose", () => {
   const a: Pose = { camera: [0, 1, 0], look: [0, 1, -1] }, b: Pose = { camera: [1, 1.2, -1], look: [1, 1.2, -2] };
   it("starts exactly on `from` and ends exactly on `to`", () => {
-    expect(flightPose(a, b, 0)).toEqual(a);
-    expect(flightPose(a, b, 1)).toEqual(b);
+    expect(flightPose(a, b, 0)).toEqual({ ...a, fov: CAMERA_FOV });
+    expect(flightPose(a, b, 1)).toEqual({ ...b, fov: CAMERA_FOV });
+  });
+  it("eases the field of view between the poses': exact at both ends, continuous, never outside the two", () => {
+    const wide: Pose = { ...a, fov: OVERVIEW.fov };
+    for (const [from, to] of [[wide, b], [b, wide]] as const) {
+      expect(flightPose(from, to, 0).fov).toBe(from.fov ?? CAMERA_FOV);
+      expect(flightPose(from, to, 1).fov).toBe(to.fov ?? CAMERA_FOV);
+      const v = Array.from({ length: SAMPLES + 1 }, (_, i) => flightFov(from, to, i / SAMPLES));
+      const lo = Math.min(CAMERA_FOV, OVERVIEW.fov), hi = Math.max(CAMERA_FOV, OVERVIEW.fov);
+      for (const x of v) { expect(x).toBeGreaterThanOrEqual(lo); expect(x).toBeLessThanOrEqual(hi); }
+      const steps = v.slice(1).map((x, i) => Math.abs(x - v[i]));
+      expect(Math.max(...steps)).toBeLessThan(0.1 * (hi - lo));
+      expect(flightFov(from, to, 1e-9)).toBeCloseTo(from.fov ?? CAMERA_FOV, 6);
+      expect(flightFov(from, to, 1 - 1e-9)).toBeCloseTo(to.fov ?? CAMERA_FOV, 6);
+    }
+  });
+  it("keeps CAMERA_FOV between two station poses", () => {
+    expect(flightPose(a, b, 0.5).fov).toBe(CAMERA_FOV);
   });
   it("moves smoothly: no step between neighbouring samples is more than a few times the average", () => {
     const pts = Array.from({ length: SAMPLES + 1 }, (_, i) => flightPose(a, b, i / SAMPLES).camera);

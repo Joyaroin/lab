@@ -19,7 +19,7 @@ export type FramingWindow = { width: number; height: number };
 export const PARALLAX_FROM = 0.2, PARALLAX_FULL = 0.45;
 
 /** A framing's stops: camera and look per stop, the overview pose as stop 0, then one per station. */
-export type StopList = { camera: V3; look: V3; exit?: V3[] }[];
+export type StopList = { camera: V3; look: V3; exit?: V3[]; fov?: number }[];
 
 export type Framing = {
   name: "square" | "portrait";
@@ -82,7 +82,7 @@ function square(win: FramingWindow): Framing {
   const aims: V3[] = [looks[0], ...squares.map((s) => s.look)];
   return {
     name: "square",
-    stops: [{ camera: OVERVIEW.camera, look: OVERVIEW.look, exit: OVERVIEW.exit }, ...squares],
+    stops: [{ camera: OVERVIEW.camera, look: OVERVIEW.look, exit: OVERVIEW.exit, fov: OVERVIEW.fov }, ...squares],
     cameraAt: (where, reduced) => flyAlong(cameras, aims, where, reduced),
     textOnGlass: (where, station) => panelStrength(where, station) >= PANEL_SHOWN,
     parallaxStrength: squareParallax,

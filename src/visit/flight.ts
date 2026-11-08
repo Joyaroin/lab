@@ -3,9 +3,11 @@
 // the pose it leaves (toward the middle of the room), passes over the middle of the room, and
 // comes in to the pose it is going to the same way. That keeps it off the desks, shelves and the
 // other TVs, and bows it back toward the middle of the room, as the overview does.
+import { CAMERA_FOV } from "../crts";
 type V3 = [number, number, number];
 /** `exit` is the points the camera heads through first when it leaves this pose, and arrives through in reverse: set where heading for the middle of the room is no way out (the overview, in a corner of the room's shelves). */
-export type Pose = { camera: V3; look: V3; exit?: V3[] };
+/** `fov` is the vertical field of view in degrees; CAMERA_FOV where left out. */
+export type Pose = { camera: V3; look: V3; exit?: V3[]; fov?: number };
 
 /** The point every flight passes over, and what the camera looks at as it does. */
 export const HUB = { camera: [0, 1.75, 0.1] as V3, look: [0, 1, -0.6] as V3 };
@@ -41,13 +43,23 @@ function through(pts: V3[], s: number): V3 {
   return lerp(b1, b2, t1, t2);
 }
 
-/** The camera and look point `f` (0..1) of the way along the flight from `from` to `to`. It is
+/** The field of view `f` (0..1) of the way along a flight: eased (smoothstep) between the two poses', exactly each pose's at 0 and 1. */
+export function flightFov(from: Pose, to: Pose, f: number): number {
+  const a = from.fov ?? CAMERA_FOV, b = to.fov ?? CAMERA_FOV;
+  if (f <= 0) return a;
+  if (f >= 1) return b;
+  return a + (b - a) * f * f * (3 - 2 * f);
+}
+
+/** The camera, look point and field of view `f` (0..1) of the way along the flight from `from` to `to`. It is
  *  exactly `from` at 0 and exactly `to` at 1. */
-export function flightPose(from: Pose, to: Pose, f: number): Pose {
-  if (f <= 0) return { camera: [...from.camera], look: [...from.look] };
-  if (f >= 1) return { camera: [...to.camera], look: [...to.look] };
+export function flightPose(from: Pose, to: Pose, f: number): Required<Pick<Pose, "fov">> & Pose {
+  const fov = flightFov(from, to, f);
+  if (f <= 0) return { camera: [...from.camera], look: [...from.look], fov };
+  if (f >= 1) return { camera: [...to.camera], look: [...to.look], fov };
   return {
     camera: through([from.camera, ...out(from), HUB.camera, ...out(to).slice().reverse(), to.camera], f),
     look: through([from.look, HUB.look, to.look], f),
+    fov,
   };
 }
