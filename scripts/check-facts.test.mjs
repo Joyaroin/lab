@@ -176,6 +176,35 @@ describe("checkFacts", () => {
       expect(said(checkFacts(dir))).toEqual(["docs/agents/testing.md:3 CI job facts isn't listed"]);
     });
 
+    it("reports a missing What CI runs section at line 1", () => {
+      const dir = repo({
+        ".forgejo/workflows/ci.yml": ci,
+        "docs/agents/testing.md": "# T\n\n## Commands\n- `frontend`: x\n",
+      });
+      expect(said(checkFacts(dir))).toEqual([
+        'docs/agents/testing.md:1 no "What CI runs" section, so CI jobs can\'t be checked',
+      ]);
+    });
+
+    it("reports a renamed What CI runs heading the same way", () => {
+      const dir = repo({
+        ".forgejo/workflows/ci.yml": ci,
+        "docs/agents/testing.md": "# T\n\n## What CI runs today\n- `frontend`, `facts`: x\n",
+      });
+      expect(said(checkFacts(dir))).toEqual([
+        'docs/agents/testing.md:1 no "What CI runs" section, so CI jobs can\'t be checked',
+      ]);
+    });
+
+    it("adds no problem when there is no testing doc or ci.yml has no jobs", () => {
+      expect(checkFacts(repo({ ".forgejo/workflows/ci.yml": ci }))).toEqual([]);
+      const dir = repo({
+        ".forgejo/workflows/ci.yml": "name: CI\n",
+        "docs/agents/testing.md": "# T\n",
+      });
+      expect(checkFacts(dir)).toEqual([]);
+    });
+
     it("ignores job names outside the What CI runs section", () => {
       const dir = repo({
         ".forgejo/workflows/ci.yml": ci,
