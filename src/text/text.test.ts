@@ -12,9 +12,19 @@ import { placeText, scratch, textCovers, type PanelEl } from "./place";
 beforeEach(() => { vi.useFakeTimers(); });
 afterEach(() => { vi.useRealTimers(); });
 
-/** A plain stand-in for the panel's DOM element: just what the text module reads and sets. */
+/** A plain stand-in for the panel's DOM element: just what the text module reads and sets. Like a browser,
+ *  it resets scrollTop to 0 when the height limit is set to "none" (nothing overflows then). */
 function fakeEl(over: Partial<{ scrollHeight: number; clientHeight: number; scrollTop: number }> = {}) {
-  return { style: { maxHeight: "" }, dataset: {}, scrollTop: 0, scrollHeight: 600, clientHeight: 300, ...over } as unknown as PanelEl & { style: Record<string, string> };
+  let scrollTop = over.scrollTop ?? 0, maxHeight = "";
+  const style = {
+    get maxHeight() { return maxHeight; },
+    set maxHeight(v: string) { maxHeight = v; if (v === "none") scrollTop = 0; },
+  };
+  return {
+    style, dataset: {}, scrollHeight: 600, clientHeight: 300, ...over,
+    get scrollTop() { return scrollTop; },
+    set scrollTop(v: number) { scrollTop = v; },
+  } as unknown as PanelEl & { style: Record<string, string> };
 }
 
 const mid = progressFor;
