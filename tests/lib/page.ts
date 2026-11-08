@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { stations } from "../../src/content";
-import { progressFor } from "../../src/hold";
+import { holdSpan, progressFor } from "../../src/hold";
 
 // Helpers the browser specs share. Specs that need a page to settle, scroll to a stop or read
 // pixels use these, so there is one way of doing each.
@@ -16,17 +16,23 @@ export async function openTour(page: Page) {
   await expect(page.getByLabel("Boot log")).toBeHidden();
 }
 
-/** Jumps the page to scroll progress `p` (0..1) at once. */
+/** Jumps the page to scroll progress `p` (0..1) at once. Only the helpers below use it, and the
+ *  specs that test scrolling itself. */
 export const scrollToProgress = (page: Page, p: number) =>
   page.evaluate((f) => window.scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)), p);
 
-/** Turns the real wheel to get to stop `k` (0 is the entrance), with the pointer at (`x`, `y`): put it
- *  beside the text so the wheel scrolls the page, not a panel. */
-export async function wheelToStop(page: Page, k: number, x = 5, y = 5) {
-  const delta = await page.evaluate((f) => f * (document.documentElement.scrollHeight - innerHeight) - scrollY, progressFor(k));
-  await page.mouse.move(x, y);
-  await page.mouse.wheel(0, delta);
-}
+// How a spec gets somewhere. A spec never scrolls the page itself: it uses these, so the way the
+// visitor moves is decided here. The progressFor and holdSpan imports stay in this file only.
+
+/** Goes to `stop` (0 is the entrance) and resolves once the visitor is there: the middle of the
+ *  stop's hold. */
+export const goTo = (page: Page, stop: number) => scrollToProgress(page, progressFor(stop));
+
+/** Goes back to stop 0, the entrance. */
+export const goBack = (page: Page) => scrollToProgress(page, 0);
+
+/** Leaves station `stop` for the next stretch of the tour: just past the end of its hold. */
+export const leave = (page: Page, stop: number) => scrollToProgress(page, holdSpan(stop)[1] + 0.03);
 
 /** The longest `waitUntilStill` waits for things to stop moving: three times the 15 s `expect` limit,
  *  because on a slow runner (software WebGL, a host under load) the camera eases in far fewer frames
