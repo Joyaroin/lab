@@ -29,6 +29,8 @@ function StationPanel({ s, onTurn }: { s: Station; onTurn?: OnPageTurn }) {
       onScroll={(e) => markMore(e.currentTarget)}>
       <p style={worldLine}>{s.worldLine}</p>
       <h2 style={heading}>{s.heading}</h2>
+      {/* Work has no lead of its own: the open page's shows, and changes when the page turns */}
+      {(page?.lead ?? s.lead) && <p data-lead style={lead}>{page?.lead ?? s.lead}</p>}
       {/* links first, so they are on screen without scrolling even in a phone's short panel */}
       <p style={linkRow}>
         {s.links.map((l) => (
@@ -40,7 +42,7 @@ function StationPanel({ s, onTurn }: { s: Station; onTurn?: OnPageTurn }) {
       </p>
       {s.diagram && <DiagramFigure d={s.diagram} />}
       {s.pages && <Timeline pages={s.pages} open={open} onOpen={(i) => { if (i !== open && ref.current) onTurn?.(ref.current); setOpen(i); }} />}
-      {(page ? page.body : s.body).map((b, i) => <p key={i} style={para}>{b}</p>)}
+      <ul style={list}>{(page ? page.body : s.body).map((b, i) => <li key={i} style={item}>{b}</li>)}</ul>
       <div className="crt-more" aria-hidden="true"><span>{ui.more}</span></div>
     </section>
   );
@@ -154,6 +156,8 @@ const panel: CSSProperties = {
 };
 const worldLine: CSSProperties = { margin: 0, fontSize: "0.75em", letterSpacing: "0.12em", textTransform: "uppercase", color: "#ffb347" };
 const heading: CSSProperties = { margin: "0.16em 0 0.4em", fontSize: "1.25em" };
-const para: CSSProperties = { margin: "0 0 0.6em" };
+const lead: CSSProperties = { margin: "0 0 0.7em" };
+const list: CSSProperties = { margin: 0, paddingLeft: "1.2em" };
+const item: CSSProperties = { margin: "0 0 0.6em" };
 const linkRow: CSSProperties = { margin: "0 0 0.7em", display: "flex", flexWrap: "wrap", gap: "0.3em 1em" };
 const link: CSSProperties = { color: "#7dffb0", textDecoration: "underline" };

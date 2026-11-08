@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { progressFor } from "../src/hold";
-import { openTour, panelOf, scrollToProgress, waitForPanel, wheelToStop } from "./lib/page";
+import { openTour, overflowPanel, panelOf, scrollToProgress, waitForPanel, wheelToStop } from "./lib/page";
 
 // Ticket 63: a panel that scrolls must keep its scroll position while the wheel turns, and
 // at the end the wheel must carry on to the next stop.
@@ -28,6 +28,7 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     await wheelToStop(page, 1);
     await expect(panelOf(page, "work")).toBeVisible();
     await waitForPanel(page, "work");
+    await overflowPanel(page, "work"); // the real copy is too short to overflow, so the test makes it
     const room = await panelRoom(page, "work");
     expect(room, "Work must overflow for this test to mean anything").toBeGreaterThan(20);
     const box = (await panelOf(page, "work").boundingBox())!;
@@ -65,6 +66,7 @@ async function resizeKeepsPosition(page: Page, id: string, stop: number, from: {
   await wheelToStop(page, stop);
   await expect(panelOf(page, id)).toHaveCSS("opacity", "1");
   await waitForPanel(page, id);
+  await overflowPanel(page, id, 4); // enough that it still overflows at the larger size
   const before = await panelRoom(page, id);
   expect(before, `${id} must overflow at ${from.width}x${from.height} for this test to mean anything`).toBeGreaterThan(20);
   await panelOf(page, id).evaluate((e) => e.scrollTo(0, e.scrollHeight));
@@ -99,6 +101,7 @@ test.describe("phone-sized window", () => {
     await scrollToProgress(page, progressFor(2));
     await expect(panelOf(page, "mediasafe")).toHaveCSS("opacity", "1");
     await waitForPanel(page, "mediasafe");
+    await overflowPanel(page, "mediasafe"); // the real copy is too short, so the test adds text
     const room = await panelRoom(page, "mediasafe");
     expect(room).toBeGreaterThan(200);
     const box = (await panelOf(page, "mediasafe").boundingBox())!;

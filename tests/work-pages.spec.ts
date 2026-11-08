@@ -3,9 +3,9 @@ import { pageSwitch, stations } from "../src/content";
 import { holdSpan } from "../src/hold";
 import { SHIFT_SECONDS } from "../src/nixie";
 import { busiestWindow, MAX_CHANGES_PER_SECOND, SNAP_BACK_MS } from "../src/shift";
-import { countDraws, draws, frames, panelOf, waitForCamera, waitForPanel, waitUntilStill } from "./lib/page";
+import { countDraws, draws, frames, overflowPanel, panelOf, waitForCamera, waitForPanel, waitUntilStill } from "./lib/page";
 import { defineSnapWatcher } from "./lib/snap";
-import { WORK_COPY } from "./fixtures/work-copy";
+import { WORK_COPY, WORK_LEADS } from "./fixtures/work-copy";
 
 // Ticket 55: Work is two pages on one TV, switched by a timeline of two buttons.
 const work = stations.find((s) => s.id === "work")!;
@@ -20,7 +20,8 @@ async function openWork(page: Page, w: number, h: number) {
   await expect(workPanel(page)).toHaveCSS("opacity", "1");
   await waitForCamera(page); // the camera has arrived
 }
-const shown = (page: Page) => workPanel(page).locator("p").allInnerTexts();
+// the lead and the bullets: the text a page shows
+const shown = async (page: Page) => [...(await workPanel(page).locator("[data-lead]").allInnerTexts()), ...(await workPanel(page).locator("li").allInnerTexts())];
 
 for (const [w, h] of [[1280, 800], [1920, 1080]]) {
   test(`desktop ${w}x${h}: Work opens on Solace, and a click or Enter on a segment turns the page`, async ({ page }) => {
@@ -35,7 +36,8 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     await expect(seg(page, "barracuda")).not.toContainText(pageSwitch.open);
     const widthOf = async (id: string) => (await seg(page, id).boundingBox())!;
     expect((await widthOf("barracuda")).x).toBeLessThan((await widthOf("solace")).x); // oldest on the left
-    expect(await shown(page)).toEqual(expect.arrayContaining(solace.body));
+    expect(await shown(page)).toEqual(expect.arrayContaining([solace.lead, ...solace.body]));
+    expect(await shown(page)).not.toContain(barracuda.lead);
     expect(await shown(page)).not.toContain(barracuda.body[0]);
     expect(await seg(page, "barracuda").evaluate((e) => getComputedStyle(e).cursor)).toBe("pointer");
     await page.screenshot({ path: `test-results/work-${w}x${h}-solace.png` });
@@ -45,7 +47,8 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     await expect(seg(page, "barracuda")).toHaveAttribute("aria-pressed", "true");
     await expect(seg(page, "barracuda")).toContainText(pageSwitch.open);
     await expect(seg(page, "solace")).not.toContainText(pageSwitch.open);
-    expect(await shown(page)).toEqual(expect.arrayContaining(barracuda.body));
+    expect(await shown(page)).toEqual(expect.arrayContaining([barracuda.lead, ...barracuda.body]));
+    expect(await shown(page)).not.toContain(solace.lead); // turning the page changes the lead
     expect(await shown(page)).not.toContain(solace.body[0]);
     await page.screenshot({ path: `test-results/work-${w}x${h}-barracuda.png` });
 
@@ -61,13 +64,14 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     await seg(page, "barracuda").focus();
     await page.keyboard.press("Enter");
     (await shown(page)).forEach((t) => seen.add(t));
-    for (const b of WORK_COPY) expect(seen, b).toContain(b); // the old wording, from a fixture
+    for (const b of [...WORK_LEADS, ...WORK_COPY]) expect(seen, b).toContain(b); // the approved wording, from a fixture
   });
 }
 
 test("scrolling does not turn the page", async ({ page }) => {
   test.setTimeout(90_000);
   await openWork(page, 1280, 800);
+  await overflowPanel(page, "work"); // the real copy is too short to scroll, so the test makes it
   const box = (await workPanel(page).boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, 30); await page.waitForTimeout(80); }
@@ -80,6 +84,7 @@ test("scrolling does not turn the page", async ({ page }) => {
 test("a turn starts the new page at its top", async ({ page }) => {
   test.setTimeout(90_000);
   await openWork(page, 1280, 800);
+  await overflowPanel(page, "work"); // the real copy is too short to scroll, so the test makes it
   await workPanel(page).evaluate((e) => { e.scrollTop = 1e6; });
   const before = await workPanel(page).evaluate((e) => e.scrollTop);
   expect(before, "the panel was scrolled before the turn").toBeGreaterThan(0);
@@ -104,6 +109,7 @@ async function movedFrom(page: Page, prev: number) {
 test("leaving Work, every wheel step over the panel moves the page on", async ({ page }) => {
   test.setTimeout(90_000);
   await openWork(page, 1280, 800);
+  await overflowPanel(page, "work"); // the real copy is too short to overflow, so the test makes it
   const end = holdSpan(1)[1];
   const to = (f: number) => page.evaluate((f) => { scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)); }, f);
   await workPanel(page).evaluate((e) => { e.scrollTop = 1e6; }); // read to the end first

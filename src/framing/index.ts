@@ -34,7 +34,7 @@ const stops: V3[] = [ENTRANCE.camera, ...crts.map((c) => c.camera)];
 const looks: V3[] = [ENTRANCE.look, ...crts.map((c) => c.look)];
 // On a portrait window the camera stands further back along the same line, so a phone sees the
 // station's desk, not only one CRT. The factor per stop is in room-layout.json (1 if unset).
-// A station with its own phone stop uses that instead (MediaSafe and WC2026, whose pulled-back
+// A station with its own phone stop uses that instead (MediaSafe and Software factory, whose pulled-back
 // view was mostly dark).
 const pulls: number[] = [ENTRANCE.portrait, ...crts.map((c) => c.portrait)];
 const phones = [undefined, ...crts.map((c) => c.phone)];

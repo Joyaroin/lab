@@ -17,20 +17,24 @@ export type Station = {
   reading: number;
   /** plain heading shown on the CRT */
   heading: string;
-  /** plain paragraphs shown on the CRT */
+  /** one line shown under the heading. Optional only when the station has `pages`, which each have one. */
+  lead?: string;
+  /** the station's bullets shown on the CRT, at most three (per page, for a station with pages) */
   body: string[];
   links: Link[];
-  /** optional line drawing of facts already in `body` */
+  /** optional line drawing of facts already in the lead and `body` */
   diagram?: Diagram;
   /** optional split of `body` into pages the visitor switches between (Work). `body` stays the
-   *  whole text in order; the pages' paragraphs are the same strings, in the same order. */
+   *  whole text in order; the pages' bullets are the same strings, in the same order. */
   pages?: Page[];
   /** words on the TV's bezel: the maker's plate and the sticky note. Neither may read as a status. */
   bezel: Bezel;
 };
 /** One page of a station: `label` and `dates` name it on the timeline that switches pages, and
  *  `months` is how long the job ran, which sets its segment's width. */
-export type Page = { id: string; label: string; dates: string; months: number; body: string[] };
+export type Page = { id: string; label: string; dates: string; months: number; lead: string; body: string[] };
+/** The most bullets a station, or a page, may have. */
+export const MAX_BULLETS = 3;
 /** `plate` is an invented maker and model (no real brand, nothing from the series, ADR-0002). */
 export type Bezel = { plate: string; note: string };
 /** A chain of steps drawn left to right. `hops[i]` labels the arrow from step i to step i+1
@@ -91,21 +95,18 @@ const LINKEDIN: Link = { label: "LinkedIn", href: "https://www.linkedin.com/in/a
 const GITHUB: Link = { label: "GitHub", href: "https://github.com/Joyaroin" };
 const SITE_SOURCE: Link = { label: "This site's source", href: "https://github.com/Joyaroin/lab" };
 
-// Work's two jobs, written once: the station shows them as two pages.
+// Work's two jobs, written once: the station shows them as two pages, each with its own lead.
+const SOLACE_LEAD = "Solace · Software Developer Co-op, Platform Engineering · Sep–Dec 2026";
 const SOLACE = [
-  "Solace: Software Developer Co-op, Platform Engineering. Ottawa, Sep to Dec 2026.",
-  "Made the EC2 proxies behind CI/CD builds self-healing. CloudWatch alarms defined in Terraform reboot an out-of-memory instance, and a Lambda posts its status to Slack. A failure that sat unnoticed for hours became an unattended recovery, since proven on a real outage.",
-  "Provisioned an S3 artifact store in Terraform, with versioning and lifecycle rules, giving a customer-facing UI pinned releases that can be rolled back.",
-  "Wrote a Python check that fails any pull request where a pipeline drifts from its template.",
-  "Automated product offboarding in an internal security dashboard across UI, API, data model and scripts, ending 30 to 60 minutes of manual cleanup each time.",
+  "I made the EC2 proxies behind CI/CD builds heal themselves: an out-of-memory instance reboots and reports to Slack on its own, since proven on a real outage.",
+  "I built an S3 artifact store in Terraform that gives a customer-facing UI pinned releases it can roll back.",
+  "I automated product offboarding across UI, API, data model and scripts, ending 30–60 minutes of manual cleanup each time.",
 ];
+const BARRACUDA_LEAD = "Barracuda Networks · Software Engineer Co-op, BarracudaONE Platform · Sep 2025–Aug 2026";
 const BARRACUDA = [
-  "Barracuda Networks: Software Engineer Co-op, BarracudaONE Platform. Ottawa, Sep 2025 to Aug 2026.",
-  "Built a GitHub Actions workflow that opens hotfix branches from the commit actually in production, serving 18 service repos and saving 5 to 10 minutes per ticket.",
-  "Authored Terraform for production AWS infrastructure: VPC, ALB, IAM, ECR and External Secrets.",
-  "Set up a Grafana dashboard with threshold alerts on SaaS metrics, used daily by the team.",
-  "Built a test-scenario generator on the Claude API and a Jira MCP server, adopted by all 15 developers, cutting test-note writing by roughly 40%.",
-  "Delivered C# and .NET services and React/TypeScript UI across some 60 tickets, and brought open-source license scanning into CI.",
+  "I built a hotfix workflow that branches from the commit actually in production. It's used by 18 service repos and saves 5–10 minutes per ticket.",
+  "I built a Claude API test-scenario generator with a Jira MCP server. All 15 developers use it, and it cut test-note writing by about 40%.",
+  "I wrote Terraform for production AWS (VPC, ALB, IAM, ECR, External Secrets) and shipped C#/.NET and React features across about 60 tickets.",
 ];
 
 export const content: Content = {
@@ -125,16 +126,17 @@ export const content: Content = {
   ],
 
   // Real copy, in tour order. Plain descriptions; lab language lives in the world-line labels only.
-  // Every fact here comes from ticket #11. Add nothing that is not there.
+  // Every fact here comes from spec #165. Add nothing that is not there.
   stations: [
     {
       id: "work", name: "Work", worldLine: "World line 01", reading: 214,
       heading: "Work experience",
-      // `body` is the whole text in order (Solace, then Barracuda); `pages` splits the same paragraphs.
+      // `body` is the whole text in order (Solace, then Barracuda); `pages` splits the same bullets.
+      // Work has no lead of its own: each page has one.
       body: [...SOLACE, ...BARRACUDA],
       pages: [
-        { id: "solace", label: "Solace", dates: "Sep to Dec 2026", months: 4, body: SOLACE },
-        { id: "barracuda", label: "Barracuda", dates: "Sep 2025 to Aug 2026", months: 12, body: BARRACUDA },
+        { id: "solace", label: "Solace", dates: "Sep to Dec 2026", months: 4, lead: SOLACE_LEAD, body: SOLACE },
+        { id: "barracuda", label: "Barracuda", dates: "Sep 2025 to Aug 2026", months: 12, lead: BARRACUDA_LEAD, body: BARRACUDA },
       ],
       links: [LINKEDIN],
       bezel: { plate: "HALDEN HX-101", note: "Call\nFriday" },
@@ -142,16 +144,16 @@ export const content: Content = {
     {
       id: "mediasafe", name: "MediaSafe", worldLine: "World line 02", reading: 377,
       heading: "MediaSafe",
+      lead: "My tracker for shows and films, built and run by me alone. Next.js 16 and Postgres.",
       body: [
-        "A personal tracker for shows and films, built, deployed and operated end to end by one person. Next.js 16 and Postgres.",
-        "Live at mediasafe.space, which needs a Google sign-in.",
-        "Argo CD syncs the cluster from Git, and a commit is the only way it changes. Merges ship to staging automatically; production is promoted by hand. Secrets live in Vault with nightly snapshots to Cloudflare R2 and a scripted restore drill.",
-        "As of November 2026: about 700 commits and 170+ merged pull requests since August 2026.",
+        "Git is the only way it changes: Argo CD ships every merge to staging, and I promote to production by hand.",
+        "Secrets live in Vault, backed up nightly to Cloudflare R2, with a restore I've tested.",
+        "170+ merged pull requests since August 2026.",
       ],
       diagram: {
-        description: "Argo CD syncs from Git. Merges ship to staging automatically. Production is promoted by hand.",
+        description: "Git is the only way it changes. Argo CD ships every merge to staging. I promote to production by hand.",
         steps: ["Git", "Argo CD", "Staging", "Production"],
-        hops: ["", "automatically", "by hand"],
+        hops: ["", "every merge", "by hand"],
       },
       links: [
         { label: "MediaSafe repo", href: "https://github.com/Joyaroin/MediaSafe" },
@@ -163,16 +165,16 @@ export const content: Content = {
     {
       id: "home-lab", name: "Home lab", worldLine: "World line 03", reading: 512,
       heading: "Home lab and Proxmox",
+      lead: "I run my own Kubernetes cluster at home, and this site runs on it.",
       body: [
-        "Two Proxmox hosts, jonathan (HP ProDesk) and joseph (GEEKOM A5), run a two-node k3s cluster on VMs hamon and hermit.",
-        "No ports are open at home: traffic arrives only through a Cloudflare Tunnel. Traefik with Gateway API, cert-manager, Vault, External Secrets.",
-        "Git hosting and CI runners run at home too, with the CI runner firewalled from the home network and cluster. Production and staging are pinned to separate nodes.",
-        "This site runs on that cluster.",
+        "Two Proxmox hosts run a two-node k3s cluster, with production and staging on separate nodes.",
+        "No ports are open at home: all traffic comes in through a Cloudflare Tunnel.",
+        "My Git server and CI runners live here too, with the runner firewalled off from the rest of the network.",
       ],
       diagram: {
-        description: "Traffic arrives only through a Cloudflare Tunnel. Two Proxmox hosts, jonathan and joseph, run the VMs hamon and hermit.",
-        steps: ["Cloudflare Tunnel", "jonathan and joseph", "hamon and hermit"],
-        hops: ["traffic", "VMs"],
+        description: "All traffic comes in through a Cloudflare Tunnel. Two Proxmox hosts run a two-node k3s cluster.",
+        steps: ["Cloudflare Tunnel", "Proxmox hosts", "k3s cluster"],
+        hops: ["traffic", "run"],
       },
       links: [SITE_SOURCE],
       bezel: { plate: "HALDEN HX-330", note: "Water\nthe fern" },
@@ -180,41 +182,44 @@ export const content: Content = {
     {
       id: "order-tracker", name: "Order Tracker", worldLine: "World line 04", reading: 640,
       heading: "Order Tracker GitOps Platform",
+      lead: "A GitOps delivery platform on AWS, from Terraform modules to an app for each environment.",
       body: [
-        "A GitOps delivery pipeline: Argo CD ApplicationSets and Kustomize overlays generate per-environment apps.",
-        "Reusable Terraform modules for the network, cluster, registry, IAM and remote state.",
-        "GitHub Actions pushes images to ECR with OIDC instead of static AWS keys. Pull requests against hotfix branches spin up isolated EKS environments.",
-        "The repo is private, so there is no link.",
+        "Argo CD ApplicationSets and Kustomize overlays generate an app for each environment.",
+        "GitHub Actions pushes images to ECR over OIDC, with no static AWS keys.",
+        "A pull request against a hotfix branch spins up its own isolated EKS environment.",
       ],
       diagram: {
-        description: "GitHub Actions pushes images to ECR with OIDC. Argo CD ApplicationSets generate per-environment apps.",
-        steps: ["GitHub Actions", "ECR", "Argo CD", "per-environment apps"],
+        description: "GitHub Actions pushes images to ECR over OIDC. Argo CD ApplicationSets generate an app for each environment.",
+        steps: ["GitHub Actions", "ECR", "Argo CD", "app for each environment"],
         hops: ["OIDC", "", "ApplicationSets"],
       },
       links: [],
       bezel: { plate: "HALDEN HX-418", note: "Lamp\nbulb?" },
     },
     {
-      id: "wc2026-predictor", name: "WC2026 Predictor", worldLine: "World line 05", reading: 733,
-      heading: "WC2026 Predictor",
+      id: "software-factory", name: "Software factory", worldLine: "World line 05", reading: 733,
+      heading: "Software factory",
+      lead: "My AI software factory: I plan, and agents build, review and merge. It built this site.",
       body: [
-        "A live score-prediction game for the 2026 FIFA World Cup: friends join a group, call scorelines and climb leaderboards that move as goals go in.",
-        "React 19, TypeScript, Express 5, single-table DynamoDB, Terraform, Helm and Argo CD.",
+        "I plan a feature with an orchestrator agent, which cuts it into small tickets. Builder agents write each ticket test-first on a VM and open a pull request.",
+        "Every PR runs full CI on my own runner. Then a fresh reviewer agent decides whether it merges by itself, needs me, or goes back for a rebuild.",
+        "This site has 76 merged pull requests since 5 November 2026. Production moves only when I promote it.",
       ],
       diagram: {
-        description: "React 19, Express 5 and single-table DynamoDB.",
-        steps: ["React 19", "Express 5", "DynamoDB"],
-        hops: ["", ""],
+        description: "I plan, agents build each ticket and open a PR, a reviewer agent decides, and it merges.",
+        steps: ["Plan", "Build", "Review", "Merge"],
+        hops: ["tickets", "PR", "decides"],
       },
-      links: [{ label: "Repo", href: "https://github.com/Joyaroin/wc2026-predictor" }],
+      links: [SITE_SOURCE],
       bezel: { plate: "HALDEN HX-552", note: "Lunch\nat 1" },
     },
     {
       id: "contact", name: "Contact", worldLine: "World line 06", reading: 861,
       heading: "Contact",
+      lead: "I'm Adham Sedik, a software and platform engineer.",
       body: [
-        "Adham Sedik. SWE & Platform.",
-        "Honours Computer Science, Software Engineering stream, Carleton University, Ottawa, expected Dec 2027. Open to co-op and full-time roles.",
+        "Honours Computer Science, Software Engineering stream, at Carleton University in Ottawa. I graduate in December 2027.",
+        "I'm open to co-op and full-time roles.",
       ],
       links: [
         { label: "adhamsedik@cmail.carleton.ca", href: "mailto:adhamsedik@cmail.carleton.ca" },
@@ -305,6 +310,9 @@ export function validateContent(c: Content): string[] {
     for (const f of ["name", "worldLine"] as const) tvText(`${p}.${f}`, s[f]);
     if (typeof s.reading !== "number" || !Number.isFinite(s.reading)) problems.push(`${p}.reading: missing`);
     paragraphs(`${p}.body`, s.body);
+    if (s.lead === undefined || s.lead === "") { if (!s.pages) problems.push(`${p}.lead: missing`); }
+    else text(`${p}.lead`, s.lead);
+    if (!s.pages && Array.isArray(s.body) && s.body.length > MAX_BULLETS) problems.push(`${p}.body: at most ${MAX_BULLETS} bullets`);
     linkList(`${p}.links`, s.links);
     if (s.pages) {
       const pp = `${p}.pages`;
@@ -314,10 +322,12 @@ export function validateContent(c: Content): string[] {
           text(`${pp}[${j}].id`, pg.id);
           for (const f of ["label", "dates"] as const) tvText(`${pp}[${j}].${f}`, pg[f]);
           if (!Number.isInteger(pg.months) || pg.months <= 0) problems.push(`${pp}[${j}].months: missing`);
+          text(`${pp}[${j}].lead`, pg.lead);
           paragraphs(`${pp}[${j}].body`, pg.body);
+          if (Array.isArray(pg.body) && pg.body.length > MAX_BULLETS) problems.push(`${pp}[${j}].body: at most ${MAX_BULLETS} bullets`);
         });
         const joined = s.pages.flatMap((pg) => (Array.isArray(pg.body) ? pg.body : []));
-        if (JSON.stringify(joined) !== JSON.stringify(s.body)) problems.push(`${pp}: paragraphs must be the same as ${p}.body, in order`);
+        if (JSON.stringify(joined) !== JSON.stringify(s.body)) problems.push(`${pp}: bullets must be the same as ${p}.body, in order`);
       }
     }
     for (const f of ["plate", "note"] as const) tvText(`${p}.bezel.${f}`, s.bezel?.[f]);

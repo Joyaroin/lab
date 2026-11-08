@@ -573,7 +573,7 @@ cyl("lampbulb", (LAMP_HEAD[0], LAMP_HEAD[1] - 0.045, LAMP_HEAD[2]), 0.035, 0.01,
 box("cardboard", (1.55, 0.15, 0.3), (0.45, 0.3, 0.5), yaw=4, bevel=0.005)
 box("beige", (1.6, 0.42, -0.5), (0.4, 0.3, 0.35), yaw=-95, bevel=0.02)
 
-# shelf unit (wc2026-predictor): stacks of parts, a radio, boxes, a football
+# shelf unit (software-factory): stacks of parts, a radio, boxes, a football
 shf = (SH[0] + SH[1]) / 2
 stack((shf, 0.08, 1.7), 4, yaw=90)
 box("cardboard", (shf, 0.24, 1.15), (0.4, 0.3, 0.3), yaw=5, bevel=0.005)

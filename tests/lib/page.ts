@@ -136,3 +136,17 @@ export const countDraws = async (page: Page) => {
 export const draws = (page: Page) => page.evaluate(() => (window as unknown as { __draws: number }).__draws);
 export const frames = (page: Page) => page.evaluate(() => (window as unknown as { __frames: number }).__frames);
 
+
+/** Makes a panel overflow, whatever its copy says: appends filler paragraphs until its text is
+ *  `times` boxes tall (2 = one box of scrolling), then waits for the panel to settle. */
+export async function overflowPanel(page: Page, id: string, times = 2) {
+  await panelOf(page, id).evaluate((e, times) => {
+    const clientHeight = e.clientHeight;
+    while (e.scrollHeight < clientHeight * times) {
+      const p = document.createElement("p");
+      p.textContent = "Filler paragraph added by the test so that this panel runs past its bottom edge. ".repeat(4);
+      e.insertBefore(p, e.querySelector(".crt-more"));
+    }
+  }, times);
+  await waitForPanel(page, id);
+}

@@ -206,10 +206,10 @@ describe("portrait framing", () => {
   });
 });
 
-// --- phone stops: MediaSafe and WC2026 are reframed on phones so lit parts of the room show (ticket 36) ---
+// --- phone stops: MediaSafe and Software factory are reframed on phones so lit parts of the room show (ticket 36) ---
 describe("phone stops", () => {
-  const reframed = ["mediasafe", "wc2026-predictor"];
-  it("reframe MediaSafe and WC2026 Predictor, and only those", () => {
+  const reframed = ["mediasafe", "software-factory"];
+  it("reframe MediaSafe and Software factory, and only those", () => {
     expect(crts.filter((c) => c.phone).map((c) => c.id)).toEqual(reframed);
   });
   it("are used on a portrait window, camera and look point both", () => {

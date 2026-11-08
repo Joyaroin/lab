@@ -27,15 +27,15 @@ test("baked room loads and the entrance and every station render", { tag: "@rend
   expect(errors).toEqual([]);
 });
 
-// Ticket 36: on a portrait phone, MediaSafe and WC2026 used to be mostly dark. Scrolled to with
+// Ticket 36: on a portrait phone, MediaSafe and Software factory used to be mostly dark. Scrolled to with
 // the wheel, each must now frame lit parts of the room. Mean frame brightness (0-255) was about
 // 22 for both before; the other stations sit between 22 and 31. The mean covers the whole window,
 // station text and HUD included, so this shows the frame got brighter, not which part is lit.
 
-test("on a phone, MediaSafe and WC2026 Predictor frame lit parts of the room", async ({ page }) => {
+test("on a phone, MediaSafe and Software factory frame lit parts of the room", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openTour(page);
-  for (const [name, label] of [["mediasafe", "World line 02: MediaSafe"], ["wc2026-predictor", "World line 05: WC2026 Predictor"]]) {
+  for (const [name, label] of [["mediasafe", "World line 02: MediaSafe"], ["software-factory", "World line 05: Software factory"]]) {
     await wheelToStop(page, stationIds.indexOf(name) + 1, 195, 300);
     await expect(page.getByText(label, { exact: true })).toBeVisible();
     // Measure once the camera has arrived and the frame stops changing, not after a guessed delay.

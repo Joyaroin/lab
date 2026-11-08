@@ -67,7 +67,7 @@ The language of this project: its terms, what each one means, and what it doesn'
 - **Signal lost**: the one static screen shown when 3D can't start. Not a second site.
 - **HUD**: the small always-on corner overlay with résumé, contact and station links.
 - **Phone stop**: a station's own camera stop, look point and text pin used on a portrait window instead of
-  the pulled-back view, where that view would be mostly dark. Only MediaSafe and WC2026 have one.
+  the pulled-back view, where that view would be mostly dark. Only MediaSafe and Software factory have one.
 - **Framing**: how the camera and the text are set for the window's shape. Two exist. **Square** (a window
   at least as wide as tall): each station's own square stop, worked out from the window; the text is laid
   over the glass; no mouse parallax in a hold. **Portrait** (taller than wide): the pull-back, or the phone

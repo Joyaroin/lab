@@ -20,7 +20,7 @@ describe("index.html matches content", () => {
 });
 
 import { validateContent, content, pageSwitch, ui, fill, type Diagram, type Station } from "./content";
-import { WORK_COPY } from "../tests/fixtures/work-copy";
+import { WORK_COPY, WORK_LEADS } from "../tests/fixtures/work-copy";
 
 const good = () => structuredClone(content);
 
@@ -112,9 +112,61 @@ describe("validateContent", () => {
   });
 });
 
-it("dates the MediaSafe commit and pull request counts", () => {
-  const body = content.stations.find((s) => s.id === "mediasafe")!.body.join(" ");
-  expect(body).toMatch(/as of November 2026.*commits.*pull requests/i);
+// A count goes stale, so each says since when.
+it.each([["mediasafe"], ["software-factory"]])("%s: its pull request count says since a date", (id) => {
+  const bullets = content.stations.find((s) => s.id === id)!.body;
+  expect(bullets.filter((b) => /pull requests/i.test(b)).join(" ")).toMatch(/\d\+? merged pull requests since (\d+ )?[A-Z][a-z]+ 2026/);
+});
+
+// Every station's text is a one-line lead and at most three bullets (Work: per page).
+describe("lead and bullets", () => {
+  const plain = content.stations.filter((s) => !s.pages);
+  it.each(plain.map((s) => [s.id]))("%s has a lead and at most three bullets", (id) => {
+    const s = content.stations.find((x) => x.id === id)!;
+    expect(s.lead).toBeTruthy();
+    expect(s.body.length).toBeGreaterThan(0);
+    expect(s.body.length).toBeLessThanOrEqual(3);
+  });
+  it("each Work page has a lead and at most three bullets", () => {
+    const pages = content.stations.find((s) => s.id === "work")!.pages!;
+    for (const pg of pages) {
+      expect(pg.lead).toBeTruthy();
+      expect(pg.body.length).toBeGreaterThan(0);
+      expect(pg.body.length).toBeLessThanOrEqual(3);
+    }
+  });
+  it("the stations are, in order, work, mediasafe, home-lab, order-tracker, software-factory, contact", () => {
+    expect(content.stations.map((s) => s.id)).toEqual(["work", "mediasafe", "home-lab", "order-tracker", "software-factory", "contact"]);
+  });
+  it("Software factory links to this site's source", () => {
+    expect(content.stations.find((s) => s.id === "software-factory")!.links.map((l) => l.href)).toContain("https://github.com/Joyaroin/lab");
+  });
+  it("rejects a station with no lead and no pages", () => {
+    const c = good();
+    delete c.stations[1].lead;
+    expect(validateContent(c).join("\n")).toContain("stations[1].lead: missing");
+  });
+  it("rejects a station with four bullets", () => {
+    const c = good();
+    c.stations[1].body.push("A fourth bullet.");
+    expect(validateContent(c).join("\n")).toContain("stations[1].body: at most 3 bullets");
+  });
+  it("rejects a Work page with no lead", () => {
+    const c = good();
+    c.stations[0].pages![0].lead = "";
+    expect(validateContent(c).join("\n")).toContain("pages[0].lead: missing");
+  });
+  it("rejects a Work page with four bullets", () => {
+    const c = good();
+    const pg = c.stations[0].pages![0];
+    pg.body.push("A fourth bullet.");
+    c.stations[0].body = c.stations[0].pages!.flatMap((x) => x.body);
+    expect(validateContent(c).join("\n")).toContain("pages[0].body: at most 3 bullets");
+  });
+  it("accepts Work with no lead of its own", () => {
+    expect(good().stations[0].lead).toBeUndefined();
+    expect(validateContent(good())).toEqual([]);
+  });
 });
 
 it("has no placeholder copy left", () => {
@@ -141,7 +193,7 @@ describe("diagram", () => {
   it("MediaSafe has one: Git to Argo CD to staging, then production by hand", () => {
     const { d } = media();
     expect(d.steps).toEqual(["Git", "Argo CD", "Staging", "Production"]);
-    expect(d.hops[2]).toMatch(/by hand/i);
+    expect(d.hops).toEqual(["", "every merge", "by hand"]);
   });
   it("hops that are not a list are reported, not a crash", () => {
     for (const bad of ["by hand", { length: 2 }, null, 7]) {
@@ -155,20 +207,25 @@ describe("diagram", () => {
   const FREE = new Set(["a", "an", "the", "to", "and", "by", "from", "is", "are", "with", "which"]);
   const words = (t: string) => t.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
   /** Words in a station's diagram that its copy doesn't have, as "word in text". */
-  const missingWords = (s: Pick<Station, "body" | "heading" | "name" | "diagram">) => {
-    const copy = new Set(words(s.body.join(" ") + " " + s.heading + " " + s.name));
+  const missingWords = (s: Pick<Station, "body" | "heading" | "name" | "diagram"> & { lead?: string }) => {
+    const copy = new Set(words((s.lead ?? "") + " " + s.body.join(" ") + " " + s.heading + " " + s.name));
     return diagramText(s.diagram!).flatMap((t) => words(t).filter((w) => !FREE.has(w) && !copy.has(w)).map((w) => `"${w}" in "${t}"`));
   };
   it.each(content.stations.filter((s) => s.diagram).map((s) => [s.id]))("%s: every word of its diagram, description included, is in its copy", (id) => {
     expect(missingWords(content.stations.find((x) => x.id === id)!)).toEqual([]);
+  });
+  it("the word check counts the lead as copy", () => {
+    const s = { lead: "Plan first.", body: ["x"], heading: "h", name: "n", diagram: { description: "Plan", steps: ["Plan"], hops: [] } };
+    expect(missingWords(s)).toEqual([]);
+    expect(missingWords({ ...s, lead: undefined })).toEqual(['"plan" in "Plan"', '"plan" in "Plan"']);
   });
   it("the word check does not pass a near miss", () => {
     const s = { body: ["It deploys automatically."], heading: "h", name: "n", diagram: { description: "It deploys", steps: ["automatic"], hops: [] } };
     expect(missingWords({ ...s, diagram: { ...s.diagram, steps: ["automatically"] } })).toEqual([]);
     expect(missingWords(s)).toEqual(['"automatic" in "automatic"']);
   });
-  it("exactly Home lab, MediaSafe, Order Tracker and WC2026 have one; Work and Contact do not", () => {
-    expect(content.stations.filter((s) => s.diagram).map((s) => s.id)).toEqual(["mediasafe", "home-lab", "order-tracker", "wc2026-predictor"]);
+  it("exactly MediaSafe, Home lab, Order Tracker and Software factory have one; Work and Contact do not", () => {
+    expect(content.stations.filter((s) => s.diagram).map((s) => s.id)).toEqual(["mediasafe", "home-lab", "order-tracker", "software-factory"]);
   });
   describe.each(content.stations.filter((s) => s.diagram).map((s) => [s.id]))("%s", (id) => {
     it("is checked for live-status words like the other copy", () => {
@@ -210,15 +267,16 @@ describe("diagram", () => {
   });
 });
 
-// Work is two pages, Barracuda then Solace on the timeline, holding exactly the old text.
+// Work is two pages, Barracuda then Solace on the timeline, holding exactly the approved text.
 describe("Work's pages", () => {
   const work = () => { const c = good(); return { c, w: c.stations.find((s) => s.id === "work")! }; };
-  it("are Solace and Barracuda, and between them hold every paragraph of the body in order", () => {
+  it("are Solace and Barracuda, and between them hold every bullet of the body in order", () => {
     const { w } = work();
     expect(w.pages!.map((p) => p.label)).toEqual(["Solace", "Barracuda"]);
     expect(w.pages!.map((p) => p.dates)).toEqual(["Sep to Dec 2026", "Sep 2025 to Aug 2026"]);
     expect(w.pages!.map((p) => p.months)).toEqual([4, 12]);
-    expect(w.pages!.flatMap((p) => p.body)).toEqual(WORK_COPY); // the old wording, pinned in a fixture
+    expect(w.pages!.map((p) => p.lead)).toEqual(WORK_LEADS);
+    expect(w.pages!.flatMap((p) => p.body)).toEqual(WORK_COPY); // the approved wording, pinned in a fixture
     expect(w.body).toEqual(WORK_COPY);
   });
   it("rejects a page with no months", () => {
@@ -233,11 +291,11 @@ describe("Work's pages", () => {
   });
   it("rejects pages whose paragraphs differ from the station's text, or are out of order", () => {
     const { c, w } = work();
-    w.pages![0].body = [...w.pages![0].body].reverse().concat("An extra line.");
-    expect(validateContent(c).join("\n")).toContain("stations[0].pages: paragraphs must be the same");
+    w.pages![0].body = [...w.pages![0].body].reverse();
+    expect(validateContent(c).join("\n")).toContain("stations[0].pages: bullets must be the same");
     const o = work();
     o.w.pages!.reverse();
-    expect(validateContent(o.c).join("\n")).toContain("pages: paragraphs must be the same");
+    expect(validateContent(o.c).join("\n")).toContain("pages: bullets must be the same");
   });
   it.each(["label", "dates"] as const)("rejects a page %s that reads as a live status", (f) => {
     const { c, w } = work();

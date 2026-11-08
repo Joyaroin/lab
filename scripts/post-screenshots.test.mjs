@@ -34,7 +34,7 @@ const shots = () => {
 
 describe("screenshot comment", () => {
   it("reads station and size from a file name", () => {
-    expect(parseName("/x/wc2026-predictor-phone.png")).toEqual({ station: "wc2026-predictor", size: "phone" });
+    expect(parseName("/x/software-factory-phone.png")).toEqual({ station: "software-factory", size: "phone" });
     expect(parseName("notes.txt")).toBeUndefined();
   });
   it("puts each station's two sizes in one row", () => {

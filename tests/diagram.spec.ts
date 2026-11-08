@@ -28,12 +28,12 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     await expect(fig).toBeVisible();
 
     // real text, in order, readable by a screen reader's description too
-    await expect(fig.locator("svg text")).toHaveText(["Git", "Argo CD", "automatically", "Staging", "by hand", "Production"]);
+    await expect(fig.locator("svg text")).toHaveText(["Git", "Argo CD", "every merge", "Staging", "by hand", "Production"]);
     await expect(fig.getByRole("img", { name: mediasafe.diagram!.description })).toBeVisible();
 
     // under the links, above the body, inside the panel and the window
     const y = async (sel: string) => (await panel.locator(sel).first().boundingBox())!;
-    const links = await y("a"), fb = (await fig.boundingBox())!, body = await y("p:not(:has(a)):nth-of-type(n+3)");
+    const links = await y("a"), fb = (await fig.boundingBox())!, body = await y("ul");
     expect(fb.y).toBeGreaterThanOrEqual(links.y + links.height);
     expect(fb.y + fb.height).toBeLessThanOrEqual(body.y + 1);
     const pb = (await panel.boundingBox())!;
@@ -64,7 +64,7 @@ test("phone: MediaSafe still shows its panel with the diagram not breaking the l
   await ctx.close();
 });
 
-// Ticket 54: Home lab, Order Tracker and WC2026 get one too; Contact never does.
+// Ticket 54: Home lab, Order Tracker and Software factory get one too; Contact never does.
 async function goToStation(page: Page, id: string) {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/");
@@ -76,7 +76,7 @@ async function goToStation(page: Page, id: string) {
   return panel;
 }
 
-for (const id of ["home-lab", "order-tracker", "wc2026-predictor"]) {
+for (const id of ["home-lab", "order-tracker", "software-factory"]) {
   test(`desktop 1280x800: ${id} shows its diagram, drawn from its copy, inside the panel`, async ({ page }) => {
     test.setTimeout(90_000);
     const panel = await goToStation(page, id);
@@ -96,6 +96,12 @@ for (const id of ["home-lab", "order-tracker", "wc2026-predictor"]) {
       return r.left < s.left - 0.5 || r.right > s.right + 0.5 || r.height < 9;
     }).length);
     expect(bad).toBe(0);
+    // the bullets are a real list, below the lead
+    const st = stations.find((s) => s.id === id)!;
+    const lead = panel.locator("[data-lead]"), items = panel.locator("ul > li");
+    await expect(lead).toHaveText(st.lead!);
+    await expect(items).toHaveText(st.body);
+    expect((await lead.boundingBox())!.y).toBeLessThan((await panel.locator("ul").boundingBox())!.y);
     await page.screenshot({ path: `test-results/diagram-1280x800-${id}.png` });
   });
 }

@@ -210,9 +210,9 @@ for (const [name, size] of Object.entries(sizes)) {
     await page.screenshot({ path: `test-results/screen-contact-${name}.png` });
 
     // Selectable: selecting a paragraph yields its text.
-    const para = panel.getByText("Open to co-op and full-time roles.");
+    const para = panel.getByText("I'm open to co-op and full-time roles.");
     await para.selectText();
-    expect(await page.evaluate(() => getSelection()!.toString())).toContain("Open to co-op and full-time roles.");
+    expect(await page.evaluate(() => getSelection()!.toString())).toContain("I'm open to co-op and full-time roles.");
 
     // Links work: the link opens its address.
     await context.route("https://github.com/**", (r) => r.fulfill({ body: "ok", contentType: "text/html" }));
