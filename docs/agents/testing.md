@@ -1,12 +1,12 @@
 # Testing facts
 
-Checked against the code on 2026-11-08, at 59e6a4d.
+Checked against the code on 2026-11-08, at 525ecf8.
 
 ## Kinds of test
 | Kind | How to select it | Where it runs |
 |---|---|---|
 | Unit | `npm test` | Builder and CI |
-| Light browser | `make browser PW_ARGS=<spec>` for the specs it touched. `make browser-light` only for a change to shared code, through `heavy` | Builder and CI |
+| Light browser | `make browser-light PW_ARGS=<spec>` for the specs it touched. `make browser-light` alone only for a change to shared code, through `heavy` | Builder and CI |
 | Timing | `@timing` | CI only. On the VM only to measure or break-check, through `heavy`, 1 worker |
 | Heavy rendering | `@render` | CI only |
 
