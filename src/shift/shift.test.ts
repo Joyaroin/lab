@@ -32,6 +32,13 @@ const setup = ({ reduced = false, startWhere = { kind: "at", stop: 0 } as Where,
 const arrive = (s: ReturnType<typeof setup>, p: number, stay = 1500) => { s.shift.observe(whereAt(p)); vi.advanceTimersByTime(stay); };
 
 describe("the wait", () => {
+  it("fires when the visitor stays at the very end of a hold", () => {
+    for (let i = 1; i <= STATION_COUNT; i++) {
+      const s = setup();
+      arrive(s, holdEdges(i)[1]);
+      expect(s.started).toEqual([{ kind: "full", id: 1 }]); expect(s.shift.hold).toBe(i);
+    }
+  });
   it("fires in full on its own once the visitor has stayed, with no further scroll", () => {
     const s = setup();
     s.shift.observe(whereAt(mid(1)));
@@ -312,6 +319,7 @@ describe("the text", () => {
     s.shift.observe(whereAt(out));
     expect(s.shift.textState(1, performance.now())).toBe("resolving");
     s.shift.observe(whereAt(0)); // the visitor scrolls on, the panel is gone
+    expect(s.shift.textState(1, performance.now())).toBe("held");
     s.shift.observe(whereAt(holdEdges(1)[0] + 1e-4));
     expect(s.shift.textState(1, performance.now())).toBe("held");
   });

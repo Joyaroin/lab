@@ -11,6 +11,6 @@ export type Where =
 export function whereAt(progress: number): Where {
   const { i, f } = legAt(progress);
   if (f === 1) return { kind: "at", stop: i + 1 };
-  if (i === 0 && f === 0) return { kind: "at", stop: 0 };
+  if (f === 0) return { kind: "at", stop: i }; // a hold's last pixel (holdSpan is inclusive), or the entrance
   return { kind: "flying", from: i, to: i + 1, f };
 }

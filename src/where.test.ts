@@ -11,16 +11,15 @@ describe("whereAt", () => {
     for (let i = 1; i <= STATION_COUNT; i++) {
       const [a, b] = holdSpan(i);
       for (const p of [a, progressFor(i)]) expect(whereAt(p)).toEqual({ kind: "at", stop: i });
-      // The hold's far edge is where the next leg starts: at the last station it is still the hold, else
-      // a flight with nothing done yet, which is the same place.
-      expect(whereAt(b)).toEqual(i === STATION_COUNT ? { kind: "at", stop: i } : { kind: "flying", from: i, to: i + 1, f: 0 });
+      // The hold's ends are inclusive, as holdSpan says: its last pixel is still at the station.
+      expect(whereAt(b)).toEqual({ kind: "at", stop: i });
     }
   });
 
   it("is flying at a leg's start, middle and end", () => {
     for (let i = 0; i < STATION_COUNT; i++) {
       const start = i === 0 ? 0 : holdSpan(i)[1], end = holdSpan(i + 1)[0];
-      expect(whereAt(start)).toEqual(i === 0 ? { kind: "at", stop: 0 } : { kind: "flying", from: i, to: i + 1, f: 0 });
+      expect(whereAt(start)).toEqual({ kind: "at", stop: i });
       const mid = whereAt((start + end) / 2);
       expect(mid).toMatchObject({ kind: "flying", from: i, to: i + 1 });
       expect(mid.kind === "flying" && mid.f).toBeCloseTo(0.5);

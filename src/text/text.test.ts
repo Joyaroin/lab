@@ -121,6 +121,8 @@ describe("the wheel", () => {
     expect(s.el.style.pointerEvents).toBe("auto");
     s.place(1, h0 + 1e-4);
     expect(s.el.style.pointerEvents).toBe("auto");
+    s.shift.observe(whereAt(h1)); s.place(1, h1);
+    expect(s.el.style.pointerEvents).toBe("auto"); // the hold's last pixel is still the hold
     s.shift.observe(whereAt(h1 + 0.005)); s.place(1, h1 + 0.005); // leaving: the text is still fading out, but the camera is moving
     expect(Number(s.el.style.opacity)).toBeGreaterThan(0.3);
     expect(s.el.style.pointerEvents).toBe("none");
