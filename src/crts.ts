@@ -83,3 +83,10 @@ export function glassCorners(crt: Crt): V3[] {
 /** One wide view of the room per leg between stations (leg 1 is the first station to the second):
  *  where the camera and its look point are halfway along that leg (see src/framing). */
 export const ARCS: { camera: V3; look: V3 }[] = (layout.arcs as { camera: number[]; look: number[] }[]).map((a) => ({ camera: v3(a.camera), look: v3(a.look) }));
+
+/** The overview: where the camera stands to see every TV on a landscape window, and what it looks
+ *  at. `exit` is where flights leave it and arrive through. `portrait` is the pose for a portrait window: a good shot of lit parts of the room (not every TV). */
+export const OVERVIEW = {
+  camera: v3(layout.overview.camera), look: v3(layout.overview.look), exit: layout.overview.exit.map(v3),
+  portrait: { camera: v3(layout.overviewPortrait.camera), look: v3(layout.overviewPortrait.look), exit: layout.overviewPortrait.exit.map(v3) },
+};

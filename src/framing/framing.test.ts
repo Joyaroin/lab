@@ -41,3 +41,15 @@ describe("the framing", () => {
     }
   });
 });
+
+describe("the framing's stops", () => {
+  it("are the overview pose first, then the station stops the app uses", async () => {
+    const { OVERVIEW } = await import("../crts");
+    const sq = framingFor(win(1280, 800)).stops, tall = framingFor(win(390, 844)).stops;
+    expect(sq).toHaveLength(crts.length + 1);
+    expect(sq[0].camera).toEqual(OVERVIEW.camera);
+    expect(sq[1].camera).toEqual(squareStop(crts[0], win(1280, 800)).camera);
+    expect(tall[0].camera).toEqual(OVERVIEW.portrait.camera);
+    expect(tall[1].camera).toEqual(framingFor(win(390, 844)).cameraAt({ kind: "at", stop: 1 }).camera);
+  });
+});

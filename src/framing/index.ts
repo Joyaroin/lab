@@ -1,4 +1,4 @@
-import { crts, ENTRANCE, type Crt } from "../crts";
+import { crts, ENTRANCE, OVERVIEW, type Crt } from "../crts";
 import { panelStrength, PANEL_SHOWN } from "../hold";
 import type { Where } from "../where";
 import { squareStop } from "../stop";
@@ -18,8 +18,13 @@ export type FramingWindow = { width: number; height: number };
 /** Where the mouse parallax begins and reaches full, in travel away from a stop (a share of one stretch). */
 export const PARALLAX_FROM = 0.2, PARALLAX_FULL = 0.45;
 
+/** A framing's stops: camera and look per stop, the overview pose as stop 0, then one per station. */
+export type StopList = { camera: V3; look: V3; exit?: V3[] }[];
+
 export type Framing = {
   name: "square" | "portrait";
+  /** The stops the visitor flies between in this framing, the overview pose first (the flight path is tested on these). */
+  stops: StopList;
   /** The camera and what it looks at at `where`. `reduced` (reduced motion) straightens the legs between stations. */
   cameraAt(where: Where, reduced?: boolean): { camera: V3; look: V3 };
   /** True while station `station`'s text is laid over its glass (panel showing). The text placing and the phosphor swap both ask this. */
@@ -57,8 +62,14 @@ function squareParallax(where: Where): number {
   return Math.min(1, Math.max(0, (away - PARALLAX_FROM) / (PARALLAX_FULL - PARALLAX_FROM)));
 }
 
+const portraitList: StopList = [
+  { ...OVERVIEW.portrait },
+  ...portraitStops.slice(1).map((camera, i) => ({ camera, look: portraitLooks[i + 1] })),
+];
+
 const portrait: Framing = {
   name: "portrait",
+  stops: portraitList,
   cameraAt: (where, reduced) => flyAlong(portraitStops, portraitLooks, where, reduced),
   textOnGlass: () => false,
   parallaxStrength: () => 1, // phones are unchanged
@@ -71,6 +82,7 @@ function square(win: FramingWindow): Framing {
   const aims: V3[] = [looks[0], ...squares.map((s) => s.look)];
   return {
     name: "square",
+    stops: [{ camera: OVERVIEW.camera, look: OVERVIEW.look, exit: OVERVIEW.exit }, ...squares],
     cameraAt: (where, reduced) => flyAlong(cameras, aims, where, reduced),
     textOnGlass: (where, station) => panelStrength(where, station) >= PANEL_SHOWN,
     parallaxStrength: squareParallax,
