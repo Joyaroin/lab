@@ -262,9 +262,11 @@ test("moving quickly between stations can't make more than the limit of sudden c
 // The tear is timed on performance.now() (TearView's useTear): it starts at one reading and comes off
 // at the first frame where 0.8 s have passed. A slow frame can only make it come off later, never
 // sooner. The only thing that shortens what we measure is the gap between the tear starting and our
-// observer running, so a small fixed allowance covers every frame rate. A tear cut short comes off
-// within a frame or two of the visitor leaving, far under this, however slow the frames are.
-const TEAR_ALLOWANCE_MS = 50;
+// observer running: the observer's callback waits for the end of the task that set the filter, which
+// is React's effect flush, and under 16x throttling on a busy runner that task is a slow frame long
+// (measured on the VM: 6 to 8 ms idle, 10 to 18 ms with every core busy; CI saw 85). So the allowance is
+// the slowest frame the page itself measured from the tear starting (frames before it include boot), not a fixed number. A tear cut short comes off within a
+// frame or two of the visitor leaving, far under 800 ms minus that, unless a frame is hundreds of ms.
 const WATCH_AFTER_LEAVING_MS = 2_000;
 
 // Under Chromium's 16x CPU throttling, so the check is shown to hold at slow frame rates (the 1x and 10x runs went in #123: the fast tests in src/shift/shift.test.ts cover the rule).
@@ -278,15 +280,18 @@ for (const rate of [16]) {
     // the tear on the page's own clock, from the filter going on to it coming off, and watch the bar
     // for 2 s after leaving. Nothing here waits on a timer for its result.
     const away = holdSpan(1)[1] + 0.03;
-    const left = page.evaluate(([p, watchMs]) => new Promise<{ seen: string[]; stillThere: boolean; length: number | null }>((res) => {
+    const left = page.evaluate(([p, watchMs]) => new Promise<{ seen: string[]; stillThere: boolean; length: number | null; slowestFrame: number }>((res) => {
       const max = () => document.documentElement.scrollHeight - window.innerHeight;
       const canvas = document.querySelector("canvas")!;
       const on = () => canvas.style.filter.includes("shift-tear");
       const seen: string[] = [];
+      let slowestFrame = 0, lastFrame = performance.now();
+      const frames = () => { const n = performance.now(); slowestFrame = Math.max(slowestFrame, n - lastFrame); lastFrame = n; requestAnimationFrame(frames); };
       new MutationObserver((_, mo) => {
         if (!on()) return;
         mo.disconnect();
         const started = performance.now();
+        lastFrame = started; requestAnimationFrame(frames); // frames from here on, the tear's own
         window.scrollTo(0, p * max()); window.dispatchEvent(new Event("scroll"));
         let length: number | null = null;
         new MutationObserver((_, end) => {
@@ -302,17 +307,18 @@ for (const rate of [16]) {
           seen.push(window.__meter.scramble());
           if (performance.now() - started < watchMs) return requestAnimationFrame(tick);
           bar.disconnect();
-          res({ seen, stillThere: Math.abs(window.scrollY / max() - p) < 0.01, length: on() ? null : length });
+          res({ seen, stillThere: Math.abs(window.scrollY / max() - p) < 0.01, length: on() ? null : length, slowestFrame });
         };
         tick();
       }).observe(canvas, { attributes: true, attributeFilter: ["style"] });
     }), [away, WATCH_AFTER_LEAVING_MS] as const);
     await scrollToProgress(page, progressFor(1));
-    const { seen, stillThere, length } = await left;
+    const { seen, stillThere, length, slowestFrame } = await left;
     expect(stillThere).toBe(true);
     expect(length, `the tear never came off in the ${WATCH_AFTER_LEAVING_MS} ms after leaving`).not.toBeNull();
     // the tear plays out its own length after leaving, never cut short
-    expect(length!, "the tear's length after leaving").toBeGreaterThan(SHIFT_SECONDS.full * 1000 - TEAR_ALLOWANCE_MS);
+    console.log(`leaving-16x length ${length!.toFixed(0)} ms, slowest frame ${slowestFrame.toFixed(0)} ms`);
+    expect(length!, "the tear's length after leaving").toBeGreaterThan(SHIFT_SECONDS.full * 1000 - slowestFrame);
     expect(seen.filter((d) => d !== "true")).toEqual([]); // never a scramble, and no jump to the reading at the end
     expect(await filterOn(page)).toBe(false); // and it did snap back
   });
