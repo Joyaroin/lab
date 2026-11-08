@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { countDraws, draws, frames } from "./lib/page";
+import { countDraws, goTo, draws, frames } from "./lib/page";
 
 test.setTimeout(60_000); // several idle waits
 
@@ -35,7 +35,7 @@ test("scrolling and pointer movement still draw, and then it goes idle again", a
 
   await page.waitForTimeout(1_000);
   before = await draws(page);
-  await page.evaluate(() => window.scrollTo(0, (document.documentElement.scrollHeight - innerHeight) / 2));
+  await goTo(page, 1);
   await expect.poll(() => draws(page)).toBeGreaterThan(before);
 
   await page.waitForTimeout(SETTLE_SLEEP_MS); // the camera has arrived

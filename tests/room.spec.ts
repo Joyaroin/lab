@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { holdSpan, progressFor } from "../src/hold";
 import { BOTTOM_CLEAR, SIDE, TOP_CLEAR } from "../src/pin";
-import { boxOf, meanBrightness, openTour, scrollToProgress, stationIds, waitForCamera, waitForPanel, waitUntilStill, wheelToStop } from "./lib/page";
+import { boxOf, meanBrightness, goTo, openTour, scrollToProgress, stationIds, waitForCamera, waitForPanel, waitUntilStill } from "./lib/page";
 
 // Baked room loads and the tour still moves the camera. Screenshots go to test-results/.
 // Seven software-WebGL screenshots: each waits for a drawn frame, which is slow on a loaded machine.
@@ -16,7 +16,7 @@ test("baked room loads and the entrance and every station render", { tag: "@rend
   const shots: Buffer[] = [];
   const stops = ["entrance", ...stationIds];
   for (const [i, name] of stops.entries()) {
-    await scrollToProgress(page, progressFor(i));
+    await goTo(page, i);
     // Wait for the station's text to be fully in, which only happens inside its hold, rather
     // than a fixed time. The entrance has no text, so it gets a short settle instead.
     if (i === 0) await page.waitForTimeout(300);
@@ -36,7 +36,7 @@ test("on a phone, MediaSafe and Software factory frame lit parts of the room", a
   await page.setViewportSize({ width: 390, height: 844 });
   await openTour(page);
   for (const [name, label] of [["mediasafe", "World line 02: MediaSafe"], ["software-factory", "World line 05: Software factory"]]) {
-    await wheelToStop(page, stationIds.indexOf(name) + 1, 195, 300);
+    await goTo(page, stationIds.indexOf(name) + 1);
     await expect(page.getByText(label, { exact: true })).toBeVisible();
     // Measure once the camera has arrived and the frame stops changing, not after a guessed delay.
     // Brightness is rounded to 0.1 so the rendering's tiny noise doesn't read as movement.
@@ -54,7 +54,7 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h });
     await openTour(page);
     for (const [k, id] of stationIds.entries()) {
-      await wheelToStop(page, k + 1, 10, h / 2); // beside the text, so the wheel scrolls the page
+      await goTo(page, k + 1);
       await expect(page.locator(`[data-screen="${id}"]`)).toBeVisible();
       const b = await waitForPanel(page, id); // the camera has arrived: the text stops moving
       // The text is laid over the glass, and the glass fills the band between the HUD and the meter:
@@ -92,16 +92,16 @@ for (const [name, leg, straight] of [["between stations 1 and 2", 1, true], ["ou
     await openTour(page);
     // scroll to progress `p` and wait for the camera to stop moving; readCamera fails if the canvas
     // has no data-camera, so a build that dropped it can't pass as a camera sitting at zero
-    const goTo = async (p: number) => {
+    const settleAt = async (p: number) => {
       await scrollToProgress(page, p);
       return waitForCamera(page);
     };
     const [from, to] = [leg === 0 ? 0 : holdSpan(leg)[1], progressFor(leg + 1)];
     const start = await waitForCamera(page);
     expect(Math.hypot(...start), "the camera is somewhere in the room").toBeGreaterThan(0.5);
-    const a = await goTo(from);
-    const b = await goTo(to);
-    const m = await goTo((from + (leg === 0 ? holdSpan(1)[0] : holdSpan(leg + 1)[0])) / 2);
+    const a = await settleAt(from);
+    const b = await settleAt(to);
+    const m = await settleAt((from + (leg === 0 ? holdSpan(1)[0] : holdSpan(leg + 1)[0])) / 2);
     const offLine = Math.hypot(...m.map((v, k) => v - (a[k] + b[k]) / 2));
     if (straight) expect(offLine).toBeLessThan(0.01);
     else expect(offLine).toBeGreaterThan(0.3);

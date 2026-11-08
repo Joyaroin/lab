@@ -4,7 +4,7 @@ import { POWER_ON_SECONDS, SHIFT_SECONDS } from "../src/nixie";
 import { busiestWindow, MAX_CHANGES_PER_SECOND, WAIT_MS, SNAP_BACK_MS } from "../src/shift";
 import { defineSnapWatcher } from "./lib/snap";
 import { lockTimesMs } from "./lib/lock";
-import { panelOf, scrollToProgress } from "./lib/page";
+import { goBack, goTo, panelOf } from "./lib/page";
 
 test.setTimeout(60_000);
 
@@ -73,7 +73,7 @@ test("arriving in a hold scrambles the meter for the length of the shift, and it
     frame();
     setTimeout(() => { mo.disconnect(); res({ changes: out, frames }); }, 6_000);
   }));
-  await scrollToProgress(page, progressFor(1));
+  await goTo(page, 1);
   const { changes: shown, frames } = await seen;
   const scrambled = shown.filter((c) => c.d !== "true");
   expect(scrambled.length).toBeGreaterThan(0); // it scrambled
@@ -93,7 +93,7 @@ test("arriving in a hold scrambles the meter for the length of the shift, and it
 test("reduced motion shows the plain reading with no scramble", async ({ browser }) => {
   const page = await (await browser.newContext({ reducedMotion: "reduce" })).newPage();
   await boot(page);
-  await scrollToProgress(page, progressFor(1));
+  await goTo(page, 1);
   await page.waitForTimeout(100);
   const seen = await sample(page, WAIT_MS + 1500);
   expect(new Set(seen).size).toBe(1);
@@ -168,7 +168,7 @@ const lateBy = (design: number, w: Watched, resolve = TEXT_RESOLVE_MS) => design
 test("a first visit tears the view for about 0.8 s, and the text resolves as it ends", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
   await watch(page, "work");
-  await scrollToProgress(page, progressFor(1));
+  await goTo(page, 1);
   await settled(page);
   expect(await panelOf(page, "work").innerText()).not.toBe(""); // in the page throughout, selectable and findable
   const w = await watched(page);
@@ -195,12 +195,12 @@ test("a first visit tears the view for about 0.8 s, and the text resolves as it 
 
 test("a return shows its text when the 250 ms wait ends, and the flick plays over it", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
-  await scrollToProgress(page, progressFor(1));
+  await goTo(page, 1);
   await page.waitForTimeout(2500);
-  await scrollToProgress(page, 0);
+  await goBack(page);
   await page.waitForTimeout(500);
   await watch(page, "work");
-  await scrollToProgress(page, progressFor(1));
+  await goTo(page, 1);
   await settled(page);
   const w = await watched(page);
   const len = w.ends[0] - w.starts[0];
@@ -224,7 +224,7 @@ test("reduced motion gets no tear, and the text is there straight away", { tag: 
   const page = await (await browser.newContext({ reducedMotion: "reduce" })).newPage();
   await boot(page);
   await watch(page, "work");
-  await scrollToProgress(page, progressFor(1));
+  await goTo(page, 1);
   await expect.poll(async () => (await watched(page)).shown, { timeout: 5_000 }).not.toBeNull();
   await page.waitForTimeout(WAIT_MS + 1500);
   const w = await watched(page);
@@ -312,7 +312,7 @@ for (const rate of [16]) {
         tick();
       }).observe(canvas, { attributes: true, attributeFilter: ["style"] });
     }), [away, WATCH_AFTER_LEAVING_MS] as const);
-    await scrollToProgress(page, progressFor(1));
+    await goTo(page, 1);
     const { seen, stillThere, length, slowestFrame } = await left;
     expect(stillThere).toBe(true);
     expect(length, `the tear never came off in the ${WATCH_AFTER_LEAVING_MS} ms after leaving`).not.toBeNull();

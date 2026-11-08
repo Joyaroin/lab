@@ -6,7 +6,7 @@ import type { AddressInfo } from "node:net";
 import { stations } from "../src/content";
 import { GAP_TIMEOUT_MS } from "../src/gap";
 import { holdSpan, progressFor, STATION_COUNT } from "../src/hold";
-import { readShot, stationIds, waitForCamera } from "./lib/page";
+import { goBack, goTo, readShot, stationIds, waitForCamera } from "./lib/page";
 
 const signalLost = async (page: Page, reason?: string) => {
   await expect(page.getByRole("alert")).toContainText("SIGNAL LOST");
@@ -132,8 +132,8 @@ test("HUD links and the meter jump to stations; the HUD stays reachable", async 
   await page.getByRole("button", { name: /^Meter/ }).click(); // next station
   await expect(reading).toHaveAttribute("aria-label", "Reading 0.000640");
   await page.screenshot({ path: "test-results/tour-order-tracker.png" });
-  for (const f of [0, 0.3, 0.7, 1]) {
-    await page.evaluate((f) => scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)), f);
+  for (const stop of [0, 1, 3, STATION_COUNT]) {
+    await goTo(page, stop);
     for (const name of ["Résumé", "LinkedIn", "GitHub", "Contact"])
       await expect(hud(page).getByRole("link", { name })).toBeInViewport();
   }
@@ -266,10 +266,10 @@ for (const [name, size] of Object.entries(sizes)) {
     await page.mouse.move(10, 400); // a frame at the new position
     await page.waitForTimeout(300);
     await page.screenshot({ path: `test-results/entrance-reveal-${name}.png` });
-    await to(1); // a station: the desk meter is out of frame, so the bar shows the digits
+    await goTo(page, 1); // a station: the desk meter is out of frame, so the bar shows the digits
     await expect(bar).toHaveAttribute("data-desk-meter", "out-of-view");
     await expect(bar.getByTestId("tube").first()).toBeVisible();
-    await to(0);
+    await goBack(page);
     await expect(bar).toHaveAttribute("data-desk-meter", "in-view");
     await expect(page.getByRole("img", { name: /^Reading/ })).toHaveAttribute("aria-label", "Reading 0.000009");
   });
