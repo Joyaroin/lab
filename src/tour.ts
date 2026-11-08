@@ -1,6 +1,7 @@
 import { stations } from "./content";
 import { ARCS, ENTRANCE } from "./crts";
-import { STATION_COUNT, TOTAL, TRAVEL, PER_STATION } from "./hold";
+import { legAt } from "./hold";
+import type { Where } from "./where";
 
 type V3 = [number, number, number];
 
@@ -20,15 +21,6 @@ const curveThrough = (mid: V3) => (a: V3, b: V3, f: number): V3 =>
 
 const line = (a: V3, b: V3, f: number): V3 => [0, 1, 2].map((k) => a[k] + (b[k] - a[k]) * f) as V3;
 
-/** Where the tour stands at scroll position `progress`: travel `i` leads to stop `i + 1`, and `f` is how
- *  far along it (1 for the whole hold: the camera is on the stop). */
-function legAt(progress: number) {
-  const p = Math.min(Math.max(Number.isFinite(progress) ? progress : 0, 0), 1);
-  const u = p * TOTAL;
-  const i = Math.min(Math.floor(u / PER_STATION), STATION_COUNT - 1);
-  return { i, f: Math.min((u - i * PER_STATION) / TRAVEL, 1) };
-}
-
 /** The nearest stop and the reading, from scroll progress alone. The gap is what the entrance shows. */
 export function tourAt(progress: number, gap: number): TourState {
   const { i, f } = legAt(progress);
@@ -43,8 +35,18 @@ export function tourAt(progress: number, gap: number): TourState {
  *  first, then one per station: the framing supplies them). With `reduced` (reduced motion) travel
  *  between stations is a straight line, not an arc. The leg from the entrance stays curved: the
  *  entrance isn't a station, and the wide view of the room on the way in is kept for everyone. */
-export function flyAlong(cameras: V3[], looks: V3[], progress: number, reduced = false): { camera: V3; look: V3 } {
-  const { i, f } = legAt(progress);
+export function flyAlong(cameras: V3[], looks: V3[], at: number | Where, reduced = false): { camera: V3; look: V3 } {
+  if (typeof at !== "number") {
+    // A Where: at a stop is the end of the leg into it (the entrance is the start of the first leg).
+    if (at.kind === "flying") return flyLeg(cameras, looks, at.from, at.f, reduced);
+    return at.stop === 0 ? flyLeg(cameras, looks, 0, 0, reduced) : flyLeg(cameras, looks, at.stop - 1, 1, reduced);
+  }
+  const { i, f } = legAt(at);
+  return flyLeg(cameras, looks, i, f, reduced);
+}
+
+/** The leg form: leg `i` (from stop `i` to stop `i + 1`), `f` of the way along. */
+export function flyLeg(cameras: V3[], looks: V3[], i: number, f: number, reduced = false): { camera: V3; look: V3 } {
   const a = cameras[i], b = cameras[i + 1], la = looks[i], lb = looks[i + 1];
   // Leaving the entrance, the camera pulls back from the meter through the wide view of the room
   // (ENTRANCE.reveal) on one smooth curve. Between stations it does the same through that leg's

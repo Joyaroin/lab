@@ -6,6 +6,7 @@ import roomUrl from "./assets/room.glb?url";
 import { CAMERA_FOV, ENTRANCE } from "./crts";
 import { framingFor } from "./framing";
 import { parallax } from "./tour";
+import { whereAt } from "./where";
 import { Bezels, DeskMeter, Phosphor, Rain } from "./Effects";
 import type { MeterLink } from "./nixie";
 import type { Shift } from "./shift";
@@ -48,10 +49,10 @@ function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; 
   }, [invalidate]);
   useFrame(({ gl, camera, pointer, size }, dt) => {
     const framing = framingFor(size);
-    const { camera: target, look } = framing.cameraAt(progress.current, reduced);
+    const { camera: target, look } = framing.cameraAt(whereAt(progress.current), reduced);
     // dt is large after an idle spell, so cap it: the first frame of a move still eases.
     const k = reduced ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 6);
-    const [px, py, pz] = reduced ? [0, 0, 0] : parallax(target, look, pointer, framing.parallaxStrength(progress.current));
+    const [px, py, pz] = reduced ? [0, 0, 0] : parallax(target, look, pointer, framing.parallaxStrength(whereAt(progress.current)));
     const dx = target[0] + px - camera.position.x, dy = target[1] + py - camera.position.y, dz = target[2] + pz - camera.position.z;
     camera.position.x += dx * k;
     camera.position.y += dy * k;

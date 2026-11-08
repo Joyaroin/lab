@@ -1,4 +1,5 @@
 import { stations } from "./content";
+import type { Where } from "./where";
 
 export const STATION_COUNT = stations.length;
 
@@ -24,13 +25,34 @@ export const progressFor = (i: number) => {
  *  mouse parallax starts (`PARALLAX_FROM` in src/framing), so flat text never sits over tilting glass. */
 export const TEXT_FADE = 0.18;
 
-/** How strongly station `i`'s text panel shows at scroll progress `progress`: full for the whole
+/** How strongly station `i`'s text panel shows at scroll progress `progress` (or at a Where): full for the whole
  *  hold, then fading out over the first stretch of travel away (`TEXT_FADE`). */
-export function panelStrength(progress: number, i: number): number {
+export function panelStrength(at: number | Where, i: number): number {
+  return strengthAway(typeof at === "number" ? awayFrom(at, i) : whereAway(at, i));
+}
+
+/** Strength for a visitor `away` (a share of one stretch of travel) from station `i`'s hold. */
+const strengthAway = (away: number) => Math.min(1, Math.max(0, 1.1 - away * (1.05 / TEXT_FADE)));
+
+function awayFrom(progress: number, i: number): number {
   const [a, b] = holdSpan(i);
   const p = Math.min(Math.max(Number.isFinite(progress) ? progress : 0, 0), 1);
-  const away = p < a ? a - p : p > b ? p - b : 0; // scroll distance outside the hold
-  return Math.min(1, Math.max(0, 1.1 - (away * TOTAL) / TRAVEL * (1.05 / TEXT_FADE)));
+  return ((p < a ? a - p : p > b ? p - b : 0) * TOTAL) / TRAVEL; // scroll distance outside the hold
+}
+
+/** How far a Where is from station `i`, as a share of one flight: 0 at it, `f` leaving it, `1 - f` arriving, else far. */
+function whereAway(w: Where, i: number): number {
+  if (w.kind === "at") return w.stop === i ? 0 : Infinity;
+  return w.from === i ? w.f : w.to === i ? 1 - w.f : Infinity;
+}
+
+/** Where the tour stands at scroll position `progress`: travel `i` leads to stop `i + 1`, and `f` is how
+ *  far along it (1 for the whole hold: the camera is on the stop). */
+export function legAt(progress: number) {
+  const p = Math.min(Math.max(Number.isFinite(progress) ? progress : 0, 0), 1);
+  const u = p * TOTAL;
+  const i = Math.min(Math.floor(u / PER_STATION), STATION_COUNT - 1);
+  return { i, f: Math.min((u - i * PER_STATION) / TRAVEL, 1) };
 }
 
 /** Below this strength a panel is hidden. */

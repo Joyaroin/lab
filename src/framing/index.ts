@@ -1,5 +1,6 @@
 import { crts, ENTRANCE, type Crt } from "../crts";
-import { holdSpan, panelStrength, PANEL_SHOWN, STATION_COUNT, TOTAL, TRAVEL } from "../hold";
+import { panelStrength, PANEL_SHOWN } from "../hold";
+import type { Where } from "../where";
 import { squareStop } from "../stop";
 import { flyAlong } from "../tour";
 
@@ -19,12 +20,12 @@ export const PARALLAX_FROM = 0.2, PARALLAX_FULL = 0.45;
 
 export type Framing = {
   name: "square" | "portrait";
-  /** The camera and what it looks at at scroll `progress`. `reduced` (reduced motion) straightens the legs between stations. */
-  cameraAt(progress: number, reduced?: boolean): { camera: V3; look: V3 };
+  /** The camera and what it looks at at `where`. `reduced` (reduced motion) straightens the legs between stations. */
+  cameraAt(where: Where, reduced?: boolean): { camera: V3; look: V3 };
   /** True while station `station`'s text is laid over its glass (panel showing). The text placing and the phosphor swap both ask this. */
-  textOnGlass(progress: number, station: number): boolean;
-  /** How much mouse parallax applies at `progress`, 0 to 1. */
-  parallaxStrength(progress: number): number;
+  textOnGlass(where: Where, station: number): boolean;
+  /** How much mouse parallax applies at `where`, 0 to 1. */
+  parallaxStrength(where: Where): number;
   /** Where a station's text is pinned when it is not on the glass. */
   panelPoint(crt: Crt): V3;
 };
@@ -49,19 +50,16 @@ const portraitLooks: V3[] = looks.map((l, i) => phones[i]?.look ?? l);
 /** Mouse parallax in square framing: none for the whole hold and until the text has faded
  *  (`PARALLAX_FROM`), so the glass stays square behind the flat text, then rising to full by
  *  `PARALLAX_FULL` of the way through travel, and full through the rest. */
-function squareParallax(progress: number): number {
-  const p = Math.min(Math.max(Number.isFinite(progress) ? progress : 0, 0), 1);
-  let away = Infinity;
-  for (let i = 1; i <= STATION_COUNT; i++) {
-    const [a, b] = holdSpan(i);
-    away = Math.min(away, p < a ? a - p : p > b ? p - b : 0);
-  }
-  return Math.min(1, Math.max(0, ((away * TOTAL) / TRAVEL - PARALLAX_FROM) / (PARALLAX_FULL - PARALLAX_FROM)));
+function squareParallax(where: Where): number {
+  let away: number; // travel away from the nearest station, a share of one stretch
+  if (where.kind === "at") away = where.stop >= 1 ? 0 : 1; // the entrance is one stretch from station 1
+  else away = Math.min(where.from >= 1 ? where.f : Infinity, where.to >= 1 ? 1 - where.f : Infinity);
+  return Math.min(1, Math.max(0, (away - PARALLAX_FROM) / (PARALLAX_FULL - PARALLAX_FROM)));
 }
 
 const portrait: Framing = {
   name: "portrait",
-  cameraAt: (progress, reduced) => flyAlong(portraitStops, portraitLooks, progress, reduced),
+  cameraAt: (where, reduced) => flyAlong(portraitStops, portraitLooks, where, reduced),
   textOnGlass: () => false,
   parallaxStrength: () => 1, // phones are unchanged
   panelPoint: (crt) => crt.phone?.panel ?? crt.panel,
@@ -73,8 +71,8 @@ function square(win: FramingWindow): Framing {
   const aims: V3[] = [looks[0], ...squares.map((s) => s.look)];
   return {
     name: "square",
-    cameraAt: (progress, reduced) => flyAlong(cameras, aims, progress, reduced),
-    textOnGlass: (progress, station) => panelStrength(progress, station) >= PANEL_SHOWN,
+    cameraAt: (where, reduced) => flyAlong(cameras, aims, where, reduced),
+    textOnGlass: (where, station) => panelStrength(where, station) >= PANEL_SHOWN,
     parallaxStrength: squareParallax,
     panelPoint: (crt) => crt.panel,
   };

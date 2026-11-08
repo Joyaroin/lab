@@ -2,6 +2,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { createRef, useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { AdditiveBlending, CanvasTexture, CylinderGeometry, DoubleSide, SRGBColorSpace, Vector3, type Camera, type Mesh, type MeshBasicMaterial } from "three";
 import { framingFor } from "./framing";
+import { whereAt } from "./where";
 import { textCovers } from "./text/place";
 import { crts, CRT_GLASS, DESK_METER, NOTE_AT, PLATE_AT, type Crt } from "./crts";
 import { powerOn, shiftDigits, type MeterLink } from "./nixie";
@@ -223,7 +224,7 @@ export function Phosphor({ progress }: { progress: MutableRefObject<number> }) {
       cancelAnimationFrame(queued);
       queued = requestAnimationFrame(() => {
         const framing = framingFor({ width: window.innerWidth, height: window.innerHeight });
-        if (screens.some((_, k) => framing.textOnGlass(progress.current, k + 1) !== !!clearNow.current[k])) invalidate();
+        if (screens.some((_, k) => framing.textOnGlass(whereAt(progress.current), k + 1) !== !!clearNow.current[k])) invalidate();
       });
     };
     window.addEventListener("scroll", look, { passive: true });
@@ -235,7 +236,7 @@ export function Phosphor({ progress }: { progress: MutableRefObject<number> }) {
     screens.forEach((s, k) => {
       const m = s.mat.current, mesh = s.mesh.current;
       if (!m || !mesh) return;
-      const clear = framing.textOnGlass(progress.current, k + 1);
+      const clear = framing.textOnGlass(whereAt(progress.current), k + 1);
       clearNow.current[k] = clear;
       const map = clear ? s.clear : s.t;
       if (m.map !== map) { m.map = map; m.needsUpdate = true; }
