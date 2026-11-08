@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tourAt } from "./tour";
+import { readingAt, tourAt } from "./tour";
 import { whereAt } from "./where";
 import { framingFor } from "./framing";
 import { progressFor, holdSpan, panelStrength, PANEL_SHOWN, STATION_COUNT } from "./hold";
@@ -557,5 +557,20 @@ describe("travelProgress", () => {
       expect(travelProgress(i, 1)).toBeCloseTo(holdSpan(i)[0], 12);
     }
     expect(travelProgress(1, 0)).toBeCloseTo(0, 12);
+  });
+});
+
+describe("readingAt", () => {
+  const r = (i: number) => (i === 0 ? GAP : stations[i - 1].reading);
+  it("is the gap at the overview and the station's reading at a station", () => {
+    expect(readingAt({ kind: "at", stop: 0 }, GAP)).toBe(GAP);
+    for (let i = 1; i <= STATION_COUNT; i++) expect(readingAt({ kind: "at", stop: i }, GAP)).toBe(r(i));
+  });
+  it("rolls between the two stops' readings over a flight", () => {
+    expect(readingAt({ kind: "flying", from: 0, to: 1, f: 0.5 }, GAP)).toBeCloseTo((GAP + r(1)) / 2);
+    expect(readingAt({ kind: "flying", from: 2, to: 3, f: 0.25 }, GAP)).toBeCloseTo(r(2) + (r(3) - r(2)) * 0.25);
+  });
+  it("agrees with tourAt along the scroll", () => {
+    for (let p = 0; p <= 1; p += 0.013) expect(readingAt(whereAt(p), GAP)).toBeCloseTo(tourAt(p, GAP).reading);
   });
 });

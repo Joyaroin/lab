@@ -6,7 +6,7 @@ import roomUrl from "./assets/room.glb?url";
 import { CAMERA_FOV, ENTRANCE } from "./crts";
 import { framingFor } from "./framing";
 import { parallax } from "./tour";
-import { whereAt } from "./where";
+import type { Where } from "./where";
 import { Bezels, DeskMeter, Phosphor, Rain } from "./Effects";
 import type { MeterLink } from "./nixie";
 import type { Shift } from "./shift";
@@ -39,7 +39,7 @@ function BakedRoom({ onLoaded, onProgress }: { onLoaded: () => void; onProgress:
 // mean testing a different build from the one that ships.)
 // The room is drawn only on demand (see Room): this asks for the next frame until the camera
 // has arrived, and scrolling or moving the pointer starts it again.
-function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; reduced: boolean }) {
+function CameraRig({ where, reduced }: { where: MutableRefObject<Where>; reduced: boolean }) {
   const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
     const redraw = () => invalidate();
@@ -49,10 +49,10 @@ function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; 
   }, [invalidate]);
   useFrame(({ gl, camera, pointer, size }, dt) => {
     const framing = framingFor(size);
-    const { camera: target, look } = framing.cameraAt(whereAt(progress.current), reduced);
+    const { camera: target, look } = framing.cameraAt(where.current, reduced);
     // dt is large after an idle spell, so cap it: the first frame of a move still eases.
     const k = reduced ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 6);
-    const [px, py, pz] = reduced ? [0, 0, 0] : parallax(target, look, pointer, framing.parallaxStrength(whereAt(progress.current)));
+    const [px, py, pz] = reduced ? [0, 0, 0] : parallax(target, look, pointer, framing.parallaxStrength(where.current));
     const dx = target[0] + px - camera.position.x, dy = target[1] + py - camera.position.y, dz = target[2] + pz - camera.position.z;
     camera.position.x += dx * k;
     camera.position.y += dy * k;
@@ -64,8 +64,8 @@ function CameraRig({ progress, reduced }: { progress: MutableRefObject<number>; 
   return null;
 }
 
-export default function Room({ onReady, onProgress, progress, reduced, meter, shift }: {
-  onReady: () => void; onProgress: () => void; progress: MutableRefObject<number>; reduced: boolean; meter: MeterLink; shift: Shift;
+export default function Room({ onReady, onProgress, where, reduced, meter, shift }: {
+  onReady: () => void; onProgress: () => void; where: MutableRefObject<Where>; reduced: boolean; meter: MeterLink; shift: Shift;
 }) {
   return (
     // Drawn on demand, not 60 times a second: the baked room is costly to draw (texture
@@ -76,12 +76,12 @@ export default function Room({ onReady, onProgress, progress, reduced, meter, sh
       style={{ position: "fixed", inset: 0 }}
       camera={{ position: ENTRANCE.camera, fov: CAMERA_FOV }}
     >
-      <CameraRig progress={progress} reduced={reduced} />
-      <TextPins progress={progress} shift={shift} />
+      <CameraRig where={where} reduced={reduced} />
+      <TextPins where={where} shift={shift} />
       <Suspense fallback={null}>
         <BakedRoom onLoaded={onReady} onProgress={onProgress} />
         <DeskMeter link={meter} shift={shift} reduced={reduced} />
-        <Phosphor progress={progress} />
+        <Phosphor where={where} />
         <Bezels />
         <Rain />
       </Suspense>

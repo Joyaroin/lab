@@ -31,6 +31,14 @@ export function tourAt(progress: number, gap: number): TourState {
   };
 }
 
+/** The meter's reading at `where`: the gap at the overview, the station's reading at a station, and over a
+ *  flight it rolls between the two stops' readings. */
+export function readingAt(where: Where, gap: number): number {
+  const of = (s: number) => (s === 0 ? gap : stations[s - 1].reading);
+  if (where.kind === "at") return of(where.stop);
+  return of(where.from) + (of(where.to) - of(where.from)) * where.f;
+}
+
 /** Where the camera is and what it looks at, flying the legs between `cameras` and `looks` (entrance
  *  first, then one per station: the framing supplies them). With `reduced` (reduced motion) travel
  *  between stations is a straight line, not an arc. The leg from the entrance stays curved: the
