@@ -8,8 +8,8 @@ import { placeText, scratch } from "./place";
 // baked room: every frame it projects the CRT's panel point into the window and places the panel
 // there (on a phone, the station's phone pin if it has one), as wide as the CRT looks, kept inside
 // the window by fitPanel. The text stays real HTML, so it is sharp at any size, selectable, and its
-// links work. Only the panel of the hold the visitor is in is shown. It runs inside the canvas, so it is placed
-// right after the camera moves. The room only mounts it.
+// links work. Only the panel of the hold the visitor is in is shown. It runs inside the canvas, so it is
+// placed right after the camera moves. The room only mounts it.
 export function TextPins({ progress, shift }: { progress: MutableRefObject<number>; shift: Shift }) {
   const s = useMemo(scratch, []);
   useFrame(({ camera, size }) => {

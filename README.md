@@ -16,8 +16,8 @@ npm run dev
 ```
 
 `npm test` runs the unit tests. `npm run build` saves the live gap, type-checks, makes the production
-build and checks the size budget. `make frontend` runs both, after `npm ci` and a type check. The room's 3D model is committed, so you don't need Blender unless you
-rebuild it (below).
+build and checks the size budget. `make frontend` runs both, after `npm ci` and a type check. The room's
+3D model is committed, so you don't need Blender unless you rebuild it (below).
 
 ## Live demo
 

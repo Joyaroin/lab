@@ -31,7 +31,8 @@ The language of this project: its terms, what each one means, and what it doesn'
   name, such as "World line 03 / Home lab", readable from across the room. The words come from the
   station's `worldLine` and `name` in the content module, nothing else. It clears when that station's
   text is on its glass, which happens only in the Square framing (`textOnGlass`); on a portrait window
-  the text is pinned beside the CRT and the card stays. It never moves and never reads as a live status or result.
+  the text is pinned beside the CRT and the card stays. It never moves and never reads as a live status
+  or result.
 - **Bezel**: the frame round a TV's glass. The baked one is soft up close, so a sharp layer is drawn over
   it: a crisp edge, a maker's plate and a sticky note. Its words come from the station's `bezel` in the
   content module, and none of it reads as a live status or result.
@@ -82,8 +83,8 @@ The language of this project: its terms, what each one means, and what it doesn'
   tear starting, a re-cut, the snap back), the snap back counted where it is visible (the slip reaches 0, at
   0.85 of the tear's length: 680 ms of a full tear, 212.5 ms of a short one, `snapBackMs` in `src/tear.ts`),
   not where the tear's length ends; the text still waits for the full length plus `SNAP_BACK_MS`. Counted
-  over a little more than a second to cover late frames; a shift held back by that still shows its text. Visits are kept in memory only, and nothing
-  on screen shows where you have been.
+  over a little more than a second to cover late frames; a shift held back by that still shows its text.
+  Visits are kept in memory only, and nothing on screen shows where you have been.
 
 ## Modules
 
@@ -101,10 +102,11 @@ get a folder; the rest are still flat files in `src/`.
   the tear-over wake-up, the restore window after a reload, the leaving rule, the page-turn limit and the
   shift's lengths (`SHIFT_SECONDS`). No shift starts until the desk meter reports its power-on, which it
   does on the first frame it draws once the room is ready (`src/App.tsx:48` sets `meter.on`,
-  `src/Effects.tsx:120` reports), so a room that never draws a frame plays no shift. `src/nixie.ts` re-exports `SHIFT_SECONDS` for the browser specs.
-  `shift.hold` is the hold the visitor is in. The room asks it one question per station per frame,
-  `shift.textState(station, progress, nowMs)`: `held`, `resolving` or `showing`. Asking changes nothing; the
-  module's state changes when it learns something (a shift fires, the visitor leaves, a reload restores).
+  `src/Effects.tsx:120` reports), so a room that never draws a frame plays no shift. `src/nixie.ts`
+  re-exports `SHIFT_SECONDS` for the browser specs. `shift.hold` is the hold the visitor is in. The room
+  asks it one question per station per frame, `shift.textState(station, progress, nowMs)`: `held`,
+  `resolving` or `showing`. Asking changes nothing; the module's state changes when it learns something
+  (a shift fires, the visitor leaves, a reload restores).
 - **`src/text/`**: a station's text. `ScreenPanels` renders the panels and holds their CSS states (`data-gated`,
   `data-glass`, `data-more`, the "more" cue). `TextPins` runs inside the canvas every frame, after the camera
   moves, and calls `placeText` for each panel: opacity, visibility, whether it takes the wheel, and its place
@@ -112,9 +114,10 @@ get a folder; the rest are still flat files in `src/`.
   drew, in the module (a per-panel record), and writes it out as `data-gated` for the CSS and the browser
   specs: the resolve starts once when held text comes out, and a return just appears. The text *state* is
   never read back from the element; `placeText` still reads the panel's `maxHeight`, `scrollTop` and
-  `scrollHeight` for layout. Whether the text is held, resolving or showing is the shift's to say (`textState`); the text module
-  does not repeat that rule. The meter's check for text covering it asks `textCovers`, and nothing outside
-  the module reads the panels' inline styles (the tear view only sets its filter).
+  `scrollHeight` for layout. Whether the text is held, resolving or showing is the shift's to say
+  (`textState`); the text module does not repeat that rule. The meter's check for text covering it asks
+  `textCovers`, and nothing outside the module reads the panels' inline styles (the tear view only sets
+  its filter).
 - **`src/framing/`**: the framing. `framingFor({ width, height })` picks Square or Portrait, and is called with
   the current window each time. The framing answers `cameraAt(progress, reduced)` (camera and look),
   `textOnGlass(progress, station)`, `parallaxStrength(progress)` and `panelPoint(crt)`; nothing else decides
