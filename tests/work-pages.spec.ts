@@ -3,7 +3,7 @@ import { pageSwitch, stations } from "../src/content";
 import { holdSpan } from "../src/hold";
 import { SHIFT_SECONDS } from "../src/nixie";
 import { busiestWindow, MAX_CHANGES_PER_SECOND, SNAP_BACK_MS } from "../src/shift";
-import { countDraws, draws, frames, overflowPanel, panelOf, waitForCamera, waitForPanel, waitUntilStill } from "./lib/page";
+import { countDraws, draws, frames, goTo, overflowPanel, panelOf, waitForCamera, waitForPanel, waitUntilStill } from "./lib/page";
 import { defineSnapWatcher } from "./lib/snap";
 import { WORK_COPY, WORK_LEADS } from "./fixtures/work-copy";
 
@@ -16,7 +16,7 @@ async function openWork(page: Page, w: number, h: number) {
   await page.setViewportSize({ width: w, height: h });
   await page.goto("/");
   await expect(page.getByLabel("Boot log")).toBeHidden();
-  await page.getByRole("navigation", { name: "HUD" }).locator('a[href="#work"]').click();
+  await goTo(page, 1);
   await expect(workPanel(page)).toHaveCSS("opacity", "1");
   await waitForCamera(page); // the camera has arrived
 }

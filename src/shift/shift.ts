@@ -1,4 +1,5 @@
-import { holdSpan, PANEL_SHOWN, panelStrength, STATION_COUNT } from "../hold";
+import { PANEL_SHOWN, panelStrength, STATION_COUNT } from "../hold";
+import type { Where } from "../where";
 import { POWER_ON_SECONDS } from "../nixie";
 import { snapBackMs, TEAR_POSES } from "../tear";
 import { SHIFT_SECONDS, type ShiftKind } from "./lengths";
@@ -6,20 +7,15 @@ import { SHIFT_SECONDS, type ShiftKind } from "./lengths";
 // The shift: a moment of arrival at a station. This module runs it from start to finish (the wait, the
 // restore window, the leaving rule, the page-turn limit, the wake-up after a tear); the views draw it. Visits live in the tracker (memory), so a reload starts over.
 
-/** The wait: how long the visitor must stay inside a hold before the shift fires, so scrolling
+/** The wait: how long the visitor must stay at a station before the shift fires, so passing
  *  quickly through a station doesn't trigger it. */
 export const WAIT_MS = 250;
 
 /** A shift that is playing, as the views are told of it. `id` changes for each new one. */
 export type Play = { kind: ShiftKind; id: number };
 
-const holdAt = (progress: number) => {
-  for (let i = 1; i <= STATION_COUNT; i++) {
-    const [a, b] = holdSpan(i);
-    if (progress >= a && progress <= b) return i;
-  }
-  return 0; // the entrance, or travelling
-};
+/** The station the visitor is at, 0 for the overview or a flight. */
+const stationAt = (w: Where) => (w.kind === "at" ? w.stop : 0);
 
 /** The text follows a moment after the tear's own length ends, so the two never overlap, even when a
  *  frame comes late. This sets only when the text shows; the flash count uses the visible snap back
@@ -68,7 +64,7 @@ const TIMER_SLACK_MS = 30;
 /** After a reload the browser puts the scroll position back once the page is tall enough, which is
  *  just after the tour mounts. The first move off the top within this long counts as that restore,
  *  not an arrival. Long, because a slow device restores late; the cost is that a visitor who jumps
- *  into a hold within this long of a reload gets no shift there, which is harmless. */
+ *  to a station within this long of a reload gets no shift there, which is harmless. */
 export const RESTORE_WINDOW_MS = 5000;
 
 /** The browser's navigation type, as `PerformanceNavigationTiming.type` says it. */
@@ -76,8 +72,8 @@ export type NavigationKind = "navigate" | "reload" | "back_forward" | "prerender
 
 /** What the tour gives the shift when it mounts. */
 export type Mount = {
-  /** Where the page opens: a reload inside a hold is not an arrival, so it gets no shift and its text shows. */
-  startProgress: number;
+  /** Where the page opens: a page that opens at a station is not an arrival, so it gets no shift and its text shows. */
+  startWhere: Where;
   /** Reload and back/forward put the scroll position back after mounting; that is not an arrival. */
   navigationType: NavigationKind;
 };
@@ -113,8 +109,8 @@ export function createShift(reduced = false) {
 
   let at = 0, since = 0, fired = false, readyAt = 0;
   let poweredOnAt: number | null = null; // when the desk meter says its power-on really began
-  let mountedAt = 0, restoring = false, progress = 0, playId = 0;
-  let active: number | null = null; // the hold whose shift is playing
+  let mountedAt = 0, restoring = false, where: Where = { kind: "at", stop: 0 }, playId = 0;
+  let active: number | null = null; // the station whose shift is playing
   let waitTimer: ReturnType<typeof setTimeout> | undefined, wakeTimer: ReturnType<typeof setTimeout> | undefined;
   let mounted = false, wake: (() => void) | null = null;
   let current: Play | null = null; // the shift the bar and the desk meter are playing
@@ -127,7 +123,7 @@ export function createShift(reduced = false) {
 
   /** Decide what the visitor's stay so far calls for: end a shift they left, fire one they waited for. */
   const check = (nowMs: number) => {
-    const here = holdAt(progress);
+    const here = stationAt(where);
     if (here !== at) {
       // The text that was showing stays through the fade out, until the visitor has left the panel.
       if (at !== 0 && fired && nowMs >= readyAt) revealed.add(at);
@@ -151,8 +147,8 @@ export function createShift(reduced = false) {
     wake?.(); // the text may now show
   };
 
-  const restore = (p: number) => {
-    at = holdAt(p);
+  const restore = () => {
+    at = stationAt(where);
     fired = at !== 0;
     if (at) revealed.add(at);
   };
@@ -163,8 +159,8 @@ export function createShift(reduced = false) {
       mounted = true;
       mountedAt = performance.now();
       restoring = m.navigationType === "reload" || m.navigationType === "back_forward";
-      progress = m.startProgress;
-      at = holdAt(progress); fired = at !== 0; since = mountedAt; active = null; current = null;
+      where = m.startWhere;
+      at = stationAt(where); fired = at !== 0; since = mountedAt; active = null; current = null;
       if (at) revealed.add(at);
       return () => { clearTimeout(waitTimer); clearTimeout(wakeTimer); mounted = false; };
     },
@@ -183,20 +179,20 @@ export function createShift(reduced = false) {
     subscribe(listener: () => void): () => void { listeners.add(listener); return () => { listeners.delete(listener); }; },
     /** The room's one function for asking for a frame. Returns the remove. */
     setWake(fn: () => void): () => void { wake = fn; return () => { if (wake === fn) wake = null; }; },
-    /** The hold the visitor is in, 0 for the entrance or travel. */
+    /** The station the visitor is at, 0 for the overview or a flight. */
     get hold() { return at; },
-    /** Where the visitor is now. Call on every scroll and resize; the module re-checks by itself once
+    /** Where the visitor is now. Call whenever it changes (and on resize); the module re-checks by itself once
      *  the wait is over (the visitor may have stopped). */
-    observe(p: number) {
+    observe(w: Where) {
       const nowMs = performance.now();
-      progress = p;
-      if (restoring && p > 0) { // the first move off the top, soon after mounting
+      where = w;
+      if (restoring && !(w.kind === "at" && w.stop === 0)) { // the first move off the top, soon after mounting
         restoring = false;
-        if (nowMs - mountedAt < RESTORE_WINDOW_MS) restore(p);
+        if (nowMs - mountedAt < RESTORE_WINDOW_MS) restore();
       }
       check(nowMs);
       for (let i = 1; i <= STATION_COUNT; i++) { // a panel that has gone is forgotten (after check, which may keep it through the fade)
-        if (panelStrength(p, i) < PANEL_SHOWN) { revealed.delete(i); resolving.delete(i); }
+        if (panelStrength(w, i) < PANEL_SHOWN) { revealed.delete(i); resolving.delete(i); }
       }
       clearTimeout(waitTimer);
       waitTimer = setTimeout(() => check(performance.now()), waitFor(nowMs));
@@ -219,12 +215,12 @@ export function createShift(reduced = false) {
     },
     /** The flick on the Work TV really began at `nowMs`: its changes count from here. */
     turnStarted(nowMs: number) { rebook("page", "short", nowMs); },
-    /** How station `i`'s text stands at this progress and time. A read: it changes nothing. On a first visit
+    /** How station `i`'s text stands at this time, for where the visitor is. A read: it changes nothing. On a first visit
      *  it is held back until the full tear ends, so it resolves out of it; on a return it shows as soon as
      *  the wait ends. A station whose panel isn't showing is held. */
-    textState(station: number, p: number, nowMs: number): TextState {
+    textState(station: number, nowMs: number): TextState {
       if (reduced || !mounted) return "showing"; // until the tour is up every text may show
-      if (panelStrength(p, station) < PANEL_SHOWN) return "held";
+      if (panelStrength(where, station) < PANEL_SHOWN) return "held";
       const shown = revealed.has(station) || (at === station && fired && nowMs >= readyAt);
       if (!shown) return "held";
       return resolving.has(station) ? "resolving" : "showing";

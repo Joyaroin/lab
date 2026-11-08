@@ -9,7 +9,8 @@ import { formatReading, gapLabel, type Gap } from "./gap";
 import { pendingDeploys } from "./useGap";
 import type { NavigationKind, Shift } from "./shift";
 import { progressFor, STATION_COUNT } from "./hold";
-import { tourAt } from "./tour";
+import { readingAt } from "./tour";
+import { whereAt, type Where } from "./where";
 
 // Page height in screens: how much scrolling the tour takes. 9 screens is 8 of scrolling, about
 // 0.8 of a screen per stretch of travel, plus half a screen of hold at each station.
@@ -23,9 +24,9 @@ const scrollProgress = () => {
 };
 
 // Scroll drives the tour. The page scrolls (a tall spacer); the room is fixed behind it.
-// `progress` is shared with the room's camera via a ref so frames don't re-render React.
-export function Tour({ gap, progress, meter, shift: shifts }: { gap: Gap | null; progress: MutableRefObject<number>; meter: MeterLink; shift: Shift }) {
-  const [p, setP] = useState(scrollProgress);
+// `where` is shared with the room's camera via a ref so frames don't re-render React.
+export function Tour({ gap, where, meter, shift: shifts }: { gap: Gap | null; where: MutableRefObject<Where>; meter: MeterLink; shift: Shift }) {
+  const [here, setHere] = useState<Where>(() => whereAt(scrollProgress()));
   // The tour mounts as the meter starts its power-on, and tells the shift so (below). It reports where
   // the visitor is and that a page turned; the shift owns all the timing.
   const [reduced] = useState(prefersReducedMotion);
@@ -42,18 +43,18 @@ export function Tour({ gap, progress, meter, shift: shifts }: { gap: Gap | null;
   useEffect(() => {
     const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
     const unmount = shifts.mount({
-      startProgress: scrollProgress(),
+      startWhere: whereAt(scrollProgress()),
       navigationType: (nav?.type ?? "navigate") as NavigationKind,
     });
     const onScroll = () => {
-      progress.current = scrollProgress(); setP(progress.current);
-      shifts.observe(progress.current);
+      where.current = whereAt(scrollProgress()); setHere(where.current);
+      shifts.observe(where.current);
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     return () => { unmount(); window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); };
-  }, [progress, shifts]);
+  }, [where, shifts]);
 
   const jump = useCallback((station: number) => {
     const max = document.documentElement.scrollHeight - window.innerHeight;
@@ -61,7 +62,8 @@ export function Tour({ gap, progress, meter, shift: shifts }: { gap: Gap | null;
   }, []);
 
   const deploys = gap ? gap.deploys : pendingDeploys;
-  const t = tourAt(p, deploys);
+  const nearestStop = here.kind === "at" ? here.stop : Math.round(here.from + here.f);
+  const t = { nearestStop, reading: readingAt(here, deploys) };
   const label = gap ? gapLabel(gap) : ui.readingPending;
   const next = t.nearestStop >= STATION_COUNT ? 0 : t.nearestStop + 1;
   const digits = formatReading(Math.round(t.reading));

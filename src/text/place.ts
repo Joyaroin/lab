@@ -1,11 +1,11 @@
 import { Vector3, type Camera } from "three";
 import { glassEdge, type Crt } from "../crts";
 import { glassBox } from "../glass";
-import { holdSpan, PANEL_SHOWN, panelStrength } from "../hold";
+import { PANEL_SHOWN, panelStrength } from "../hold";
 import { fitPanel, glassFontSize } from "../pin";
 import type { Shift } from "../shift";
 import { framingFor } from "../framing";
-import { whereAt } from "../where";
+import type { Where } from "../where";
 import { markMore, type MoreEl } from "./more";
 
 /** What placing touches on a station's panel. A DOM element is one; unit tests use a plain object. */
@@ -28,7 +28,7 @@ export const scratch = (): Scratch => ({ c: new Vector3(), e: new Vector3(), p: 
 export type Frame = {
   camera: Camera;
   size: { width: number; height: number };
-  progress: number;
+  where: Where;
   nowMs: number;
   shift: Shift;
   scratch: Scratch;
@@ -47,12 +47,12 @@ const drawn = new WeakMap<PanelEl, "true" | "resolving" | undefined>();
  * showing is the shift's to say (`textState`).
  */
 export function placeText(el: PanelEl, crt: Crt, k: number, f: Frame) {
-  const { camera, size, progress, shift } = f;
+  const { camera, size, where, shift } = f;
   // Full for the whole hold. Held back (but still in the page, for readers and selection)
   // from arrival until the shift ends, then (first visit) it resolves out of the effect. A return's
   // text shows when the wait ends and the flick plays over it.
-  const strength = panelStrength(progress, k + 1);
-  const state = shift.textState(k + 1, progress, f.nowMs);
+  const strength = panelStrength(where, k + 1);
+  const state = shift.textState(k + 1, f.nowMs);
   const out = state !== "held";
   const before = drawn.get(el);
   let now = before;
@@ -64,14 +64,13 @@ export function placeText(el: PanelEl, crt: Crt, k: number, f: Frame) {
   }
   el.style.opacity = String(out ? strength : 0);
   el.style.visibility = strength < PANEL_SHOWN ? "hidden" : "visible";
-  // Only during the hold does the panel take the wheel. Outside it the panel is shrinking or
+  // Only while the visitor is at the station does the panel take the wheel. Otherwise the panel is shrinking or
   // growing with the camera, so its text overflows differently every frame and would eat the
-  // wheel steps that should move the tour on.
-  const [h0, h1] = holdSpan(k + 1);
-  el.style.pointerEvents = out && progress >= h0 && progress <= h1 ? "auto" : "none";
+  // wheel steps.
+  el.style.pointerEvents = out && where.kind === "at" && where.stop === k + 1 ? "auto" : "none";
   if (strength < PANEL_SHOWN) return;
   const framing = framingFor(size);
-  if (framing.textOnGlass(whereAt(progress), k + 1)) {
+  if (framing.textOnGlass(where, k + 1)) {
     // Desktop: the camera is square to the glass, so the text is laid exactly over it.
     const { left, top, width, height } = glassBox(crt, camera, size);
     el.style.width = `${width}px`;

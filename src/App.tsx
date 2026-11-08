@@ -8,6 +8,7 @@ import { meterLink } from "./nixie";
 import { createShift } from "./shift";
 import { watchForStall } from "./stall";
 import { ui } from "./content";
+import type { Where } from "./where";
 import { Component, type ReactNode } from "react";
 
 const loadRoom = () => import("./Room");
@@ -35,7 +36,7 @@ export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
   const [codeLoaded, setCodeLoaded] = useState(false);
   const [sceneReady, setSceneReady] = useState(false);
   const gap = useGap();
-  const progress = useRef(0);
+  const where = useRef<Where>({ kind: "at", stop: 0 });
   const [reduced] = useState(() => capability.ok && prefersReducedMotion());
   const [meter] = useState(meterLink);
   const [shift] = useState(() => createShift(reduced));
@@ -78,10 +79,10 @@ export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
       {!booted && <BootScreen steps={steps} fading={sceneReady} />}
       <SceneBoundary onFail={() => setFailed("scene-error")}>
         <Suspense fallback={null}>
-          {codeLoaded && <Room onReady={() => setSceneReady(true)} onProgress={onLoadProgress} progress={progress} reduced={reduced} meter={meter} shift={shift} />}
+          {codeLoaded && <Room onReady={() => setSceneReady(true)} onProgress={onLoadProgress} where={where} reduced={reduced} meter={meter} shift={shift} />}
         </Suspense>
       </SceneBoundary>
-      {sceneReady && <Tour gap={gap} progress={progress} meter={meter} shift={shift} />}
+      {sceneReady && <Tour gap={gap} where={where} meter={meter} shift={shift} />}
     </>
   );
 }

@@ -2,6 +2,7 @@ import { useFrame } from "@react-three/fiber";
 import { useMemo, type MutableRefObject } from "react";
 import { crts } from "../crts";
 import type { Shift } from "../shift";
+import type { Where } from "../where";
 import { placeText, scratch } from "./place";
 
 // Pins each station's HTML panel (a DOM element with data-screen="<id>") to its real CRT in the
@@ -10,14 +11,14 @@ import { placeText, scratch } from "./place";
 // the window by fitPanel. The text stays real HTML, so it is sharp at any size, selectable, and its
 // links work. Only the panel of the hold the visitor is in is shown. It runs inside the canvas, so it is
 // placed right after the camera moves. The room only mounts it.
-export function TextPins({ progress, shift }: { progress: MutableRefObject<number>; shift: Shift }) {
+export function TextPins({ where, shift }: { where: MutableRefObject<Where>; shift: Shift }) {
   const s = useMemo(scratch, []);
   useFrame(({ camera, size }) => {
     camera.updateMatrixWorld(); // CameraRig just moved it; project from where it is now
     const nowMs = performance.now();
     crts.forEach((crt, k) => {
       const el = document.querySelector<HTMLElement>(`[data-screen="${crt.id}"]`);
-      if (el) placeText(el, crt, k, { camera, size, progress: progress.current, nowMs, shift, scratch: s });
+      if (el) placeText(el, crt, k, { camera, size, where: where.current, nowMs, shift, scratch: s });
     });
   });
   return null;

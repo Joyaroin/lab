@@ -1,8 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { stations } from "../src/content";
-import { progressFor } from "../src/hold";
-import { openTour, panelOf, scrollToProgress, waitForCamera } from "../tests/lib/page";
+import { openTour, goTo, panelOf, waitForCamera } from "../tests/lib/page";
 
 // The screenshots job: every station at desktop and phone size, with the camera still and the
 // text showing. Files go to $SHOTS_DIR as <station id>-<desktop|phone>.png, and
@@ -19,7 +18,7 @@ for (const [name, size] of Object.entries(sizes)) {
     for (const [i, s] of stations.entries()) {
       test(`${s.id} at ${name}`, async ({ page }) => {
         await openTour(page);
-        await scrollToProgress(page, progressFor(i + 1));
+        await goTo(page, i + 1);
         const panel = panelOf(page, s.id);
         // The text is out once the shift has played: fully opaque and visible, with the tear's filter off.
         await expect(panel).toHaveCSS("opacity", "1");

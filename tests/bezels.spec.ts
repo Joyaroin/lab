@@ -5,6 +5,7 @@ import { CAMERA_FOV, crts, CRT_GLASS, NOTE_AT, PLATE_AT } from "../src/crts";
 import { PER_STATION, TOTAL, TRAVEL, progressFor } from "../src/hold";
 import { framingFor } from "../src/framing";
 import { whereAt } from "../src/where";
+import { goTo, scrollToProgress } from "./lib/page";
 
 // Each TV's bezel has a crisp dark edge round the glass, a maker's plate and its own sticky note.
 // This flies to each TV the way the page does, projects points on the bezel from the tour's own
@@ -16,8 +17,8 @@ const WIDE = 0.6; // far enough into the travel that the whole bezel is in frame
 
 const cameraAt = (p: number) => framingFor(size).cameraAt(whereAt(p)).camera;
 
-async function scrollToProgress(page: Page, p: number) {
-  await page.evaluate((p) => scrollTo(0, p * (document.documentElement.scrollHeight - innerHeight)), p);
+/** Waits until the camera has arrived at the one that scroll progress `p` asks for. */
+async function arrivedAt(page: Page, p: number) {
   const want = cameraAt(p);
   await expect.poll(async () => {
     const got = (await page.locator("canvas").first().getAttribute("data-camera"))?.split(",").map(Number) ?? [];
@@ -64,7 +65,8 @@ for (const scale of [1, 2]) {
     const notes: string[] = [];
     for (const [i, s] of stations.entries()) {
       // 1. at the stop: the dark lip sits just outside the glass, where the screen layer reaches
-      await scrollToProgress(page, progressFor(i + 1));
+      await goTo(page, i + 1);
+      await arrivedAt(page, progressFor(i + 1));
       const hold = await page.screenshot({ path: `test-results/bezel-hold-${scale}x-${s.id}.png` });
       // sample 2 mm outside the middle of each side of the glass, which is where the lip is
       const p0 = progressFor(i + 1), hw = CRT_GLASS.width / 2, hh = CRT_GLASS.height / 2, out = 0.002;
@@ -73,7 +75,8 @@ for (const scale of [1, 2]) {
 
       // 2. from the wide view: the plate is metal grey and the note has this TV's own colour
       const p = (i * PER_STATION + WIDE * TRAVEL) / TOTAL;
-      await scrollToProgress(page, p);
+      await scrollToProgress(page, p); // mid-leg: a position, not a stop
+      await arrivedAt(page, p);
       const wide = await page.screenshot({ path: `test-results/bezel-wide-${scale}x-${s.id}.png` });
       const [plate] = await pixels(page, wide, [onBezel(i, p, ...PLATE_AT)], scale);
       const [note] = await pixels(page, wide, [onBezel(i, p, ...NOTE_AT)], scale, 6);

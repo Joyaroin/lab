@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PerspectiveCamera } from "three";
 import { CAMERA_FOV, crts } from "../crts";
-import { holdSpan, progressFor } from "../hold";
+import { holdEdges, midHold } from "../../tests/lib/scroll";
 import { createShift, WAIT_MS } from "../shift";
 import { POWER_ON_SECONDS, SHIFT_SECONDS } from "../nixie";
 import { framingFor } from "../framing";
@@ -28,14 +28,14 @@ function fakeEl(over: Partial<{ scrollHeight: number; clientHeight: number; scro
   } as unknown as PanelEl & { style: Record<string, string> };
 }
 
-const mid = progressFor;
+const mid = midHold;
 const FULL_MS = SHIFT_SECONDS.full * 1000 + 1000; // generous: the tear and the snap back
 
 /** One shift, mounted and past its power-on, and a way to place station `i`'s text at `progress` as the room does. */
 function setup(window = { width: 1280, height: 800 }) {
   const shift = createShift(false);
   shift.setWake(() => {});
-  shift.mount({ startProgress: 0, navigationType: "navigate" });
+  shift.mount({ startWhere: whereAt(0), navigationType: "navigate" });
   shift.powerOnBegan(performance.now());
   vi.advanceTimersByTime(POWER_ON_SECONDS * 1000 + 1);
   const cam = new PerspectiveCamera(CAMERA_FOV, window.width / window.height, 0.1, 1000);
@@ -45,9 +45,9 @@ function setup(window = { width: 1280, height: 800 }) {
   const place = (i: number, p: number, node = el) => {
     const t = framingFor(window).cameraAt(whereAt(p));
     cam.position.set(...t.camera); cam.lookAt(...t.look); cam.updateMatrixWorld();
-    placeText(node, crts[i - 1], i - 1, { camera: cam, size: window, progress: p, nowMs: performance.now(), shift, scratch: sc });
+    placeText(node, crts[i - 1], i - 1, { camera: cam, size: window, where: whereAt(p), nowMs: performance.now(), shift, scratch: sc });
   };
-  const observe = (p: number) => { shift.observe(p); place(1, p); };
+  const observe = (p: number) => { shift.observe(whereAt(p)); place(1, p); };
   return { shift, el, place, observe };
 }
 
@@ -113,7 +113,7 @@ describe("a station's text", () => {
 describe("the wheel", () => {
   it("goes to the text only during the hold, once it is up", () => {
     const s = setup();
-    const [h0, h1] = holdSpan(1);
+    const [h0, h1] = holdEdges(1);
     s.observe(mid(1));
     expect(s.el.style.pointerEvents).toBe("none"); // held back: nothing to scroll yet
     vi.advanceTimersByTime(WAIT_MS + 30 + FULL_MS + 2000);
@@ -121,11 +121,13 @@ describe("the wheel", () => {
     expect(s.el.style.pointerEvents).toBe("auto");
     s.place(1, h0 + 1e-4);
     expect(s.el.style.pointerEvents).toBe("auto");
-    s.shift.observe(h1 + 0.005); s.place(1, h1 + 0.005); // leaving: the text is still fading out, but the camera is moving
+    s.shift.observe(whereAt(h1)); s.place(1, h1);
+    expect(s.el.style.pointerEvents).toBe("auto"); // the hold's last pixel is still the hold
+    s.shift.observe(whereAt(h1 + 0.005)); s.place(1, h1 + 0.005); // leaving: the text is still fading out, but the camera is moving
     expect(Number(s.el.style.opacity)).toBeGreaterThan(0.3);
     expect(s.el.style.pointerEvents).toBe("none");
     const early = setup(); // and before the hold, on the way in, it is not up yet
-    early.shift.observe(h0 - 0.03); early.place(1, h0 - 0.03);
+    early.shift.observe(whereAt(h0 - 0.03)); early.place(1, h0 - 0.03);
     expect(early.el.style.pointerEvents).toBe("none");
   });
 });

@@ -96,18 +96,18 @@ get a folder; the rest are still flat files in `src/`.
 
 - **`src/shift/`**: the shift, start to finish. `createShift(reduced)` makes the one shift object; the app
   creates it and passes it to the room and the tour as a prop. Views read `shift.playing` (the shift the
-  bar and the desk meter play; null once the visitor leaves its hold) and hear changes with
+  bar and the desk meter play; null once the visitor leaves its station) and hear changes with
   `shift.subscribe`: the bar subscribes, the tear subscribes (and plays out its own length when `playing`
-  goes null), and the desk meter reads it every frame. The tour `mount`s it, calls `observe(progress)` on
-  every scroll and `turn()` on a Work page turn. The tear reports straight to it (`tearStarted`,
+  goes null), and the desk meter reads it every frame. The tour `mount`s it, calls `observe(where)`
+  whenever where changes and `turn()` on a Work page turn. The tear reports straight to it (`tearStarted`,
   `turnStarted`), and the desk meter reports when its power-on really began (`powerOnBegan`). The room
   gives it one function to ask for a frame (`setWake`). The module owns the wait timer, the power-on hold,
-  the tear-over wake-up, the restore window after a reload, the leaving rule, the page-turn limit and the
+  the tear-over wake-up, the restore window after a reload (until #174), the leaving rule, the page-turn limit and the
   shift's lengths (`SHIFT_SECONDS`). No shift starts until the desk meter reports its power-on, which it
   does on the first frame it draws once the room is ready (`src/App.tsx:48` sets `meter.on`,
   `src/Effects.tsx:120` reports), so a room that never draws a frame plays no shift. `src/nixie.ts`
-  re-exports `SHIFT_SECONDS` for the browser specs. `shift.hold` is the hold the visitor is in. The room
-  asks it one question per station per frame, `shift.textState(station, progress, nowMs)`: `held`,
+  re-exports `SHIFT_SECONDS` for the browser specs. `shift.hold` is the station the visitor is at (0 at the overview or in flight). The room
+  asks it one question per station per frame, `shift.textState(station, nowMs)` (the shift knows where the visitor is): `held`,
   `resolving` or `showing`. Asking changes nothing; the module's state changes when it learns something
   (a shift fires, the visitor leaves, a reload restores).
 - **`src/text/`**: a station's text. `ScreenPanels` renders the panels and holds their CSS states (`data-gated`,

@@ -2,7 +2,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { createRef, useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { AdditiveBlending, CanvasTexture, CylinderGeometry, DoubleSide, SRGBColorSpace, Vector3, type Camera, type Mesh, type MeshBasicMaterial } from "three";
 import { framingFor } from "./framing";
-import { whereAt } from "./where";
+import type { Where } from "./where";
 import { textCovers } from "./text/place";
 import { crts, CRT_GLASS, DESK_METER, NOTE_AT, PLATE_AT, type Crt } from "./crts";
 import { powerOn, shiftDigits, type MeterLink } from "./nixie";
@@ -203,7 +203,7 @@ function phosphorFrame(crt: Crt) {
   return { position: [crt.screen[0] + Math.sin(a) * d, crt.screen[1], crt.screen[2] + Math.cos(a) * d] as const, yaw: a };
 }
 
-export function Phosphor({ progress }: { progress: MutableRefObject<number> }) {
+export function Phosphor({ where }: { where: MutableRefObject<Where> }) {
   const invalidate = useThree((s) => s.invalidate);
   const screens = useMemo(() => crts.map((crt) => {
     const station = stations.find((s) => s.id === crt.id);
@@ -219,24 +219,24 @@ export function Phosphor({ progress }: { progress: MutableRefObject<number> }) {
   const clearNow = useRef<boolean[]>([]);
   useEffect(() => {
     let queued = 0;
-    // Looks after the scroll handlers have run (they are what move `progress`), then asks for a frame.
+    // Looks after the scroll handlers have run (they are what move `where`), then asks for a frame.
     const look = () => {
       cancelAnimationFrame(queued);
       queued = requestAnimationFrame(() => {
         const framing = framingFor({ width: window.innerWidth, height: window.innerHeight });
-        if (screens.some((_, k) => framing.textOnGlass(whereAt(progress.current), k + 1) !== !!clearNow.current[k])) invalidate();
+        if (screens.some((_, k) => framing.textOnGlass(where.current, k + 1) !== !!clearNow.current[k])) invalidate();
       });
     };
     window.addEventListener("scroll", look, { passive: true });
     window.addEventListener("resize", look);
     return () => { cancelAnimationFrame(queued); window.removeEventListener("scroll", look); window.removeEventListener("resize", look); };
-  }, [screens, progress, invalidate]);
+  }, [screens, where, invalidate]);
   useFrame(({ size }) => {
     const framing = framingFor(size);
     screens.forEach((s, k) => {
       const m = s.mat.current, mesh = s.mesh.current;
       if (!m || !mesh) return;
-      const clear = framing.textOnGlass(whereAt(progress.current), k + 1);
+      const clear = framing.textOnGlass(where.current, k + 1);
       clearNow.current[k] = clear;
       const map = clear ? s.clear : s.t;
       if (m.map !== map) { m.map = map; m.needsUpdate = true; }
