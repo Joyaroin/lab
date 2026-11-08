@@ -1,8 +1,8 @@
-# Runs on every branch. A PR needs every job green before it merges.
+# Runs on every branch except staging and production, including main after each merge. A PR needs every job green before it merges. On main there is no open PR, so the steps that post to a PR log "nothing to post" and pass.
 name: ci
 on:
   push:
-    branches-ignore: [main, staging, production]
+    branches-ignore: [staging, production]
   workflow_dispatch:
 jobs:
   frontend:
