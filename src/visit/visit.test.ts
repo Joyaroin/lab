@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { STATION_COUNT } from "../hold";
-import { createVisit, FADE_MS, FLIGHT_MS, type VisitEvent } from "./index";
+import { createVisit, ease, FADE_MS, FLIGHT_MS, type VisitEvent } from "./index";
 
 function setup(reduced = false) {
   let t = 1000;
@@ -123,7 +123,7 @@ describe("a go mid-flight", () => {
     const before = visit.where(now());
     visit.go(4);
     expect(visit.where(now())).toMatchObject({ kind: "flying", to: 4, f: 0 });
-    expect(visit.launch(now())).toEqual(before);
+    expect(visit.launch(now())).toEqual({ kind: "flying", from: { kind: "at", stop: 0 }, to: 1, f: before.kind === "flying" ? before.f : -1 });
     advance(FLIGHT_MS / 2);
     expect(visit.where(now())).toMatchObject({ kind: "flying", to: 4 });
     advance(FLIGHT_MS / 2);
@@ -135,6 +135,25 @@ describe("a go mid-flight", () => {
     visit.land(2);
     visit.go(3);
     expect(visit.launch(now())).toEqual({ kind: "at", stop: 2 });
+  });
+
+  it("chains: each re-target launches from where the camera really is, however many times", () => {
+    const { visit, at } = setup();
+    const t0 = 1000;
+    at(t0);
+    visit.go(1);
+    at(t0 + 360); // 0.3 of the way, eased
+    visit.go(2);
+    const first = { kind: "flying", from: { kind: "at", stop: 0 }, to: 1, f: ease(0.3) };
+    expect(visit.launch(t0 + 360)).toEqual(first);
+    at(t0 + 600); // 0.2 of the second flight
+    visit.go(3);
+    const second = { kind: "flying", from: first, to: 2, f: ease(0.2) };
+    expect(visit.launch(t0 + 600)).toEqual(second);
+    at(t0 + 900); // 0.25 of the third flight
+    visit.go(4);
+    expect(visit.launch(t0 + 900)).toEqual({ kind: "flying", from: second, to: 3, f: ease(0.25) });
+    expect(visit.where(t0 + 900)).toMatchObject({ kind: "flying", to: 4, f: 0 });
   });
 });
 

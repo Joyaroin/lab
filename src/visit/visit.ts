@@ -23,6 +23,13 @@ export type VisitEvent =
   /** The visitor is now at `stop`. */
   | { type: "land"; stop: number };
 
+/** Where a flight began, however many re-targets led to it: a stop, or the camera's real place `f` of the way
+ *  along the flight from `from` to stop `to`. A flight's path starts at the pose this describes, found by
+ *  following `from` down to a stop (#181's flightPose). */
+export type Launch =
+  | { kind: "at"; stop: number }
+  | { kind: "flying"; from: Launch; to: number; f: number };
+
 export type Visit = {
   go(stop: number, opts?: MoveOptions): void;
   /** To the overview (stop 0). */
@@ -36,15 +43,15 @@ export type Visit = {
   where(nowMs: number): Where;
   /** The cover's opacity, 0..1, under reduced motion: 0 when not fading, 1 at the midpoint (the cut). */
   fade(nowMs: number): number;
-  /** Where the camera was when the current flight began: `{at: from}` for a flight from a stop, or the
-   *  mid-flight Where of the flight it replaced. Null when not flying. The flight's path (#181) starts here. */
-  launch(nowMs: number): Where | null;
+  /** Where the camera was when the current flight began: a stop, or a chain of the flights it replaced, each
+   *  with the share the camera had flown. Null when not flying. #174 flies from `launch(now)` to `target()`. */
+  launch(nowMs: number): Launch | null;
   /** The stop the visitor is at or flying to. */
   target(): number;
   subscribe(listener: (e: VisitEvent) => void): () => void;
 };
 
-type Move = { start: number; launch: Where; to: number; origin: number };
+type Move = { start: number; launch: Launch; to: number; origin: number };
 
 const clampStop = (s: number) => Math.min(Math.max(Math.round(s), 0), STATION_COUNT);
 
@@ -64,10 +71,8 @@ export function createVisit({ reduced, now = () => performance.now() }: { reduce
     const u = (t - move.start) / dur();
     if (reduced) return { kind: "at", stop: u < 0.5 ? move.origin : move.to };
     const f = ease(u);
-    const { launch } = move;
-    // A flight launched mid-flight reports the stop it left as `from`; `launch()` has the real start.
-    const from = launch.kind === "at" ? launch.stop : launch.f < 0.5 ? launch.from : launch.to;
-    return { kind: "flying", from, to: move.to, f };
+    // `from` is the stop nearest the launch; `launch()` has the real start.
+    return { kind: "flying", from: move.origin, to: move.to, f };
   }
 
   function settle(t: number) {
@@ -89,7 +94,10 @@ export function createVisit({ reduced, now = () => performance.now() }: { reduce
       move = { ...move, to };
     } else {
       const origin = from.kind === "at" ? from.stop : from.f < 0.5 ? from.from : from.to;
-      move = { start: t, launch: from, to, origin };
+      const launch: Launch = move
+        ? { kind: "flying", from: move.launch, to: move.to, f: ease((t - move.start) / dur()) }
+        : { kind: "at", stop: rest };
+      move = { start: t, launch, to, origin };
     }
     emit({ type: "move", from, to, fromHistory: !!opts.fromHistory });
   }
