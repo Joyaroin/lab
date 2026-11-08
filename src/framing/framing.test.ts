@@ -3,6 +3,7 @@ import { crts, ENTRANCE } from "../crts";
 import { progressFor, STATION_COUNT } from "../hold";
 import { squareStop } from "../stop";
 import { framingFor } from ".";
+import { whereAt } from "../where";
 
 const win = (width: number, height: number) => ({ width, height });
 
@@ -13,7 +14,7 @@ describe("the framing", () => {
     expect(square.name).toBe("square"); // aspect 1 is not portrait
     expect(tall.name).toBe("portrait");
     // The same window rotated: the stop, the text and the parallax all follow the new framing.
-    const p = progressFor(1);
+    const p = whereAt(progressFor(1));
     expect(framingFor(win(1280, 800)).cameraAt(p).camera).not.toEqual(framingFor(win(800, 1280)).cameraAt(p).camera);
     expect(framingFor(win(1280, 800)).textOnGlass(p, 1)).toBe(true);
     expect(framingFor(win(800, 1280)).textOnGlass(p, 1)).toBe(false);
@@ -23,10 +24,10 @@ describe("the framing", () => {
 
   it("square: the stop for the window, the text on the glass in a hold, the layout's panel point", () => {
     const w = win(1280, 800), f = framingFor(w);
-    expect(f.cameraAt(progressFor(0)).camera).toEqual(ENTRANCE.camera);
+    expect(f.cameraAt(whereAt(progressFor(0))).camera).toEqual(ENTRANCE.camera);
     for (let i = 1; i <= STATION_COUNT; i++) {
-      expect(f.cameraAt(progressFor(i)).camera).toEqual(squareStop(crts[i - 1], w).camera);
-      expect(f.textOnGlass(progressFor(i), i)).toBe(true);
+      expect(f.cameraAt(whereAt(progressFor(i))).camera).toEqual(squareStop(crts[i - 1], w).camera);
+      expect(f.textOnGlass(whereAt(progressFor(i)), i)).toBe(true);
     }
     for (const c of crts) expect(f.panelPoint(c)).toEqual(c.panel);
   });
@@ -35,8 +36,8 @@ describe("the framing", () => {
     const f = framingFor(win(390, 780));
     for (const c of crts) expect(f.panelPoint(c)).toEqual(c.phone ? c.phone.panel : c.panel);
     for (let i = 1; i <= STATION_COUNT; i++) {
-      expect(f.textOnGlass(progressFor(i), i)).toBe(false);
-      expect(f.parallaxStrength(progressFor(i))).toBe(1);
+      expect(f.textOnGlass(whereAt(progressFor(i)), i)).toBe(false);
+      expect(f.parallaxStrength(whereAt(progressFor(i)))).toBe(1);
     }
   });
 });

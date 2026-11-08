@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { tourAt } from "./tour";
+import { whereAt } from "./where";
 import { framingFor } from "./framing";
 import { progressFor, holdSpan, panelStrength, PANEL_SHOWN, STATION_COUNT } from "./hold";
 // travelProgress is test-only (the app never asks where the middle of a travel is), so it lives in
@@ -13,7 +14,7 @@ const GAP = 9;
 /** A window of the given aspect and height (16:10 at 800 px unless said), reduced motion off unless said. */
 const win = (aspect = 16 / 10, height = 800, reduced = false) => ({ width: aspect * height, height, reduced });
 /** The tour as the app draws it: the nearest stop and reading from progress, the camera from the window's framing. */
-const view = (p: number, w: { width: number; height: number; reduced?: boolean }) => ({ ...tourAt(p, GAP), ...framingFor(w).cameraAt(p, w.reduced) });
+const view = (p: number, w: { width: number; height: number; reduced?: boolean }) => ({ ...tourAt(p, GAP), ...framingFor(w).cameraAt(whereAt(p), w.reduced) });
 const readings = stations.map((s) => s.reading);
 
 describe("tour", () => {
@@ -302,7 +303,7 @@ describe("entrance framing", () => {
 // --- mouse parallax: a slight sideways shift at every stop, never a zoom (ticket 29 review) ---
 import { parallax } from "./tour";
 const DESKTOP = 1280 / 800;
-const strength = (aspect: number, p: number) => framingFor(win(aspect)).parallaxStrength(p);
+const strength = (aspect: number, p: number) => framingFor(win(aspect)).parallaxStrength(whereAt(p));
 
 /** The meter on screen at the entrance, with the pointer at (`x`, `y`). */
 function meterWithPointer(x: number, y: number, w: number, h: number) {

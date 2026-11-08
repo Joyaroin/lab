@@ -73,6 +73,9 @@ The language of this project: its terms, what each one means, and what it doesn'
   over the glass; no mouse parallax in a hold. **Portrait** (taller than wide): the pull-back, or the phone
   stop where a station has one; the text pinned beside the CRT; full parallax. Chosen from the current
   window each time, so rotating or resizing switches it. In code: `framingFor(window)` in `src/framing`.
+- **Where**: where the visitor is, as a value: at a stop (0 is the entrance, 1..n a station), or flying from one stop
+  to the next with `f`, the share of the flight done. `whereAt(progress)` (`src/where.ts`) makes one from scroll
+  progress; the framing and the text's strength take it, so they need not know about scroll.
 - **Shift**: the moment of arrival at a station, when the view tears and the meter scrambles and locks
   onto the reading. It fires once the visitor has stayed inside a hold, not when scrolling past. Full on
   a station's first visit, a short flick after. Never at the entrance, never with reduced motion. The
@@ -119,11 +122,11 @@ get a folder; the rest are still flat files in `src/`.
   `textCovers`, and nothing outside the module reads the panels' inline styles (the tear view only sets
   its filter).
 - **`src/framing/`**: the framing. `framingFor({ width, height })` picks Square or Portrait, and is called with
-  the current window each time. The framing answers `cameraAt(progress, reduced)` (camera and look),
-  `textOnGlass(progress, station)`, `parallaxStrength(progress)` and `panelPoint(crt)`; nothing else decides
+  the current window each time. The framing answers `cameraAt(where, reduced)` (camera and look),
+  `textOnGlass(where, station)`, `parallaxStrength(where)` and `panelPoint(crt)`, each taking a **Where**; nothing else decides
   the portrait split. The tour module (`src/tour.ts`) keeps the legs, arcs and readings: `tourAt(progress, gap)`
   gives the nearest stop and reading from progress alone, and `flyAlong` flies the legs between the stops a
-  framing supplies. The narrow-window width check in `src/pin.ts` (`NARROW`) is a different rule and stays.
+  framing supplies, from progress or from a Where (`panelStrength` in `src/hold.ts` takes either too). The narrow-window width check in `src/pin.ts` (`NARROW`) is a different rule and stays.
 - **`src/content.ts`**: all copy in the app: station text, links, the bezel and timeline words, and `ui`, the
   rest of what visitors see or hear (HUD, meter aria labels, boot log, signal lost, the gap's sentence).
   Templates take `{name}` placeholders through `fill`. Components hold none of it; a test fails if a `ui`
