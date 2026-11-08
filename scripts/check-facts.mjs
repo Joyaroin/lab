@@ -75,6 +75,7 @@ export function checkFacts(root) {
   for (const doc of DOCS) {
     const path = join(root, doc);
     if (!existsSync(path)) continue;
+    let sawCiHeading = false;
     let ciSection = null; // { line, named } while inside "What CI runs" in the testing facts
     const lines = readFileSync(path, "utf8").split("\n");
     const endSection = () => {
@@ -87,7 +88,10 @@ export function checkFacts(root) {
     lines.forEach((text, i) => {
       if (doc === TESTING && /^#{1,6}\s/.test(text)) {
         endSection();
-        if (/^#{1,6}\s+What CI runs\s*$/.test(text)) ciSection = { line: i + 1, named: new Set() };
+        if (/^#{1,6}\s+What CI runs\s*$/.test(text)) {
+          sawCiHeading = true;
+          ciSection = { line: i + 1, named: new Set() };
+        }
       }
       const say = (message) => problems.push({ doc, line: i + 1, message });
       const jobBullet = ciSection && text.match(/^[-*]\s+((?:`[^`]+`(?:,\s*)?)+):/);
@@ -125,6 +129,9 @@ export function checkFacts(root) {
       }
       if (i === lines.length - 1) endSection();
     });
+    if (doc === TESTING && ciJobs.length && !sawCiHeading) {
+      problems.push({ doc, line: 1, message: 'no "What CI runs" section, so CI jobs can\'t be checked' });
+    }
   }
   return problems;
 }
