@@ -162,7 +162,7 @@ const settled = (page: Page) => expect.poll(async () => { const w = await watche
 // machine's share is judged by its own slowest frame, because the wait's timer, React and the tear
 // each wait behind a frame: up to 4 of them, and 300 ms over. So a slow runner can't fail it, but
 // text that is really late (a second or more past that) does.
-const TEXT_RESOLVE_MS = 220; // the text's own resolve animation (ScreenPanels.tsx)
+const TEXT_RESOLVE_MS = 220; // the text's own resolve animation (src/text/ScreenPanels.tsx)
 const lateBy = (design: number, w: Watched, resolve = TEXT_RESOLVE_MS) => design + resolve + 4 * w.slowestFrame + 300;
 
 test("a first visit tears the view for about 0.8 s, and the text resolves as it ends", { tag: "@timing" }, async ({ page }) => {

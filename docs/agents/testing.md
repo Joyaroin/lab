@@ -1,6 +1,6 @@
 # Testing facts
 
-Checked against the code on 2026-11-07, at 1257325.
+Checked against the code on 2026-11-08, at 59e6a4d.
 
 ## Kinds of test
 | Kind | How to select it | Where it runs |

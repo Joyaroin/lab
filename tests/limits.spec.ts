@@ -126,7 +126,7 @@ test("a full tear starts and ends", async ({ page }) => {
 });
 
 // Hopping between stations, staying a little over the wait at each, tear after tear. Swept over how long each stay is.
-// "cold" hops through all six, so each arrival is a first visit and plays the full tear (3 changes: on, re-cut, off).
+// "cold" hops through all six, so each arrival is a first visit and plays the full tear (3 changes: on, re-cut, snap back).
 // "warm" hops between two stations that have already played out, so each arrival is a return and plays the short flick
 // (2 changes). A full tear and a short flick can't both fit under 3 (the 4 changes of two short flicks would), so the
 // warm cases are the ones that notice a limit raised from 3 to 4. (A cold 310 ms case was dropped: with the limit at 5 it

@@ -2,20 +2,21 @@
 
 A 3D late-night home lab that hiring teams tour to learn what Adham does. The room is the site: you
 scroll along a fixed camera path through stations, and a nixie-tube meter on the desk shows how many
-MediaSafe staging deploys have landed since the last promotion to prod. It is static files served by
+MediaSafe staging deploys have landed since the last promotion to prod. It shows that gap only at the
+entrance; each station has its own fixed reading. It is static files served by
 nginx, with no server code.
 
 ## Run it
 
-You need Node and npm.
+You need Node 22 (the Dockerfile uses it) and npm.
 
 ```
 npm ci
 npm run dev
 ```
 
-`npm test` runs the unit tests and `npm run build` makes the production build. `make frontend` does
-both, after a type check. The room's 3D model is committed, so you don't need Blender unless you
+`npm test` runs the unit tests. `npm run build` saves the live gap, type-checks, makes the production
+build and checks the size budget. `make frontend` runs both, after `npm ci` and a type check. The room's 3D model is committed, so you don't need Blender unless you
 rebuild it (below).
 
 ## Live demo

@@ -40,8 +40,10 @@ const drawn = new WeakMap<PanelEl, "true" | "resolving" | undefined>();
 /**
  * Places one station's panel for this frame: its opacity and visibility, whether it takes the wheel,
  * and where it sits over its CRT. `k` is the station's index in `crts`. What it last drew is kept in this
- * module (and written to `data-gated` for the CSS), so the resolve starts once when held text comes out, and a return's text
- * just appears. Whether the text is held, resolving or showing is the shift's to say (`textState`).
+ * module (and written to `data-gated` for the CSS), so the resolve starts once when held text comes out,
+ * and a return's text just appears. The text state is never read back from the element, though layout
+ * still reads its `maxHeight`, `scrollTop` and `scrollHeight`. Whether the text is held, resolving or
+ * showing is the shift's to say (`textState`).
  */
 export function placeText(el: PanelEl, crt: Crt, k: number, f: Frame) {
   const { camera, size, progress, shift } = f;

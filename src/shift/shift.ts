@@ -56,7 +56,8 @@ type Change = { at: number };
 
 /** How a station's text stands: `held` back (arrival to the end of a first visit's tear, or not showing at
  *  all), `resolving` out of the tear (a first visit's text, once it shows), or `showing` (a return's text, or
- *  one that has finished resolving). */
+ *  a first visit's once its panel has gone). A first visit's text stays `resolving` until its panel goes
+ *  (the `resolving` set below); the text module's per-panel record is what makes the resolve play only once. */
 export type TextState = "held" | "resolving" | "showing";
 
 /** Timers are set a little past the moment they wait for (and a late timer is no problem), so that
