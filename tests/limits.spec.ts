@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { progressFor } from "../src/hold";
-import { scrollToProgress, waitForCamera } from "./lib/page";
+import { goBack, goTo, waitForCamera } from "./lib/page";
 import { defineSnapWatcher } from "./lib/snap";
 
 // Ticket 131: specs for stated limits that no other spec pins on its own. Every number here is written
@@ -91,9 +91,9 @@ for (const wanted of [100, 210, 400, 600]) {
   const fires = wanted >= 250;
   test(`staying ${wanted} ms in a hold ${fires ? "fires the shift" : "fires no shift"}`, { tag: "@timing" }, async ({ page }) => {
     await boot(page);
-    await scrollToProgress(page, progressFor(1)); // the first visit, played out
+    await goTo(page, 1); // the first visit, played out
     await expect.poll(async () => (await seen(page)).off.length, { timeout: 8_000 }).toBeGreaterThan(0);
-    await scrollToProgress(page, 0);
+    await goBack(page);
     let dwelt = NaN, shifts = 0;
     for (let attempt = 0; attempt < 3 && (attempt === 0 || (fires && dwelt <= 300)); attempt++) {
       await page.waitForTimeout(1_500); // the last try's tear is over
@@ -114,7 +114,7 @@ for (const wanted of [100, 210, 400, 600]) {
 
 test("a full tear starts and ends", async ({ page }) => {
   await boot(page);
-  await scrollToProgress(page, progressFor(1));
+  await goTo(page, 1);
   await expect.poll(async () => (await seen(page)).off.length, { timeout: 8_000 }).toBeGreaterThan(0);
   const s = await seen(page);
   const len = s.off[0] - s.on[0];
@@ -145,10 +145,10 @@ for (const [kind, stays] of [["cold", [450, 700, 1000]], ["warm", [450, 550, 650
       await boot(page);
       if (kind === "warm") {
         for (const k of [1, 2]) { // visit both, and let each play out and show its text
-          await scrollToProgress(page, progressFor(k));
+          await goTo(page, k);
           await page.waitForTimeout(3_000);
         }
-        await scrollToProgress(page, 0);
+        await goBack(page);
         await page.waitForTimeout(500);
       }
       const before = (await seen(page)).on.length;
@@ -168,11 +168,11 @@ for (const [kind, stays] of [["cold", [450, 700, 1000]], ["warm", [450, 550, 650
 // and is what the flash limit counts; tests/shift.spec.ts records its time.
 test("a return plays the short flick: about 0.25 s", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
-  await scrollToProgress(page, progressFor(1));
+  await goTo(page, 1);
   await expect.poll(async () => (await seen(page)).off.length, { timeout: 8_000 }).toBeGreaterThan(0); // the first visit played out
-  await scrollToProgress(page, 0);
+  await goBack(page);
   await page.waitForTimeout(500);
-  await scrollToProgress(page, progressFor(1));
+  await goTo(page, 1);
   await expect.poll(async () => (await seen(page)).off.length, { timeout: 8_000 }).toBeGreaterThan(1);
   const s = await seen(page);
   const len = s.off[1] - s.on[1];
@@ -189,7 +189,7 @@ for (const [after, fires] of [[3_000, false], [7_000, true]] as const) {
     await page.reload();
     await expect(page.locator("[data-meter-bar]")).toBeVisible();
     await page.waitForTimeout(after);
-    await scrollToProgress(page, progressFor(1));
+    await goTo(page, 1);
     await page.waitForTimeout(2_000); // past the wait, and into the tear if there is one
     const s = await seen(page);
     if (fires) expect(s.on.length, "it shifted").toBeGreaterThan(0);
@@ -236,7 +236,7 @@ test("a visit makes one call to the GitHub API", async ({ page }) => {
   let calls = 0;
   await page.route("https://api.github.com/**", (r) => { calls++; return r.fulfill({ status: 403, json: {} }); });
   await boot(page);
-  await scrollToProgress(page, progressFor(3));
+  await goTo(page, 3);
   await page.waitForTimeout(3_000);
   expect(calls).toBe(1);
 });

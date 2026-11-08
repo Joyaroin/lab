@@ -1,6 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { progressFor } from "../src/hold";
-import { openTour, overflowPanel, panelOf, scrollToProgress, waitForPanel, wheelToStop } from "./lib/page";
+import { openTour, overflowPanel, panelOf, waitForPanel, goTo } from "./lib/page";
 
 // Ticket 63: a panel that scrolls must keep its scroll position while the wheel turns, and
 // at the end the wheel must carry on to the next stop.
@@ -25,7 +24,7 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     test.setTimeout(90_000);
     await page.setViewportSize({ width: w, height: h });
     await openTour(page);
-    await wheelToStop(page, 1);
+    await goTo(page, 1);
     await expect(panelOf(page, "work")).toBeVisible();
     await waitForPanel(page, "work");
     await overflowPanel(page, "work"); // the real copy is too short to overflow, so the test makes it
@@ -63,7 +62,7 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
 async function resizeKeepsPosition(page: Page, id: string, stop: number, from: { width: number; height: number }, to: { width: number; height: number }) {
   await page.setViewportSize(from);
   await openTour(page);
-  await wheelToStop(page, stop);
+  await goTo(page, stop);
   await expect(panelOf(page, id)).toHaveCSS("opacity", "1");
   await waitForPanel(page, id);
   await overflowPanel(page, id, 4); // enough that it still overflows at the larger size
@@ -98,7 +97,7 @@ test.describe("phone-sized window", () => {
   test("a real touch swipe and the wheel over MediaSafe keep the panel's position", async ({ page }) => {
     test.setTimeout(90_000);
     await openTour(page);
-    await scrollToProgress(page, progressFor(2));
+    await goTo(page, 2);
     await expect(panelOf(page, "mediasafe")).toHaveCSS("opacity", "1");
     await waitForPanel(page, "mediasafe");
     await overflowPanel(page, "mediasafe"); // the real copy is too short, so the test adds text
@@ -140,7 +139,7 @@ test("phone-sized window: the real wheel over MediaSafe does not jump back", asy
   test.setTimeout(90_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await openTour(page);
-  await wheelToStop(page, 2);
+  await goTo(page, 2);
   await expect(panelOf(page, "mediasafe")).toHaveCSS("opacity", "1");
   await waitForPanel(page, "mediasafe");
   const box = (await panelOf(page, "mediasafe").boundingBox())!;
@@ -167,7 +166,7 @@ test("the more cue is visible only when its panel is", async ({ page }) => {
   await panelOf(page, "work").evaluate((e) => { e.dataset.more = "true"; }); // the entrance: panel hidden
   expect(await panelOf(page, "work").evaluate((e) => getComputedStyle(e).visibility)).toBe("hidden");
   expect(await visibility()).toBe("hidden");
-  await wheelToStop(page, 1);
+  await goTo(page, 1);
   await expect(panelOf(page, "work")).toBeVisible();
   await waitForPanel(page, "work");
   await panelOf(page, "work").evaluate((e) => { e.dataset.more = "true"; });
