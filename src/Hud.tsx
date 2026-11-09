@@ -22,7 +22,8 @@ function usePortrait() {
   );
 }
 
-// Always-on corner overlay: résumé, contact and station links. Fixed, so it is reachable at every
+// The always-on overlay: résumé, contact and station links, the Room link and the hint. A top-right
+// overlay on a landscape window, a bottom menu on a portrait one. Fixed, so it is reachable at every
 // point. The station links are real #id links that fly to that station; Room flies back to the overview.
 // It owns what #177 changes: the parts that depend on where the visitor is and on whether they have
 // visited a station yet (`visited`, set on the first landing at one), and the meter bar's bottom offset
