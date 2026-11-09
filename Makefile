@@ -17,7 +17,7 @@ backend:
 	@echo "Nothing to check: the site is static files served by nginx, with no server code."
 integration: frontend
 	node tests/integration.mjs
-# Browsers and system packages are installed only in CI. The VM already has them.
+# Browsers and system packages are installed only in CI. The Mac has Playwright's browsers installed.
 browser:
 	npm ci
 ifdef CI

@@ -1,13 +1,13 @@
 # Testing facts
 
-Checked against the code on 2026-11-09, at a8c7ddf.
+Checked against the code on 2026-11-09, at c891bbb.
 
 ## Kinds of test
 | Kind | How to select it | Where it runs |
 |---|---|---|
 | Unit | `npm test` | Builder and CI |
 | Light browser | `make browser-light PW_ARGS=<spec>` for the specs it touched. `make browser-light` alone only for a change to shared code, through `heavy` | Builder and CI |
-| Timing | `@timing` | CI only. On the VM only to measure or break-check, through `heavy`, 1 worker. Exact durations are unit tests with a fake clock (`src/frames.test.ts`, `src/tear.test.ts`, `src/nixie.test.ts`, `src/shift/shift.test.ts`); browser timing specs check that a play happened, its order, and the safe side of a limit |
+| Timing | `@timing` | CI only. In the session only to measure or break-check, through `heavy`, 1 worker. Exact durations are unit tests with a fake clock (`src/frames.test.ts`, `src/tear.test.ts`, `src/nixie.test.ts`, `src/shift/shift.test.ts`); browser timing specs check that a play happened, its order, and the safe side of a limit |
 | Heavy rendering | `@render` | CI only |
 
 ## Commands
@@ -18,7 +18,7 @@ Checked against the code on 2026-11-09, at a8c7ddf.
 - `make facts`: every path, command and tag the docs name exists
 - A flash limit spec counts the tear's visible snap back (the displacement map's scale reaching 0, `tests/lib/snap.ts`), never the filter coming off
 - `tests/shift.spec.ts` records the snap back's measured time as a `snap-back-ms` test annotation and a log line, for CI's browser job report
-- One spec on the VM: `heavy npx playwright test tests/<spec> --workers=1`
+- One spec in the session: `heavy npx playwright test tests/<spec> --workers=1`
 
 ## What CI runs
 CI runs on every branch except `staging` and `production`, including `main` after each merge. Nothing waits for the run on `main`. With no open PR, the posting steps log that there is nothing to post and pass, except on `main`: there each failure report is added as a new comment on the standing "CI failures on main" issue (created or reopened if needed).
