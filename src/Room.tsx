@@ -4,7 +4,8 @@ import { MeshBasicMaterial, type Mesh, type MeshStandardMaterial, type Perspecti
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import roomUrl from "./assets/room.glb?url";
 import { OVERVIEW } from "./crts";
-import { FADE_MS, type Visit } from "./visit";
+import type { Visit } from "./visit";
+import { nextCover } from "./visit/cover";
 import { framingFor } from "./framing";
 import { parallax } from "./tour";
 import type { Where } from "./where";
@@ -77,12 +78,11 @@ function CameraRig({ visit, where, reduced, cover }: { visit: Visit; where: Muta
     // A move is running while flying, before a cut's midpoint, and through a fade's second half (fade > 0): frames
     // must go on until the landing, which only this read notices.
     // The reduced-motion fade's cover. The cover never jumps: it follows the visit's fade() but may fall no faster
-    // than a fade's own half (a move begun after the cut makes fade() drop from near 0.8 to 0 in one frame, #160).
+    // than nextCover allows (a move begun after the cut makes fade() drop from near 0.8 to 0 in one frame, #160).
     const want = visit.fade(nowMs);
-    const fall = Math.min(dt, 0.1) / (FADE_MS / 2000);
-    covered.current = want >= covered.current ? want : Math.max(want, covered.current - fall);
+    covered.current = nextCover(covered.current, want, dt);
     if (cover.current) cover.current.style.opacity = String(covered.current);
-    const moving = covered.current > 0 || w.kind === "flying" || w.stop !== visit.target() || visit.fade(nowMs) > 0;
+    const moving = covered.current > 0 || w.kind === "flying" || w.stop !== visit.target() || want > 0;
     if (moving || (!tail && Math.hypot(dx, dy, dz) * (1 - k) > 1e-4)) invalidate();
   });
   return null;
@@ -109,7 +109,7 @@ export default function Room({ onReady, onProgress, visit, where, reduced, meter
         <DeskMeter link={meter} shift={shift} reduced={reduced} />
         <Phosphor where={where} />
         <Bezels />
-        <TvTargets visit={visit} where={where} reduced={reduced} />
+        <TvTargets visit={visit} where={where} />
         <Rain />
       </Suspense>
     </Canvas>

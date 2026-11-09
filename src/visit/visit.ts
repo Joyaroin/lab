@@ -59,11 +59,13 @@ const clampStop = (s: number) => Math.min(Math.max(Math.round(s), 0), STATION_CO
 export function createVisit({ reduced, now = () => performance.now() }: { reduced: boolean; now?: () => number }): Visit {
   let rest = 0; // the stop the visitor is at when no move is running
   let move: Move | null = null;
+  // Reduced motion only: the latest move pressed during a fade. It starts when that fade ends (Adham, #176).
+  let waiting: { to: number; opts: MoveOptions } | null = null;
   const listeners = new Set<(e: VisitEvent) => void>();
   const emit = (e: VisitEvent) => [...listeners].forEach((l) => l(e));
 
   const dur = () => (reduced ? FADE_MS : FLIGHT_MS);
-  const target = () => (move ? move.to : rest);
+  const target = () => (waiting ? waiting.to : move ? move.to : rest);
 
   /** The camera's Where at `t`, without settling. */
   function read(t: number): Where {
@@ -80,25 +82,30 @@ export function createVisit({ reduced, now = () => performance.now() }: { reduce
       rest = move.to;
       move = null;
       emit({ type: "land", stop: rest });
+      const next = waiting;
+      waiting = null;
+      if (next) go(next.to, next.opts, t);
     }
   }
 
-  function go(stop: number, opts: MoveOptions = {}) {
+  function go(stop: number, opts: MoveOptions = {}, at?: number) {
     const to = clampStop(stop);
-    const t = now();
+    const t = at ?? now();
     settle(t);
+    if (reduced && move) {
+      // A fade is running: the press waits for it, and the latest press replaces any earlier one. A press for the
+      // fade's own stop cancels the waiting one. Nothing is emitted until the move really starts, so history
+      // (#175) gets one entry per move that happens.
+      waiting = to === move.to ? null : { to, opts };
+      return;
+    }
     if (to === target()) return;
     const from = read(t);
-    if (reduced && move && t - move.start < dur() / 2) {
-      // Before the cut the visitor is still at the old stop: keep the fade, change where it goes.
-      move = { ...move, to };
-    } else {
-      const origin = from.kind === "at" ? from.stop : from.f < 0.5 ? from.from : from.to;
-      const launch: Launch = move
-        ? { kind: "flying", from: move.launch, to: move.to, f: ease((t - move.start) / dur()) }
-        : { kind: "at", stop: rest };
-      move = { start: t, launch, to, origin };
-    }
+    const origin = from.kind === "at" ? from.stop : from.f < 0.5 ? from.from : from.to;
+    const launch: Launch = move
+      ? { kind: "flying", from: move.launch, to: move.to, f: ease((t - move.start) / dur()) }
+      : { kind: "at", stop: rest };
+    move = { start: t, launch, to, origin };
     emit({ type: "move", from, to, fromHistory: !!opts.fromHistory });
   }
 
@@ -114,6 +121,7 @@ export function createVisit({ reduced, now = () => performance.now() }: { reduce
       const from = read(now());
       settle(now());
       move = null;
+      waiting = null;
       rest = to;
       emit({ type: "move", from, to, fromHistory: !!opts.fromHistory });
       emit({ type: "land", stop: to });

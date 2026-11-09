@@ -5,6 +5,7 @@ import { framingFor } from "./framing";
 import type { Where } from "./where";
 import { clickable } from "./clickable";
 import type { Visit } from "./visit";
+import { easeGlow } from "./glow";
 import { textCovers } from "./text/place";
 import { crts, CRT_GLASS, DESK_METER, NOTE_AT, PLATE_AT, type Crt } from "./crts";
 import { powerOn, shiftDigits, type MeterLink } from "./nixie";
@@ -403,12 +404,10 @@ export function Rain() {
 // flash limit does not count it. The hovered id is written to the canvas's data-hover, so a spec can check the target.
 // Where the visitor is decides it every frame (clickable): at a station, or in flight, nothing is hot and no glow shows.
 
-/** The glow eases at this rate per second (about 0.3 s to settle). */
-const GLOW_RATE = 8;
 /** How far in front of the bezel layer the hit target and the glow stand. */
 const TARGET_GAP = 0.003;
 
-export function TvTargets({ visit, where, reduced }: { visit: Visit; where: MutableRefObject<Where>; reduced: boolean }) {
+export function TvTargets({ visit, where }: { visit: Visit; where: MutableRefObject<Where> }) {
   const invalidate = useThree((s) => s.invalidate);
   const hovered = useRef<string | null>(null);
   const shown = useRef<string | null>(null); // what the cursor and data-hover currently say
@@ -417,19 +416,18 @@ export function TvTargets({ visit, where, reduced }: { visit: Visit; where: Muta
   const tex = useMemo(() => pointGlowTexture("rgba(170,255,200,1)", "rgba(110,230,160,0.7)"), []);
 
   useFrame(({ gl }, dt) => {
-    const hot = clickable(where.current) && visit.target() === 0 ? hovered.current : null; // not mid-fade either
+    const hot = clickable(where.current) && visit.target() === 0 ? hovered.current : null; // only at the overview, which a fade's second half back to it counts as
     if (hot !== shown.current) {
       shown.current = hot;
       document.body.style.cursor = hot ? "pointer" : "";
       if (hot) gl.domElement.dataset.hover = hot; else delete gl.domElement.dataset.hover;
     }
-    const k = reduced ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * GLOW_RATE);
     let easing = false;
     for (const crt of crts) {
       const goal = crt.id === hot ? 1 : 0;
       let v = glow.current[crt.id] ?? 0;
-      v += (goal - v) * k;
-      if (Math.abs(goal - v) < 0.01) v = goal; else easing = true;
+      v = easeGlow(v, goal, dt);
+      if (v !== goal) easing = true;
       glow.current[crt.id] = v;
       const m = mats.current[crt.id];
       if (m) m.opacity = v;

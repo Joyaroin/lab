@@ -230,20 +230,6 @@ describe("reduced motion", () => {
     expect(visit.launch(now())).toBeNull();
   });
 
-  it("a go before the cut keeps the fade and changes its target; after the cut it fades from the new stop", () => {
-    const { visit, advance, now } = setup(true);
-    visit.go(2);
-    advance(100);
-    visit.go(4);
-    expect(visit.where(now())).toEqual({ kind: "at", stop: 0 });
-    advance(FADE_MS / 2 - 100);
-    expect(visit.where(now())).toEqual({ kind: "at", stop: 4 });
-    visit.go(5);
-    expect(visit.where(now())).toEqual({ kind: "at", stop: 4 });
-    advance(FADE_MS / 2);
-    expect(visit.where(now())).toEqual({ kind: "at", stop: 5 });
-  });
-
   it("next during a fade means the stop after its destination, and land is instant", () => {
     const { visit, now } = setup(true);
     visit.go(2);
@@ -260,5 +246,67 @@ describe("reduced motion", () => {
     advance(FADE_MS);
     visit.where(now());
     expect(events.map((e) => e.type)).toEqual(["move", "land"]);
+  });
+});
+
+describe("reduced motion: a press during a fade waits (Adham, #176)", () => {
+  it("keeps only the latest press and starts it when the fade ends", () => {
+    const { visit, events, advance, now } = setup(true);
+    visit.go(2);
+    advance(100);
+    visit.go(4);
+    visit.go(5);
+    expect(visit.target()).toBe(5);
+    advance(FADE_MS / 2 - 100);
+    expect(visit.where(now())).toEqual({ kind: "at", stop: 2 }); // the first fade finishes its own move
+    advance(FADE_MS / 2);
+    expect(visit.where(now())).toEqual({ kind: "at", stop: 2 });
+    expect(visit.fade(now())).toBe(0); // the waiting move starts on the next read
+    advance(FADE_MS);
+    expect(visit.where(now())).toEqual({ kind: "at", stop: 5 });
+    expect(events.filter((e) => e.type === "move").map((e) => (e as { to: number }).to)).toEqual([2, 5]);
+  });
+
+  it("a press back to the stop being faded to cancels the waiting one", () => {
+    const { visit, events, advance, now } = setup(true);
+    visit.go(2);
+    visit.go(4);
+    visit.go(2);
+    advance(FADE_MS * 3);
+    expect(visit.where(now())).toEqual({ kind: "at", stop: 2 });
+    expect(events.filter((e) => e.type === "move")).toHaveLength(1);
+  });
+
+  it("presses every 160 ms: fades start at least a fade apart, the last press lands, one move event per fade", () => {
+    const { visit, events, advance, now, at } = setup(true);
+    const t0 = now();
+    const starts: number[] = [];
+    visit.subscribe((e) => { if (e.type === "move") starts.push(now()); });
+    let wasFading = false;
+    let lastPressed = 0;
+    for (let ms = 0; ms <= 2000 + FADE_MS * 3; ms += 10) {
+      at(t0 + ms);
+      if (ms <= 2000 && ms % 160 === 0) { lastPressed = (ms / 160) % 2 ? 3 : 1; visit.go(lastPressed); }
+      const f = visit.fade(now());
+      if (f > 0 && !wasFading) wasFading = true;
+      if (f === 0) wasFading = false;
+    }
+    expect(starts.length).toBeGreaterThan(1);
+    for (let i = 1; i < starts.length; i++) expect(starts[i] - starts[i - 1]).toBeGreaterThanOrEqual(FADE_MS);
+    expect(visit.where(now())).toEqual({ kind: "at", stop: lastPressed });
+    expect(events.filter((e) => e.type === "move")).toHaveLength(starts.length);
+  });
+
+  it("fade() never drops by more than a 10 ms step's share while presses arrive", () => {
+    const { visit, now, at } = setup(true);
+    const t0 = now();
+    let prev = 0;
+    for (let ms = 0; ms <= 3000; ms += 10) {
+      at(t0 + ms);
+      if (ms <= 2000 && ms % 160 === 0) visit.go((ms / 160) % 2 ? 3 : 1);
+      const f = visit.fade(now());
+      expect(prev - f).toBeLessThanOrEqual(10 / (FADE_MS / 2) + 1e-9);
+      prev = f;
+    }
   });
 });
