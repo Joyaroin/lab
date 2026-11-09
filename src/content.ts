@@ -204,7 +204,7 @@ export const content: Content = {
       heading: "Software factory",
       lead: "My AI software factory: I plan, and agents build, review and merge. It built this site.",
       body: [
-        "I plan a feature with an orchestrator agent, which cuts it into small tickets. Builder agents write each ticket test-first on a VM and open a pull request.",
+        "I plan a feature with an orchestrator agent, which cuts it into small tickets. Builder agents write each ticket test-first on my Mac and open a pull request.",
         "Every PR runs full CI on my own runner. Then a fresh reviewer agent decides whether it merges by itself, needs me, or goes back for a rebuild.",
         "This site has 76 merged pull requests since 5 November 2026. Production moves only when I promote it.",
       ],
