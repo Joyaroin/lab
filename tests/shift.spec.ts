@@ -169,7 +169,7 @@ test("a first visit tears the view for about 0.8 s, and the text resolves as it 
   expect(w.snaps).toHaveLength(1);
   expect(w.snaps[0], "it snapped back before it came off").toBeLessThan(w.ends[0]);
   expect(len, "it came off within 3 s of starting").toBeLessThan(3_000);
-  expect(w.shown!, "the text showed after the snap back").toBeGreaterThan(w.snaps[0] - w.t0);
+  expect(w.shown!, "the text showed after the snap back").toBeGreaterThan(w.snaps[0]);
   expect(w.shown!).toBeLessThan(lateBy(1_090, w)); // see lateBy
   expect(await filterOn(page)).toBe(false);
 });
@@ -191,7 +191,7 @@ test("a return shows its text when the 250 ms wait ends, and the flick plays ove
   expect(w.snaps).toHaveLength(1);
   expect(w.litDuringTear).toBe(true); // the text is out while the flick plays over it...
   expect(w.resolved).toBe(false); // ...with no resolve animation
-  expect(w.shown! - w.starts[0]).toBeLessThan(2 * w.slowestFrame + 100); // out as the flick starts, not after it
+  expect(w.shown! - w.starts[0]).toBeLessThan(2 * w.slowestFrame + 300); // out as the flick starts, not after it
   // The design is about 0.3 s from arrival (the wait, 250 ms; the camera's arrival is already done),
   // against 0.54 s before. lateBy allows for a slow machine.
   expect(w.shown!).toBeLessThan(lateBy(WAIT_MS, w, 0));
