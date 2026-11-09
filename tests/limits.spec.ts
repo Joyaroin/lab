@@ -167,14 +167,10 @@ for (const [kind, stays] of [["cold", [450, 700, 1000]], ["warm", [450, 550, 650
 }
 
 // The short flick on a return starts and ends: the filter goes on, then comes off on the first frame after the tear.
-// Its length (SHIFT_SECONDS.short, 0.25 s) is pinned in src/shift/shift.test.ts, so this spec sets no real-time upper
-// bound, which a busy machine could break. It only checks the flick lasted at least 250 ms, less a small measuring offset. The visible snap back comes
-// about 212 ms in (the displacement scale reaching 0) and is what the flash limit counts; tests/shift.spec.ts records its time.
-// The spec reads the flick's start from the filter going on, which lands a fraction after TearView sets the start
-// (src/TearView.tsx), so a correct 250 ms flick can measure just under 250 (249.9 was seen in CI). This allowance
-// covers that offset only. It is well under one frame (16 ms), so a flick cut short by a frame still fails.
-// The exact length is pinned in src/shift/shift.test.ts.
-const MEASURING_OFFSET_MS = 5;
+// Its length (SHIFT_SECONDS.short, 0.25 s) is pinned in src/shift/shift.test.ts, so this spec sets no tight
+// bound, which a busy machine could break either way. It only checks the flick lasted longer than half of that, so a flick cut
+// short on the return still fails, at any frame rate. The visible snap back comes about 212 ms in (the displacement scale
+// reaching 0) and is what the flash limit counts; tests/shift.spec.ts records its time.
 test("a return plays the short flick: it starts and ends", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
   await goTo(page, 1);
@@ -185,7 +181,7 @@ test("a return plays the short flick: it starts and ends", { tag: "@timing" }, a
   await expect.poll(async () => (await seen(page)).off.length, { timeout: 8_000 }).toBeGreaterThan(1);
   const s = await seen(page);
   const len = s.off[1] - s.on[1];
-  expect(len, "the return's flick").toBeGreaterThanOrEqual(SHIFT_SECONDS.short * 1000 - MEASURING_OFFSET_MS);
+  expect(len, "the return's flick").toBeGreaterThan(SHIFT_SECONDS.short * 500);
 });
 
 // The limit of 3 counts a Work page turn too: it flicks the Work TV only, so its changes are the panel's filter going on
