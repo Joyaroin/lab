@@ -115,6 +115,10 @@ const watch = (page: Page, id: string) => page.evaluate((id) => {
   const st: Watched = { cuts: [], starts: [], ends: [], snaps: [], shown: null, t0: performance.now(), litDuringTear: false, visibleDuringTear: true, slowestFrame: 0, resolved: false };
   let last = performance.now();
   w.__w = st;
+  // Each stay is timed from the landing (the HUD link's aria-current), not from the click that starts the flight.
+  const landing = document.querySelector(`nav[aria-label="HUD"] a[href="#${id}"]`)!;
+  const land = new MutationObserver(() => { if (landing.getAttribute("aria-current") === "location") { st.t0 = performance.now(); land.disconnect(); } });
+  land.observe(landing, { attributes: true, attributeFilter: ["aria-current"] });
   let on = false;
   // The tear's filter goes on and off with the canvas's style; a re-cut of the bands is the filter's
   // noise seed changing while it is on. One observer for both, so the records arrive in the order they happened.
