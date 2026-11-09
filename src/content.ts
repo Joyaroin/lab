@@ -49,6 +49,9 @@ export const ui = {
   /** the HUD's link back to the overview, and the nav's aria label */
   room: "Room",
   hud: "HUD",
+  /** the hint line on the overview, until the first landing at a station: landscape, and portrait (the menu is below) */
+  hintLandscape: "Click a monitor",
+  hintPortrait: "Tap a monitor, or pick one below",
   /** the cue at the foot of a panel with more text below */
   more: "more ▾",
   /** the meter's label while the gap is still being read */

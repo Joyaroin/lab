@@ -24,7 +24,7 @@ Checked against the code on 2026-11-08, at 525ecf8.
 CI runs on every branch except `staging` and `production`, including `main` after each merge. Nothing waits for the run on `main`. With no open PR, the posting steps log that there is nothing to post and pass.
 - `frontend`, `backend`, `integration`: the make targets of the same name
 - `browser`: the full suite on the GPU, tags included. `tests/gpu.spec.ts` fails it if Chromium falls back to the CPU
-- `screenshots`: every station at desktop and phone size, posted to the PR
+- `screenshots`: the overview plus every station, at desktop and phone size, posted to the PR
 - `secret-scan`: gitleaks over the full history
 - `facts`: `make facts`
 - Also on `main`, `release.yml` builds the image and moves `staging`. `promote.yml` moves `production`, run by Adham

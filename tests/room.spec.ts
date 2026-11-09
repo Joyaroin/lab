@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { BOTTOM_CLEAR, SIDE, TOP_CLEAR } from "../src/pin";
-import { boxOf, panelOf, meanBrightness, goTo, openTour, stationIds, waitForCamera, waitForPanel, waitUntilStill } from "./lib/page";
+import { boxOf, panelOf, meanBrightness, goTo, landedAt, openTour, stationIds, waitForCamera, waitForPanel, waitUntilStill } from "./lib/page";
 
 // Baked room loads and the tour still moves the camera. Screenshots go to test-results/.
 // Seven software-WebGL screenshots: each waits for a drawn frame, which is slow on a loaded machine.
@@ -47,6 +47,24 @@ test("on a phone, MediaSafe and Software factory frame lit parts of the room", a
     expect(bright, name).toBeGreaterThan(27);
   }
 });
+
+// #177: the overview itself renders at both sizes, and on a phone it frames lit parts of the room (the same
+// bar as the phone-stop check above). If the portrait overview is too dark, retune overviewPortrait in
+// src/room-layout.json, keeping its camera clear of the 0.15 m clearance limit with some margin.
+for (const [name, size, bar] of [["desktop", { width: 1280, height: 800 }, 0], ["phone", { width: 390, height: 844 }, 27]] as const) {
+  test(`the overview renders at ${size.width}x${size.height}${bar ? " and frames lit parts of the room" : ""}`, { tag: "@render" }, async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(String(e)));
+    await page.setViewportSize(size);
+    await openTour(page);
+    await expect(page.locator("canvas")).toBeVisible();
+    await landedAt(page, 0);
+    const bright = await waitUntilStill(async () => Math.round((await meanBrightness(page, await page.screenshot())) * 10) / 10, 500);
+    await page.screenshot({ path: `test-results/room-overview-${name}.png` });
+    expect(bright, `overview at ${name}`).toBeGreaterThan(bar);
+    expect(errors).toEqual([]);
+  });
+}
 
 // Ticket 48: on desktop each station stops square to its TV, the text is laid over the glass, and
 // moving the pointer inside a hold doesn't move either.

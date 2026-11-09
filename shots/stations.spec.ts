@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { stations } from "../src/content";
-import { openTour, goTo, panelOf, waitForCamera } from "../tests/lib/page";
+import { openTour, goTo, landedAt, panelOf, waitForCamera } from "../tests/lib/page";
 
-// The screenshots job: every station at desktop and phone size, with the camera still and the
-// text showing. Files go to $SHOTS_DIR as <station id>-<desktop|phone>.png, and
+// The screenshots job: the overview and every station at desktop and phone size, with the camera still and the
+// text showing. Files go to $SHOTS_DIR as <station id or overview>-<desktop|phone>.png, and
 // scripts/post-screenshots.mjs attaches them to the PR. Any shot that can't be taken fails the test.
 const dir = process.env.SHOTS_DIR ?? "shots-out";
 const sizes = { desktop: { width: 1280, height: 800 }, phone: { width: 390, height: 844 } };
@@ -15,6 +15,12 @@ mkdirSync(dir, { recursive: true });
 for (const [name, size] of Object.entries(sizes)) {
   test.describe(name, () => {
     test.use({ viewport: size });
+    test(`overview at ${name}`, async ({ page }) => {
+      await openTour(page);
+      await landedAt(page, 0);
+      await waitForCamera(page);
+      await page.screenshot({ path: `${dir}/overview-${name}.png` });
+    });
     for (const [i, s] of stations.entries()) {
       test(`${s.id} at ${name}`, async ({ page }) => {
         await openTour(page);
