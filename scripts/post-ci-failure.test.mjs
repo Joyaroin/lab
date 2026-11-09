@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { AUTHOR, cli, findingsFrom, failedTests, failedStep, formatComment, main, markerFor, MARKER } from "./post-ci-failure.mjs";
+import { AUTHOR, cli, findingsFrom, failedTests, failedStep, formatComment, main, markerFor, MARKER, ISSUE_MARKER } from "./post-ci-failure.mjs";
 
 const test = (status, message) => ({ status, results: [{ error: message && { message } }] });
 const report = {
@@ -146,7 +146,7 @@ describe("main against a fake Forgejo", () => {
   afterEach(() => server?.close());
   // `comments` is what the PR already has. POST adds to it and PATCH changes one, as Forgejo does.
   const NOOUT = "boom: Error here\nmore";
-  async function run(prs, { comments = [], job = "browser", rep = report, output = NOOUT, status = 200, secrets = [] } = {}) {
+  async function run(prs, { comments = [], job = "browser", rep = report, output = NOOUT, status = 200, secrets = [], issues = [], branch = "ticket-66" } = {}) {
     const calls = [];
     server = createServer((req, res) => {
       let body = "";
@@ -156,9 +156,10 @@ describe("main against a fake Forgejo", () => {
         if (status !== 200) { res.statusCode = status; return res.end("{}"); }
         if (req.method === "POST" || req.method === "PATCH") {
           calls.push({ method: req.method, url: req.url, body: JSON.parse(body) });
-          return res.end("{}");
+          return res.end(JSON.stringify({ number: 50 }));
         }
-        res.end(JSON.stringify(req.url.includes("/comments") ? comments : prs));
+        const list = req.url.includes("/comments") ? comments : req.url.includes("/issues") ? issues : prs;
+        res.end(JSON.stringify(list));
       });
     });
     await new Promise((r) => server.listen(0, "127.0.0.1", r));
@@ -168,7 +169,7 @@ describe("main against a fake Forgejo", () => {
     if (output !== null) writeFileSync(files.outFile, output);
     writeFileSync(files.exitFile, "3\n");
     writeFileSync(files.startFile, "1000\n");
-    const env = { SERVER_URL: `http://127.0.0.1:${server.address().port}`, REPOSITORY: "projects/lab", BRANCH: "ticket-66", SHA: "abcdef1234", TOKEN: "t" };
+    const env = { SERVER_URL: `http://127.0.0.1:${server.address().port}`, REPOSITORY: "projects/lab", BRANCH: branch, SHA: "abcdef1234", TOKEN: "t" };
     const input = { job, steps: "start=success checkout=success run=failure", runStep: "run", cmd: `make ${job}`, ...files, secrets, now: 1090000 };
     return { calls, env, input, dir, run: () => main(input, env) };
   }
@@ -214,6 +215,52 @@ describe("main against a fake Forgejo", () => {
     const t = await run([pr(5, "other")]);
     await t.run();
     expect(t.calls).toEqual([]);
+  });
+  describe("main with no PR", () => {
+    const mainRun = (o = {}) => run([pr(5, "other")], { branch: "main", ...o });
+    const standing = (extra = {}) => ({ number: 40, state: "open", body: `Standing.\n\n${ISSUE_MARKER}`, user: { login: AUTHOR }, ...extra });
+    it("creates the issue and comments on it", async () => {
+      const t = await mainRun();
+      t.env.RUN_NUMBER = "812";
+      await t.run();
+      expect(t.calls.map((c) => `${c.method} ${c.url.replace("/api/v1/repos/projects/lab", "")}`)).toEqual(["POST /issues", "POST /issues/50/comments"]);
+      expect(t.calls[0].body.title).toBe("CI failures on main");
+      expect(t.calls[0].body.body).toContain(ISSUE_MARKER);
+      expect(t.calls[1].body.body).toMatch(/HUD appears/);
+      expect(t.calls[1].body.body).toContain("/commit/abcdef1234");
+      expect(t.calls[1].body.body).toContain("/actions/runs/812");
+    });
+    it("adds a new comment to an open issue, never editing an earlier one", async () => {
+      const t = await mainRun({ issues: [standing()], comments: [{ id: 3, body: markerFor("browser"), user: { login: AUTHOR } }] });
+      await t.run();
+      expect(t.calls).toHaveLength(1);
+      expect(t.calls[0].method).toBe("POST");
+      expect(t.calls[0].url).toMatch(/issues\/40\/comments$/);
+    });
+    it("reopens a closed issue, then comments", async () => {
+      const t = await mainRun({ issues: [standing({ state: "closed" })] });
+      await t.run();
+      expect(t.calls.map((c) => c.method)).toEqual(["PATCH", "POST"]);
+      expect(t.calls[0].url).toMatch(/issues\/40$/);
+      expect(t.calls[0].body).toEqual({ state: "open" });
+    });
+    it("ignores a lookalike issue not made by CI", async () => {
+      const t = await mainRun({ issues: [standing({ user: { login: "adham" } })] });
+      await t.run();
+      expect(t.calls[0].url).toMatch(/\/issues$/);
+    });
+    it("posts nothing for another branch without a PR", async () => {
+      const t = await run([pr(5, "other")], { branch: "ticket-66" });
+      await t.run();
+      expect(t.calls).toEqual([]);
+    });
+    it("masks secrets on the issue path", async () => {
+      const planted = ["s3cr3t", "value"].join("-");
+      const t = await mainRun({ job: "frontend", rep: null, output: `Error: ${planted}`, secrets: [planted] });
+      await t.run();
+      expect(JSON.stringify(t.calls)).not.toContain(planted);
+      expect(t.calls[1].body.body).toContain("Error: ***");
+    });
   });
   it("browser falls back to the command and exit code when there is no report", async () => {
     const t = await run([pr(7, "ticket-66")], { rep: null });

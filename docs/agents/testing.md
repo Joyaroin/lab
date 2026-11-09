@@ -21,7 +21,7 @@ Checked against the code on 2026-11-09, at a8c7ddf.
 - One spec on the VM: `heavy npx playwright test tests/<spec> --workers=1`
 
 ## What CI runs
-CI runs on every branch except `staging` and `production`, including `main` after each merge. Nothing waits for the run on `main`. With no open PR, the posting steps log that there is nothing to post and pass.
+CI runs on every branch except `staging` and `production`, including `main` after each merge. Nothing waits for the run on `main`. With no open PR, the posting steps log that there is nothing to post and pass, except on `main`: there each failure report is added as a new comment on the standing "CI failures on main" issue (created or reopened if needed).
 - `frontend`, `backend`, `integration`: the make targets of the same name
 - `browser`: the full suite on the GPU, tags included. `tests/gpu.spec.ts` fails it if Chromium falls back to the CPU
 - `screenshots`: the overview plus every station, at desktop and phone size, posted to the PR

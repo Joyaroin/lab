@@ -1,4 +1,5 @@
 // Posts (or updates, on a later push) why a CI job failed, on the open PR for this branch.
+// On main, which has no PR, each failure is a new comment on the standing "CI failures on main" issue.
 // Forgejo has no job-log API, so this is how workers and reviewers see why a job failed.
 // Used by the frontend, backend, integration and browser jobs. Configured by env, see cli() below.
 import { existsSync, readFileSync } from "node:fs";
@@ -148,6 +149,24 @@ export async function findComment(env, pr, marker) {
   return comments.find((c) => c.body?.includes(marker) && c.user?.login === AUTHOR)?.id;
 }
 
+export const ISSUE_MARKER = "<!-- ci-main-failures -->";
+export const ISSUE_TITLE = "CI failures on main";
+
+/** Number of the standing "CI failures on main" issue, open or closed, created by CI. Creates it if missing and reopens it if closed. */
+export async function findOrCreateIssue(env) {
+  for (let page = 1; page <= 10; page++) {
+    const issues = await api(env, `/issues?type=issues&state=all&q=${encodeURIComponent(ISSUE_TITLE)}&limit=50&page=${page}`);
+    const found = issues.find((i) => i.body?.includes(ISSUE_MARKER) && i.user?.login === AUTHOR);
+    if (found) {
+      if (found.state === "closed") await api(env, `/issues/${found.number}`, { method: "PATCH", body: JSON.stringify({ state: "open" }) });
+      return found.number;
+    }
+    if (issues.length < 50) break;
+  }
+  const body = `Every red CI run on main is posted here as a comment.\n\n${ISSUE_MARKER}`;
+  return (await api(env, "/issues", { method: "POST", body: JSON.stringify({ title: ISSUE_TITLE, body }) })).number;
+}
+
 /**
  * `input`: job, steps, cmd, outFile, exitFile, startFile, report (browser only), secrets (values to mask),
  * now (ms, for tests). `env`: SERVER_URL, REPOSITORY, BRANCH, SHA, TOKEN.
@@ -182,7 +201,15 @@ export async function main(input, env) {
   });
   const marker = markerFor(input.job);
   const pr = await findPr(env);
-  if (pr === undefined) return console.log(`No open PR for ${env.BRANCH}; nothing to post.`);
+  if (pr === undefined && env.BRANCH !== "main") return console.log(`No open PR for ${env.BRANCH}; nothing to post.`);
+  if (pr === undefined) {
+    const base = `${env.SERVER_URL}/${env.REPOSITORY}`;
+    const links = [`Commit: ${base}/commit/${env.SHA}`];
+    if (env.RUN_NUMBER) links.push(`Run: ${base}/actions/runs/${env.RUN_NUMBER}`);
+    const issue = await findOrCreateIssue(env);
+    await api(env, `/issues/${issue}/comments`, { method: "POST", body: JSON.stringify({ body: mask(`${links.join("\n")}\n\n${text}`, secrets) }) });
+    return console.log(`Posted the ${input.job} failure on main to #${issue}.`);
+  }
   const body = JSON.stringify({ body: mask(text, secrets) });
   const earlier = await findComment(env, pr, marker);
   if (earlier === undefined) await api(env, `/issues/${pr}/comments`, { method: "POST", body });
@@ -193,14 +220,14 @@ export async function main(input, env) {
 /**
  * Reads the job's settings from env: JOB, STEPS ("id=outcome ..." for every step), RUN_STEP (id of the run step),
  * CMD, OUT_FILE, EXIT_FILE, START_FILE, REPORT, LEAKS_REPORT (secret-scan: gitleaks JSON report), MASK_ENV (names of env vars whose values to hide), and
- * SERVER_URL, REPOSITORY, BRANCH, SHA, TOKEN. Posting is best effort: it says why it failed and returns normally.
+ * SERVER_URL, REPOSITORY, BRANCH, SHA, TOKEN, and optionally GITHUB_RUN_NUMBER (for the run link). Posting is best effort: it says why it failed and returns normally.
  */
 export async function cli(e) {
   try {
     const secrets = (e.MASK_ENV ?? "").split(",").filter(Boolean).map((n) => e[n]);
     await main(
       { job: e.JOB, steps: e.STEPS ?? "", runStep: e.RUN_STEP, cmd: e.CMD, outFile: e.OUT_FILE, exitFile: e.EXIT_FILE, startFile: e.START_FILE, report: e.REPORT, leaksReport: e.LEAKS_REPORT, secrets },
-      { SERVER_URL: e.SERVER_URL, REPOSITORY: e.REPOSITORY, BRANCH: e.BRANCH, SHA: e.SHA, TOKEN: e.TOKEN },
+      { SERVER_URL: e.SERVER_URL, REPOSITORY: e.REPOSITORY, BRANCH: e.BRANCH, SHA: e.SHA, TOKEN: e.TOKEN, RUN_NUMBER: e.GITHUB_RUN_NUMBER },
     );
   } catch (err) {
     // The message never contains the token. Leave the job result alone.
