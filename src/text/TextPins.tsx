@@ -16,9 +16,10 @@ export function TextPins({ where, shift }: { where: MutableRefObject<Where>; shi
   useFrame(({ camera, size }) => {
     camera.updateMatrixWorld(); // CameraRig just moved it; project from where it is now
     const nowMs = performance.now();
+    const menuHeight = document.querySelector<HTMLElement>("[data-menu]")?.offsetHeight ?? 0; // the phone menu's real height (Hud.tsx)
     crts.forEach((crt, k) => {
       const el = document.querySelector<HTMLElement>(`[data-screen="${crt.id}"]`);
-      if (el) placeText(el, crt, k, { camera, size, where: where.current, nowMs, shift, scratch: s });
+      if (el) placeText(el, crt, k, { camera, size, where: where.current, nowMs, shift, scratch: s, menuHeight });
     });
   });
   return null;
