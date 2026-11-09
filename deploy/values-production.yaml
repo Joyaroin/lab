@@ -1,5 +1,5 @@
 # Written by the promote workflow on the production branch. Empty means nothing runs.
-nodeName: hamon
+nodeName: hermit
 image:
   tag: ""
 publicRoute:
