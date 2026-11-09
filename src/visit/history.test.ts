@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createShift, WAIT_MS } from "../shift";
 import { createVisit } from "./visit";
 import { linkHistory, type HistoryHost } from "./history";
 
@@ -107,5 +108,24 @@ describe("linkHistory", () => {
       expect(s.visit.target()).toBe(2);
       expect(s.url()).toBe("#mediasafe");
     });
+  });
+});
+
+describe("a direct link and the shift", () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("plays no shift for the station the page opened on, mounted the way TourView does, and shows its text", () => {
+    const { visit } = setup("#work");
+    const shift = createShift(false);
+    const played = vi.fn();
+    shift.subscribe(() => { if (shift.playing) played(shift.playing); });
+    shift.setWake(() => {});
+    shift.mount({ startWhere: visit.where(performance.now()) });
+    shift.observe(visit.where(performance.now()));
+    vi.advanceTimersByTime(WAIT_MS + 5000);
+    shift.observe(visit.where(performance.now()));
+    expect(played).not.toHaveBeenCalled();
+    expect(shift.textState(1, performance.now())).toBe("showing");
   });
 });

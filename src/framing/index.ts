@@ -1,4 +1,4 @@
-import { crts, ENTRANCE, OVERVIEW, type Crt } from "../crts";
+import { crts, OVERVIEW, type Crt } from "../crts";
 import { panelStrength, PANEL_SHOWN } from "../hold";
 import type { Where } from "../where";
 import { squareStop } from "../stop";
@@ -9,7 +9,7 @@ import type { Launch } from "../visit";
 // The framing: the one place the portrait split is decided. Two framings exist, and both stay.
 //  - Square (a window at least as wide as tall): each station's square stop, worked out from the window
 //    so the glass fills the space between the HUD and the meter; the text is laid over the glass; no
-//    mouse parallax in a hold.
+//    mouse parallax at a station.
 //  - Portrait (taller than wide): the pull-back, or a phone stop, the text pinned beside the CRT, and
 //    full parallax.
 // `framingFor` is called with the current window each time, so rotating or resizing still switches it.
@@ -17,7 +17,7 @@ import type { Launch } from "../visit";
 type V3 = [number, number, number];
 export type FramingWindow = { width: number; height: number };
 
-/** Where the mouse parallax begins and reaches full, in travel away from a stop (a share of one stretch). */
+/** Where the mouse parallax begins and reaches full, in a flight away from a station (a share of the flight). */
 export const PARALLAX_FROM = 0.2, PARALLAX_FULL = 0.45;
 
 /** A framing's stops: camera and look per stop, the overview pose as stop 0, then one per station. */
@@ -38,36 +38,30 @@ export type Framing = {
   panelPoint(crt: Crt): V3;
 };
 
-// The camera at each stop and what it looks at: the entrance first, then one per CRT.
-const stops: V3[] = [ENTRANCE.camera, ...crts.map((c) => c.camera)];
-const looks: V3[] = [ENTRANCE.look, ...crts.map((c) => c.look)];
 // On a portrait window the camera stands further back along the same line, so a phone sees the
-// station's desk, not only one CRT. The factor per stop is in room-layout.json (1 if unset).
+// station's desk, not only one CRT. The factor per station is in room-layout.json (1 if unset).
 // A station with its own phone stop uses that instead (MediaSafe and Software factory, whose pulled-back
 // view was mostly dark).
-const pulls: number[] = [ENTRANCE.portrait, ...crts.map((c) => c.portrait)];
-const phones = [undefined, ...crts.map((c) => c.phone)];
-const portraitStops: V3[] = stops.map((c, i) => {
-  const phone = phones[i];
-  if (phone) return phone.camera;
-  const l = looks[i], k = pulls[i];
-  return [l[0] + (c[0] - l[0]) * k, l[1] + (c[1] - l[1]) * k, l[2] + (c[2] - l[2]) * k];
+const portraitStops = crts.map((c) => {
+  if (c.phone) return { camera: c.phone.camera, look: c.phone.look };
+  const l = c.look, k = c.portrait;
+  return { camera: [l[0] + (c.camera[0] - l[0]) * k, l[1] + (c.camera[1] - l[1]) * k, l[2] + (c.camera[2] - l[2]) * k] as V3, look: l };
 });
-const portraitLooks: V3[] = looks.map((l, i) => phones[i]?.look ?? l);
 
-/** Mouse parallax in square framing: none for the whole hold and until the text has faded
+/** Mouse parallax in square framing: none while at a station and until the text has faded
  *  (`PARALLAX_FROM`), so the glass stays square behind the flat text, then rising to full by
- *  `PARALLAX_FULL` of the way through travel, and full through the rest. */
+ *  `PARALLAX_FULL` of the way through a flight, and full through the rest. `f` is the flight's own share,
+ *  so the fade does not depend on how long a flight lasts. */
 function squareParallax(where: Where): number {
-  let away: number; // travel away from the nearest station, a share of one stretch
-  if (where.kind === "at") away = where.stop >= 1 ? 0 : 1; // the entrance is one stretch from station 1
+  let away: number; // how far the flight is from the nearest station, a share of the flight
+  if (where.kind === "at") away = where.stop >= 1 ? 0 : 1; // the overview is a whole flight from a station
   else away = Math.min(where.from >= 1 ? where.f : Infinity, where.to >= 1 ? 1 - where.f : Infinity);
   return Math.min(1, Math.max(0, (away - PARALLAX_FROM) / (PARALLAX_FULL - PARALLAX_FROM)));
 }
 
 const portraitList: StopList = [
   { ...OVERVIEW.portrait },
-  ...portraitStops.slice(1).map((camera, i) => ({ camera, look: portraitLooks[i + 1] })),
+  ...portraitStops,
 ];
 
 /** The camera at `where` among `list`'s stops: a stop's own pose, or `flightPose` along the flight. A launch is

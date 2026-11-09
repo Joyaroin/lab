@@ -42,15 +42,6 @@ export const crts: Crt[] = (layout.crts as LayoutCrt[]).map((c) => ({
 /** The camera's vertical field of view, in degrees. */
 export const CAMERA_FOV = 55;
 
-/** Where the camera stands at the entrance, which is not a station, and what it looks at: close
- *  on the desk meter. `reveal` is the wide view of the room the camera pulls back through on its
- *  way to the first station (see src/framing). */
-const entrance: { camera: number[]; look: number[]; portrait?: number; reveal: { camera: number[]; look: number[] } } = layout.entrance;
-export const ENTRANCE = {
-  camera: v3(entrance.camera), look: v3(entrance.look), portrait: entrance.portrait ?? 1,
-  reveal: { camera: v3(entrance.reveal.camera), look: v3(entrance.reveal.look) },
-};
-
 /** The desk meter's place in the baked room. Numbers match build.py's meter: seven tubes in a
  *  row on a case at `position`, turned `yaw` radians. Tube positions are in the case's frame. */
 const METER_YAW = (70 * Math.PI) / 180;
@@ -79,10 +70,6 @@ export function glassCorners(crt: Crt): V3[] {
   const a = (crt.yaw * Math.PI) / 180, hw = CRT_GLASS.width / 2, hh = CRT_GLASS.height / 2;
   return [-1, 1].flatMap((sx) => [-1, 1].map((sy): V3 => [crt.screen[0] + Math.cos(a) * hw * sx, crt.screen[1] + hh * sy, crt.screen[2] - Math.sin(a) * hw * sx]));
 }
-
-/** One wide view of the room per leg between stations (leg 1 is the first station to the second):
- *  where the camera and its look point are halfway along that leg (see src/framing). */
-export const ARCS: { camera: V3; look: V3 }[] = (layout.arcs as { camera: number[]; look: number[] }[]).map((a) => ({ camera: v3(a.camera), look: v3(a.look) }));
 
 /** The overview: where the camera stands to see every TV on a landscape window, and what it looks
  *  at. `fov` is its own vertical field of view, wider than CAMERA_FOV. `exit` is where flights leave it and arrive through. `portrait` is the pose for a portrait window: a good shot of lit parts of the room (not every TV). */

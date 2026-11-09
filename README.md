@@ -34,7 +34,7 @@ walls) with 192 samples. The Makefile then runs `tools/room/resize.py`, which sh
 has no denoiser. The output is committed (ADR-0004), so re-bake on purpose.
 
 Where each CRT sits is in `src/room-layout.json`, which the script and the site both read. The file
-also holds the entrance, the arcs and the pulled-back portrait (phone) views. The desktop stops are
+also holds the overview and the pulled-back portrait (phone) views. The desktop stops are
 not in it: `src/stop.ts` works them out from each CRT's place and the window. To check composition
 without baking, run `blender -b -P tools/room/build.py -- --preview /tmp/shots` to render every camera
 view in the layout, the overview at 16:9 and 16:10 included (the desktop stops are not among them). For a quick

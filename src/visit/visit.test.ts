@@ -158,23 +158,23 @@ describe("a go mid-flight", () => {
 });
 
 describe("subscribers", () => {
-  it("hear a move as it starts, with fromHistory, and the landing", () => {
+  it("hear a move as it starts, and the landing", () => {
     const { visit, events, advance, now } = setup();
     visit.go(2);
-    expect(events).toEqual([{ type: "move", from: { kind: "at", stop: 0 }, to: 2, fromHistory: false }]);
+    expect(events).toEqual([{ type: "move", from: { kind: "at", stop: 0 }, to: 2 }]);
     advance(FLIGHT_MS);
     visit.where(now());
     expect(events[1]).toEqual({ type: "land", stop: 2 });
-    visit.back({ fromHistory: true });
-    expect(events[2]).toMatchObject({ type: "move", to: 0, fromHistory: true });
+    visit.back();
+    expect(events[2]).toMatchObject({ type: "move", to: 0 });
   });
 
-  it("hear fromHistory on go and land too, and a landing for land()", () => {
+  it("hear a move and a landing for land()", () => {
     const { visit, events } = setup();
-    visit.go(1, { fromHistory: true });
-    visit.land(3, { fromHistory: true });
+    visit.go(1);
+    visit.land(3);
     expect(events.map((e) => e.type)).toEqual(["move", "move", "land"]);
-    expect(events[1]).toMatchObject({ to: 3, fromHistory: true });
+    expect(events[1]).toMatchObject({ to: 3 });
   });
 
   it("hear a landing once, and can unsubscribe", () => {

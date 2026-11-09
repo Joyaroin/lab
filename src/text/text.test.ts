@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PerspectiveCamera } from "three";
 import { CAMERA_FOV, crts } from "../crts";
-import { holdEdges, midHold } from "../../tests/lib/scroll";
 import { createShift, WAIT_MS } from "../shift";
 import { POWER_ON_SECONDS, SHIFT_SECONDS } from "../nixie";
 import { framingFor } from "../framing";
-import { whereAt } from "../where";
+import type { Where } from "../where";
 import { markMore } from "./more";
 import { placeText, scratch, textCovers, type PanelEl } from "./place";
 
@@ -28,83 +27,85 @@ function fakeEl(over: Partial<{ scrollHeight: number; clientHeight: number; scro
   } as unknown as PanelEl & { style: Record<string, string> };
 }
 
-const mid = midHold;
+/** The visitor at station `i` (0 is the overview), and a flight from stop `a` to `b`, `f` of the way. */
+const at = (stop: number): Where => ({ kind: "at", stop });
+const leg = (from: number, to: number, f: number): Where => ({ kind: "flying", from, to, f });
 const FULL_MS = SHIFT_SECONDS.full * 1000 + 1000; // generous: the tear and the snap back
 
-/** One shift, mounted and past its power-on, and a way to place station `i`'s text at `progress` as the room does. */
+/** One shift, mounted and past its power-on, and a way to place station `i`'s text at a Where as the room does. */
 function setup(window = { width: 1280, height: 800 }) {
   const shift = createShift(false);
   shift.setWake(() => {});
-  shift.mount({ startWhere: whereAt(0) });
+  shift.mount({ startWhere: at(0) });
   shift.powerOnBegan(performance.now());
   vi.advanceTimersByTime(POWER_ON_SECONDS * 1000 + 1);
   const cam = new PerspectiveCamera(CAMERA_FOV, window.width / window.height, 0.1, 1000);
   const sc = scratch();
   const el = fakeEl();
-  /** The visitor moves to `p` (the camera follows at once) and the text for station `i` is placed once. */
-  const place = (i: number, p: number, node = el) => {
-    const t = framingFor(window).cameraAt(whereAt(p));
+  /** The visitor moves to `where` (the camera follows at once) and the text for station `i` is placed once. */
+  const place = (i: number, where: Where, node = el) => {
+    const t = framingFor(window).cameraAt(where);
     cam.position.set(...t.camera); cam.lookAt(...t.look); cam.updateMatrixWorld();
-    placeText(node, crts[i - 1], i - 1, { camera: cam, size: window, where: whereAt(p), nowMs: performance.now(), shift, scratch: sc });
+    placeText(node, crts[i - 1], i - 1, { camera: cam, size: window, where, nowMs: performance.now(), shift, scratch: sc });
   };
-  const observe = (p: number) => { shift.observe(whereAt(p)); place(1, p); };
+  const observe = (where: Where) => { shift.observe(where); place(1, where); };
   return { shift, el, place, observe };
 }
 
 describe("a station's text", () => {
   it("is held back at opacity 0, still in the page, from arrival until the shift ends", () => {
     const s = setup();
-    s.observe(mid(1));
+    s.observe(at(1));
     expect(s.el.style.visibility).toBe("visible");
     expect(s.el.style.opacity).toBe("0");
     expect(s.el.dataset.gated).toBe("true");
     vi.advanceTimersByTime(WAIT_MS + 30); // the shift fires; the tear has not ended
-    s.place(1, mid(1));
+    s.place(1, at(1));
     expect(s.el.style.opacity).toBe("0");
     expect(s.el.dataset.gated).toBe("true");
   });
   it("resolves once on a first visit when held text comes out, then just shows", () => {
     const s = setup();
-    s.observe(mid(1));
+    s.observe(at(1));
     vi.advanceTimersByTime(WAIT_MS + 30);
     vi.advanceTimersByTime(FULL_MS);
-    s.place(1, mid(1));
+    s.place(1, at(1));
     expect(s.el.dataset.gated).toBe("resolving");
     expect(Number(s.el.style.opacity)).toBe(1);
-    for (let i = 0; i < 5; i++) { vi.advanceTimersByTime(100); s.place(1, mid(1)); expect(s.el.dataset.gated).toBe("resolving"); } // set once, so the CSS animation plays once
+    for (let i = 0; i < 5; i++) { vi.advanceTimersByTime(100); s.place(1, at(1)); expect(s.el.dataset.gated).toBe("resolving"); } // set once, so the CSS animation plays once
     expect(Number(s.el.style.opacity)).toBe(1);
-    s.observe(0); vi.advanceTimersByTime(100); s.place(1, 0); // leaving clears it for the next arrival
+    s.observe(at(0)); vi.advanceTimersByTime(100); s.place(1, at(0)); // leaving clears it for the next arrival
     expect(s.el.dataset.gated).toBeUndefined();
   });
   it("decides from what the module drew, not from `data-gated` on the element", () => {
     const s = setup();
-    s.observe(mid(1));
+    s.observe(at(1));
     vi.advanceTimersByTime(WAIT_MS + 30 + FULL_MS);
     delete s.el.dataset.gated; // tampered between frames: held text still resolves when it comes out
-    s.place(1, mid(1));
+    s.place(1, at(1));
     expect(s.el.dataset.gated).toBe("resolving");
     s.el.dataset.gated = "true"; // tampered again: it stays resolving, not re-held
-    vi.advanceTimersByTime(100); s.place(1, mid(1));
+    vi.advanceTimersByTime(100); s.place(1, at(1));
     expect(s.el.dataset.gated).toBe("true"); // not rewritten, but not read either
-    s.observe(0); vi.advanceTimersByTime(100); s.place(1, 0);
+    s.observe(at(0)); vi.advanceTimersByTime(100); s.place(1, at(0));
     expect(s.el.dataset.gated).toBeUndefined();
   });
   it("just appears on a return: it never resolves", () => {
     const s = setup();
-    s.observe(mid(1)); vi.advanceTimersByTime(WAIT_MS + 30 + FULL_MS); s.place(1, mid(1)); vi.advanceTimersByTime(1000); s.place(1, mid(1));
-    s.observe(0); vi.advanceTimersByTime(100); s.place(1, 0);
-    s.observe(mid(1));
+    s.observe(at(1)); vi.advanceTimersByTime(WAIT_MS + 30 + FULL_MS); s.place(1, at(1)); vi.advanceTimersByTime(1000); s.place(1, at(1));
+    s.observe(at(0)); vi.advanceTimersByTime(100); s.place(1, at(0));
+    s.observe(at(1));
     expect(s.el.dataset.gated).toBe("true");
     expect(s.el.style.opacity).toBe("0");
     const states = new Set<string | undefined>();
-    for (let t = 0; t < WAIT_MS + 200; t += 10) { vi.advanceTimersByTime(10); s.place(1, mid(1)); states.add(s.el.dataset.gated); }
+    for (let t = 0; t < WAIT_MS + 200; t += 10) { vi.advanceTimersByTime(10); s.place(1, at(1)); states.add(s.el.dataset.gated); }
     expect(states.has("resolving")).toBe(false);
     expect(s.el.dataset.gated).toBeUndefined();
     expect(Number(s.el.style.opacity)).toBe(1);
   });
   it("is hidden away from its hold", () => {
     const s = setup();
-    s.place(1, 0);
+    s.place(1, at(0));
     expect(s.el.style.visibility).toBe("hidden");
     expect(textCovers(s.el)).toBe(false);
   });
@@ -113,21 +114,20 @@ describe("a station's text", () => {
 describe("the wheel", () => {
   it("goes to the text only during the hold, once it is up", () => {
     const s = setup();
-    const [h0, h1] = holdEdges(1);
-    s.observe(mid(1));
+    s.observe(at(1));
     expect(s.el.style.pointerEvents).toBe("none"); // held back: nothing to scroll yet
     vi.advanceTimersByTime(WAIT_MS + 30 + FULL_MS + 2000);
-    s.place(1, mid(1));
+    s.place(1, at(1));
     expect(s.el.style.pointerEvents).toBe("auto");
-    s.place(1, h0 + 1e-4);
+    s.place(1, at(1));
     expect(s.el.style.pointerEvents).toBe("auto");
-    s.shift.observe(whereAt(h1)); s.place(1, h1);
-    expect(s.el.style.pointerEvents).toBe("auto"); // the hold's last pixel is still the hold
-    s.shift.observe(whereAt(h1 + 0.005)); s.place(1, h1 + 0.005); // leaving: the text is still fading out, but the camera is moving
+    s.observe(at(1));
+    expect(s.el.style.pointerEvents).toBe("auto"); // still at the station
+    s.observe(leg(1, 2, 0.005)); // leaving: the text is still fading out, but the camera is moving
     expect(Number(s.el.style.opacity)).toBeGreaterThan(0.3);
     expect(s.el.style.pointerEvents).toBe("none");
     const early = setup(); // and before the hold, on the way in, it is not up yet
-    early.shift.observe(whereAt(h0 - 0.03)); early.place(1, h0 - 0.03);
+    early.observe(leg(0, 1, 0.97));
     expect(early.el.style.pointerEvents).toBe("none");
   });
 });
@@ -135,7 +135,7 @@ describe("the wheel", () => {
 describe("text on the glass", () => {
   it("is laid over the glass at a hold in a landscape window, with its own height", () => {
     const s = setup();
-    s.place(1, mid(1));
+    s.place(1, at(1));
     expect(s.el.dataset.glass).toBe("true");
     expect(s.el.style.maxHeight).toBe("none");
     expect(parseFloat(s.el.style.width)).toBeGreaterThan(100);
@@ -146,7 +146,7 @@ describe("text on the glass", () => {
   it("is not on a portrait window: it is pinned with a height limit and no glass mark", () => {
     const s = setup({ width: 390, height: 844 });
     s.el.dataset.glass = "true"; // left over from a landscape frame
-    s.place(1, mid(1));
+    s.place(1, at(1));
     expect(s.el.dataset.glass).toBeUndefined();
     expect(s.el.style.height).toBe("");
     expect(s.el.style.maxHeight).toMatch(/px$/);
@@ -154,7 +154,7 @@ describe("text on the glass", () => {
   it("keeps the visitor's scroll position when it is pinned", () => {
     const s = setup({ width: 390, height: 844 });
     const el = fakeEl({ scrollTop: 40, scrollHeight: 2000 });
-    s.place(1, mid(1), el);
+    s.place(1, at(1), el);
     expect(el.scrollTop).toBe(40);
   });
 });
@@ -174,7 +174,7 @@ describe("the more cue", () => {
   it("is worked out on every placing", () => {
     const s = setup();
     const el = fakeEl({ scrollHeight: 900, clientHeight: 300 });
-    s.place(1, mid(1), el);
+    s.place(1, at(1), el);
     expect(el.dataset.more).toBe("true");
   });
 });
@@ -187,7 +187,7 @@ describe("covering the meter", () => {
   });
   it("does not count held-back text, which is at opacity 0", () => {
     const s = setup();
-    s.observe(mid(1));
+    s.observe(at(1));
     expect(textCovers(s.el)).toBe(false);
   });
 });

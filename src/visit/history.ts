@@ -31,7 +31,7 @@ export function linkHistory(visit: Visit, host: HistoryHost): () => void {
     const start = shown;
     host.history.replaceState(null, "", OVERVIEW_URL);
     host.history.pushState(null, "", hashForStop(start));
-    visit.land(start, { fromHistory: true });
+    visit.land(start);
   }
   const off = visit.subscribe((e) => {
     if (e.type === "move") show(e.to);
@@ -40,7 +40,7 @@ export function linkHistory(visit: Visit, host: HistoryHost): () => void {
   });
   const onPop = () => {
     shown = stopForHash(host.location.hash);
-    visit.go(shown, { fromHistory: true });
+    visit.go(shown);
   };
   host.addEventListener("popstate", onPop);
   return () => { off(); host.removeEventListener("popstate", onPop); };

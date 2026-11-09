@@ -12,15 +12,9 @@ export const ease = (t: number) => {
   return u * u * (3 - 2 * u);
 };
 
-export type MoveOptions = {
-  /** True when the move came from browser history (#175). history.ts no longer relies on it: it compares the
-   *  stop the URL shows with the move's. */
-  fromHistory?: boolean;
-};
-
 export type VisitEvent =
   /** A move has started (a landing with no flight is a move too). `from` is where the camera was. */
-  | { type: "move"; from: Where; to: number; fromHistory: boolean }
+  | { type: "move"; from: Where; to: number }
   /** The visitor is now at `stop`. */
   | { type: "land"; stop: number };
 
@@ -32,14 +26,14 @@ export type Launch =
   | { kind: "flying"; from: Launch; to: number; f: number };
 
 export type Visit = {
-  go(stop: number, opts?: MoveOptions): void;
+  go(stop: number): void;
   /** To the overview (stop 0). */
-  back(opts?: MoveOptions): void;
+  back(): void;
   /** The overview goes to Work, a station to the next, the last station to the overview. During a move,
    *  the stop after its destination. */
-  next(opts?: MoveOptions): void;
+  next(): void;
   /** Puts the visitor at `stop` with no flight and no fade. */
-  land(stop: number, opts?: MoveOptions): void;
+  land(stop: number): void;
   /** Where the visitor is at `nowMs`. Also settles a finished move, telling subscribers it landed. */
   where(nowMs: number): Where;
   /** The cover's opacity, 0..1, under reduced motion: 0 when not fading, 1 at the midpoint (the cut). */
@@ -61,12 +55,12 @@ export function createVisit({ reduced, now = () => performance.now() }: { reduce
   let rest = 0; // the stop the visitor is at when no move is running
   let move: Move | null = null;
   // Reduced motion only: the latest move pressed during a fade. It starts when that fade ends (Adham, #176).
-  let waiting: { to: number; opts: MoveOptions } | null = null;
+  let waiting: number | null = null;
   const listeners = new Set<(e: VisitEvent) => void>();
   const emit = (e: VisitEvent) => [...listeners].forEach((l) => l(e));
 
   const dur = () => (reduced ? FADE_MS : FLIGHT_MS);
-  const target = () => (waiting ? waiting.to : move ? move.to : rest);
+  const target = () => (waiting !== null ? waiting : move ? move.to : rest);
 
   /** The camera's Where at `t`, without settling. */
   function read(t: number): Where {
@@ -86,18 +80,18 @@ export function createVisit({ reduced, now = () => performance.now() }: { reduce
       const next = waiting;
       waiting = null;
       // A waiting press for the stop just reached is dropped: nothing moves. (history.ts fixes the URL if it differs.)
-      if (next && next.to !== rest) go(next.to, next.opts, t);
+      if (next !== null && next !== rest) go(next, t);
     }
   }
 
-  function go(stop: number, opts: MoveOptions = {}, at?: number) {
+  function go(stop: number, at?: number) {
     const to = clampStop(stop);
     const t = at ?? now();
     settle(t);
     if (reduced && move) {
       // A fade is running: the press waits for it, and the latest press replaces any earlier one. Nothing is
       // emitted until a move really starts; history.ts keeps the URL right, wherever the waiting presses end.
-      waiting = { to, opts };
+      waiting = to;
       return;
     }
     if (to === target()) return;
@@ -107,24 +101,24 @@ export function createVisit({ reduced, now = () => performance.now() }: { reduce
       ? { kind: "flying", from: move.launch, to: move.to, f: ease((t - move.start) / dur()) }
       : { kind: "at", stop: rest };
     move = { start: t, launch, to, origin };
-    emit({ type: "move", from, to, fromHistory: !!opts.fromHistory });
+    emit({ type: "move", from, to });
   }
 
   return {
     go,
-    back: (opts) => go(0, opts),
-    next(opts) {
+    back: () => go(0),
+    next() {
       settle(now());
-      go((target() + 1) % (STATION_COUNT + 1), opts);
+      go((target() + 1) % (STATION_COUNT + 1));
     },
-    land(stop, opts = {}) {
+    land(stop) {
       const to = clampStop(stop);
       const from = read(now());
       settle(now());
       move = null;
       waiting = null;
       rest = to;
-      emit({ type: "move", from, to, fromHistory: !!opts.fromHistory });
+      emit({ type: "move", from, to });
       emit({ type: "land", stop: to });
     },
     where(nowMs) {

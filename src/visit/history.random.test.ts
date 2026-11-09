@@ -47,10 +47,12 @@ function rig(reduced: boolean, startHash = "") {
 /** Runs a sequence; returns a description of what is wrong, or null. */
 function check(steps: Step[], reduced: boolean, startHash = ""): string | null {
   const r = rig(reduced, startHash);
-  for (const [dt, op] of steps) { r.advance(dt); r.press(op); }
+  let asked = r.visit.target(); // the stop the last press asked for: what the visit's target became right after it
+  for (const [dt, op] of steps) { r.advance(dt); r.press(op); asked = r.visit.target(); }
   r.settle();
   const where = r.visit.where(1e9);
   const at = where.kind === "at" ? where.stop : -1;
+  if (at !== asked) return `visitor ${at}, the last press asked for ${asked}`;
   if (at !== r.visit.target()) return `visitor ${at} vs target ${r.visit.target()}`;
   if (r.urlStop() !== at) return `URL shows ${r.urlStop()} (${r.stack[r.index()]}), visitor at ${at}`;
   if (r.stack[0] !== "./" && !startHash) return `entry 0 is ${r.stack[0]}`;

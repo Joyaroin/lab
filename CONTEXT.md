@@ -12,12 +12,17 @@ The language of this project: its terms, what each one means, and what it doesn'
 - **Overview**: stop 0. A camera pose that shows every TV on a landscape window, with its own wider field of
   view (`OVERVIEW` in `src/crts.ts`, 75 degrees at most; stations use `CAMERA_FOV`), and a separate pose for a
   portrait window. It is where the site opens and where Back (the HUD's Room link, Esc) goes. The meter shows
-  the gap there. It replaced the entrance, the close-up on the desk meter. It is not a station.
+  the gap there. It is not a station.
 - **Visit**: where the visitor is and is going: at a stop, or flying to one. `src/visit/` owns it.
 - **Flight**: the camera's move from where it is to a station (or to the overview): one smooth curve of about
   1.2 s that passes no other station (`flightPose` in `src/visit/flight.ts`). A move started mid-flight starts
   from where the camera really is. Under reduced motion a move is a quick fade, out, cut, in, about 300 ms, with
-  no tear.
+  no tear. A press during a fade waits until the fade ends, and the latest waiting press wins: it replaces any
+  earlier one, and one for the stop just reached does nothing. `visit.target()` is the stop the last press asked for.
+- **History**: the browser's history tracks the stop the URL shows (`linkHistory` in `src/visit/history.ts`): a move
+  pushes an entry for its stop, a Back or Forward press moves the visit, and wherever the visitor lands that the URL
+  doesn't show (a press that waited, or one dropped), an entry is pushed to correct it. Opening a direct link
+  (`/#work`) lands there with no flight and no shift, with an overview entry under it so Back goes to the overview.
 - **World line**: a station's themed label, such as "World line 03". A label only: the copy beside it
   stays plain.
 - **Title card**: the big label on the glass of a TV you aren't at: its station's world line over its
@@ -65,12 +70,12 @@ The language of this project: its terms, what each one means, and what it doesn'
   the pulled-back view, where that view would be mostly dark. Only MediaSafe and Software factory have one.
 - **Framing**: how the camera and the text are set for the window's shape. Two exist. **Square** (a window
   at least as wide as tall): each station's own square stop, worked out from the window; the text is laid
-  over the glass; no mouse parallax in a hold. **Portrait** (taller than wide): the pull-back, or the phone
+  over the glass; no mouse parallax at a station. **Portrait** (taller than wide): the pull-back, or the phone
   stop where a station has one; the text pinned beside the CRT; full parallax. Chosen from the current
   window each time, so rotating or resizing switches it. In code: `framingFor(window)` in `src/framing`.
 - **Where**: where the visitor is, as a value: at a stop (0 is the overview, 1..n a station), or flying from one stop
   to another with `f`, the share of the flight done. `visit.where(now)` gives it; the framing and the text's
-  strength take it. (`whereAt(progress)` in `src/where.ts` is the old scroll adapter, kept for unit tests.)
+  strength take it.
 - **Shift**: the moment of arrival at a station, when the view tears and the meter scrambles and locks
   onto the reading. It fires once the visitor has stayed at a station for the wait, after the flight has landed, not when flying through. Full on
   a station's first visit, a short flick after. Never at the overview, never with reduced motion. There is no restore window: a reload followed by a click plays the shift. The
@@ -125,8 +130,7 @@ get a folder; the rest are still flat files in `src/`.
 - **`src/framing/`**: the framing. `framingFor({ width, height })` picks Square or Portrait, and is called with
   the current window each time. The framing answers `cameraAt(where, launch)` (camera, look and field of view; a flying Where is `flightPose` from the launch pose to the stop),
   `textOnGlass(where, station)`, `parallaxStrength(where)` and `panelPoint(crt)`, each taking a **Where**; nothing else decides
-  the portrait split. The tour module (`src/tour.ts`) keeps the readings: `tourAt(progress, gap)` and `readingAt(where, gap)`
-  (the old scroll legs and `flyAlong` are still there, unused by the app, until a cleanup removes them; `panelStrength` in `src/hold.ts` takes a Where or a progress). The narrow-window width check in `src/pin.ts` (`NARROW`) is a different rule and stays.
+  the portrait split. The tour module (`src/tour.ts`) keeps `readingAt(where, gap)` and the mouse `parallax`; `panelStrength(where, station)` in `src/hold.ts` takes a Where. The narrow-window width check in `src/pin.ts` (`NARROW`) is a different rule and stays.
 - **`src/content.ts`**: all copy in the app: station text, links, the bezel and timeline words, and `ui`, the
   rest of what visitors see or hear (HUD, meter aria labels, boot log, signal lost, the gap's sentence).
   Templates take `{name}` placeholders through `fill`. Components hold none of it; a test fails if a `ui`

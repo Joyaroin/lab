@@ -5,8 +5,9 @@
 // other TVs, and bows it back toward the middle of the room, as the overview does.
 import { CAMERA_FOV } from "../crts";
 type V3 = [number, number, number];
-/** `exit` is the points the camera heads through first when it leaves this pose, and arrives through in reverse: set where heading for the middle of the room is no way out (the overview, in a corner of the room's shelves). */
-/** `fov` is the vertical field of view in degrees; CAMERA_FOV where left out. */
+/** A camera pose. `exit` is the points the camera heads through first when it leaves this pose, and arrives through in
+ *  reverse: set where heading for the middle of the room is no way out (the overview, in a corner of the room's shelves).
+ *  `fov` is the vertical field of view in degrees; CAMERA_FOV where left out. */
 export type Pose = { camera: V3; look: V3; exit?: V3[]; fov?: number };
 
 /** The point every flight passes over, and what the camera looks at as it does. */

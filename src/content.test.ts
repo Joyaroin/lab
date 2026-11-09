@@ -411,3 +411,15 @@ describe("no copy outside the content module", () => {
     }
   });
 });
+
+describe("station readings", () => {
+  const readings = content.stations.map((s) => s.reading);
+  it("are not numbers from the series", () => {
+    // A few well-known divergence readings, as six-decimal strings.
+    const series = ["0.337187", "0.571024", "0.456903", "0.523299", "0.409431", "1.048596", "1.130426"];
+    for (const r of readings) expect(series).not.toContain((r / 1e6).toFixed(6));
+  });
+  it("are distinct, so each station is identifiable", () => {
+    expect(new Set(readings).size).toBe(readings.length);
+  });
+});

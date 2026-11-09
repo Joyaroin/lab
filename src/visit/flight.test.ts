@@ -57,7 +57,7 @@ describe("flightPose", () => {
     expect(flightPose(a, b, 0)).toEqual({ ...a, fov: CAMERA_FOV });
     expect(flightPose(a, b, 1)).toEqual({ ...b, fov: CAMERA_FOV });
   });
-  it("eases the field of view between the poses': exact at both ends, continuous, never outside the two", () => {
+  it("eases the field of view between the two poses' own: exact at both ends, continuous, never outside the two", () => {
     const wide: Pose = { ...a, fov: OVERVIEW.fov };
     for (const [from, to] of [[wide, b], [b, wide]] as const) {
       expect(flightPose(from, to, 0).fov).toBe(from.fov ?? CAMERA_FOV);
@@ -113,12 +113,12 @@ describe("every flight between the stops", () => {
       }
     expect(failures).toEqual([]);
   });
-  it("holds between the two overview poses, such as a window turned mid-visit", () => {
+  it("stays clear between the two overview poses, such as a window turned mid-visit", () => {
     const [land, port] = [lists[0][1][0], lists[2][1][0]];
     expect(problem(land, port)).toBeNull();
     expect(problem(port, land)).toBeNull();
   });
-  it("holds for a re-target: a new flight from halfway along another", () => {
+  it("stays clear for a re-target: a new flight from halfway along another", () => {
     const failures: string[] = [];
     for (const [name, list] of lists)
       for (let i = 0; i < list.length; i++) for (let j = 0; j < list.length; j++) for (let k = 0; k < list.length; k++) {
@@ -128,6 +128,44 @@ describe("every flight between the stops", () => {
         if (p) failures.push(`${name}: ${i} to ${j} then ${k}: ${p}`);
       }
     expect(failures).toEqual([]);
+  });
+});
+
+describe("the room mesh used for clearance", () => {
+  const blockedAt = (c: V3) => nearestSurface(c, CLEAR) < Infinity;
+  it("sees solid things: a point just in front of a CRT's glass is close to it, and the middle of the room is clear", () => {
+    const c = crts[0], a = (c.yaw * Math.PI) / 180;
+    const front: V3 = [c.screen[0] + Math.sin(a) * 0.05, c.screen[1], c.screen[2] + Math.cos(a) * 0.05];
+    expect(nearestSurface(front, 0.3)).toBeLessThan(0.07);
+    expect(blockedAt([-0.5, 1.7, 0.2])).toBe(false);
+  });
+  it("sees the props the old hand-written boxes stood for: some point inside each is within reach of a surface", () => {
+    const regions: [string, number[], number[]][] = [
+      ["back desk", [-1.9, 0, -1.9], [0.62, 1.0, -1.15]], ["left desk", [-1.9, 0, -1.15], [-1.15, 1.0, 0.32]],
+      ["bench", [1.2, 0, -0.92], [1.9, 1.17, 0.62]], ["parts shelf", [1.32, 0, 0.95], [1.9, 2.15, 1.85]],
+      ["rack", [1.2, 0, -1.85], [1.7, 1.05, -1.4]], ["chair", [-0.4, 0, 0.05], [0.2, 1.18, 0.65]],
+    ];
+    for (const [name, lo, hi] of regions) {
+      let hits = 0;
+      for (let x = 0; x <= 4; x++) for (let y = 0; y <= 4; y++) for (let z = 0; z <= 4; z++)
+        if (blockedAt([0, 1, 2].map((k) => lo[k] + ((hi[k] - lo[k]) * [x, y, z][k]) / 4) as V3)) hits++;
+      expect(hits, name).toBeGreaterThan(5);
+    }
+    for (const w of [[1.88, 1.0, 0], [0, 1, -1.92], [-1.88, 1.2, 0.5], [0.3, 0.02, 0.3], [0.3, 2.45, 0.3]] as V3[]) expect(blockedAt(w), `wall at ${w}`).toBe(true);
+  });
+});
+
+describe("a flight's look point", () => {
+  it("stays inside the room on every flight, so the view is never of the void", () => {
+    const min = [-1.9, 0, -1.9], max = [1.9, 2.5, 1.9];
+    for (const [name, list] of lists)
+      for (let i = 0; i < list.length; i++) for (let j = 0; j < list.length; j++) {
+        if (i === j) continue;
+        for (let s = 0; s <= SAMPLES; s++) {
+          const { look } = flightPose(list[i], list[j], s / SAMPLES);
+          for (let k = 0; k < 3; k++) { expect(look[k], `${name}: ${i} to ${j}`).toBeGreaterThan(min[k]); expect(look[k], `${name}: ${i} to ${j}`).toBeLessThan(max[k]); }
+        }
+      }
   });
 });
 

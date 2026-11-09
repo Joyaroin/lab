@@ -710,8 +710,7 @@ if args.preview:
     cam.data.clip_start = 0.02
     scene.render.resolution_x, scene.render.resolution_y = 640, 360
     from mathutils import Vector
-    stops = [("entrance", LAYOUT["entrance"])] + [(c["id"], c) for c in LAYOUT["crts"]]
-    stops += [("overview-16x9", LAYOUT["overview"]), ("overview-16x10", LAYOUT["overview"])]  # the overview has its own fov
+    stops = [("overview-16x9", LAYOUT["overview"]), ("overview-16x10", LAYOUT["overview"])] + [(c["id"], c) for c in LAYOUT["crts"]]
     for name, s in stops:
         cam.data.angle_y = math.radians(s.get("fov", 55))
         scene.render.resolution_y = 400 if name.endswith("16x10") else 360
