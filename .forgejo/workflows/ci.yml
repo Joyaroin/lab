@@ -13,6 +13,8 @@ jobs:
         run: date +%s > "${{ runner.temp }}/start"
       - uses: actions/checkout@v4
         id: checkout
+        with:
+          persist-credentials: false
       - name: Run make frontend
         id: run
         run: |
@@ -46,6 +48,8 @@ jobs:
         run: date +%s > "${{ runner.temp }}/start"
       - uses: actions/checkout@v4
         id: checkout
+        with:
+          persist-credentials: false
       - name: Run make facts
         id: run
         run: |
@@ -79,6 +83,8 @@ jobs:
         run: date +%s > "${{ runner.temp }}/start"
       - uses: actions/checkout@v4
         id: checkout
+        with:
+          persist-credentials: false
       - name: Run make backend
         id: run
         run: |
@@ -112,6 +118,8 @@ jobs:
         run: date +%s > "${{ runner.temp }}/start"
       - uses: actions/checkout@v4
         id: checkout
+        with:
+          persist-credentials: false
       - name: Run make integration
         id: run
         run: |
@@ -139,16 +147,23 @@ jobs:
         run: node scripts/post-ci-failure.mjs
   browser:
     runs-on: docker
+    env:
+      # tests/gpu.spec.ts skips unless CI is set, so don't leave it to the runner.
+      CI: "true"
     steps:
       - name: Record start time
         id: start
         run: date +%s > "${{ runner.temp }}/start"
       - uses: actions/checkout@v4
         id: checkout
+        with:
+          persist-credentials: false
       # CI only: the runner's GPU needs Mesa's drivers inside the job container.
       - name: Install the graphics drivers
         id: drivers
-        run: apt-get update && apt-get install -y libgl1-mesa-dri libegl-mesa0 libgbm1 mesa-vulkan-drivers
+        run: |
+          set -o pipefail
+          { apt-get update && apt-get install -y --no-install-recommends libgl1-mesa-dri libegl-mesa0 libgbm1 mesa-vulkan-drivers; } 2>&1 | tee "${{ runner.temp }}/out.log" || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
       - name: Run make browser PW_ARGS="--reporter=list,json"
         id: run
         env:
@@ -163,7 +178,7 @@ jobs:
         continue-on-error: true
         env:
           JOB: browser
-          STEPS: start=${{ steps.start.outcome }} checkout=${{ steps.checkout.outcome }} run=${{ steps.run.outcome }}
+          STEPS: start=${{ steps.start.outcome }} checkout=${{ steps.checkout.outcome }} drivers=${{ steps.drivers.outcome }} run=${{ steps.run.outcome }}
           RUN_STEP: run
           CMD: make browser PW_ARGS="--reporter=list,json"
           OUT_FILE: ${{ runner.temp }}/out.log
@@ -182,12 +197,18 @@ jobs:
   # can't be taken, or can't be attached, fails the job.
   screenshots:
     runs-on: docker
+    # Two quick pushes would race on the PR's screenshot comment and images: the newer run wins.
+    concurrency:
+      group: screenshots-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - name: Record start time
         id: start
         run: date +%s > "${{ runner.temp }}/start"
       - uses: actions/checkout@v4
         id: checkout
+        with:
+          persist-credentials: false
       - name: Find the open PR
         id: pr
         env:
@@ -200,7 +221,9 @@ jobs:
       - name: Install the graphics drivers
         id: drivers
         if: steps.pr.outputs.pr != ''
-        run: apt-get update && apt-get install -y libgl1-mesa-dri libegl-mesa0 libgbm1 mesa-vulkan-drivers
+        run: |
+          set -o pipefail
+          { apt-get update && apt-get install -y --no-install-recommends libgl1-mesa-dri libegl-mesa0 libgbm1 mesa-vulkan-drivers; } 2>&1 | tee "${{ runner.temp }}/out.log" || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
       - name: Take the screenshots
         id: run
         if: steps.pr.outputs.pr != ''
@@ -251,6 +274,7 @@ jobs:
         id: checkout
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Download gitleaks
         id: download
         run: |
