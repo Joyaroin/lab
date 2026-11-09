@@ -26,7 +26,7 @@ export default defineConfig({
     reuseExistingServer: false,
   },
   use: { baseURL: origin, launchOptions: { args: gpuArgs } },
-  // The meter and HUD only appear once the room is ready, which takes a few seconds on CI's
-  // software WebGL (about 1.5 s here, more with two workers on two CPUs).
+  // The meter and HUD only appear once the room is ready. CI draws on the GPU, where that is quick, but
+  // the same specs run on the CPU on a dev VM, which takes a few seconds, so the timeout stays generous.
   expect: { timeout: 15_000 },
 });

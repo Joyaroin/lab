@@ -343,6 +343,10 @@ describe("limiting flashes", () => {
     expect(SNAP_BACK_MS).toBe(40);
     expect(SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS).toBe(FULL_END_MS);
   });
+  it("pins the shift lengths: the full tear 0.8 s, the short flick on a return 0.25 s", () => {
+    expect(SHIFT_SECONDS.full).toBe(0.8);
+    expect(SHIFT_SECONDS.short).toBe(0.25);
+  });
   it("never holds more than 3 sudden changes in any second, across back-to-back tears", () => {
     for (const hop of [WAIT_MS + 60, 400, 600, 777]) {
       const { changes } = run(hop, 20);

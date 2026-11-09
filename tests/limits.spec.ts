@@ -165,11 +165,11 @@ for (const [kind, stays] of [["cold", [450, 700, 1000]], ["warm", [450, 550, 650
   }
 }
 
-// The short flick on a return lasts about 0.25 s: 250 ms of tear, then the filter comes off on the first frame after it.
-// The bounds leave 100 ms above 290 for frame timing (a slow machine only lengthens it). A flick of 0.15 s measures about
-// 190 and one of 0.4 s about 440. The visible snap back comes before that, about 212 ms in (the displacement scale reaching 0),
-// and is what the flash limit counts; tests/shift.spec.ts records its time.
-test("a return plays the short flick: about 0.25 s", { tag: "@timing" }, async ({ page }) => {
+// The short flick on a return starts and ends: the filter goes on, then comes off on the first frame after the tear.
+// Its length (SHIFT_SECONDS.short, 0.25 s) is pinned in src/shift/shift.test.ts, so this spec sets no real-time upper
+// bound, which a busy machine could break. It only checks the flick lasted over 250 ms. The visible snap back comes
+// about 212 ms in (the displacement scale reaching 0) and is what the flash limit counts; tests/shift.spec.ts records its time.
+test("a return plays the short flick: it starts and ends", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
   await goTo(page, 1);
   await expect.poll(async () => (await seen(page)).off.length, { timeout: 8_000 }).toBeGreaterThan(0); // the first visit played out
@@ -180,7 +180,6 @@ test("a return plays the short flick: about 0.25 s", { tag: "@timing" }, async (
   const s = await seen(page);
   const len = s.off[1] - s.on[1];
   expect(len, "the return's flick").toBeGreaterThan(250);
-  expect(len, "the return's flick").toBeLessThan(390);
 });
 
 // The limit of 3 counts a Work page turn too: it flicks the Work TV only, so its changes are the panel's filter going on

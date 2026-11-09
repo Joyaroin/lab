@@ -13,7 +13,7 @@ export const MARKER = "<!-- ci-screenshots -->";
 
 /** "home-lab-desktop.png" is the Home lab station at desktop size, as the file names say. */
 export const parseName = (file) => {
-  const m = /^(.+)-(desktop|phone)\.png$/.exec(basename(file));
+  const m = /^([a-z0-9-]+)-(desktop|phone)\.png$/.exec(basename(file));
   return m ? { station: m[1], size: m[2] } : undefined;
 };
 
@@ -46,12 +46,20 @@ export async function post(env, pr, files) {
   if (files.length === 0) throw new Error("no screenshots to post");
   let id = await findComment(env, pr, MARKER);
   if (id === undefined) id = (await call(env, `/issues/${pr}/comments`, { method: "POST", ...json({ body: `Taking screenshots…\n\n${MARKER}` }) })).id;
-  const old = await call(env, `/issues/comments/${id}/assets`);
   const links = {};
-  for (const f of files) {
-    const form = new FormData();
-    form.append("attachment", new Blob([readFileSync(f)], { type: "image/png" }), basename(f));
-    links[basename(f)] = (await call(env, `/issues/comments/${id}/assets?name=${encodeURIComponent(basename(f))}`, { method: "POST", body: form })).browser_download_url;
+  let old;
+  try {
+    old = await call(env, `/issues/comments/${id}/assets`);
+    for (const f of files) {
+      const form = new FormData();
+      form.append("attachment", new Blob([readFileSync(f)], { type: "image/png" }), basename(f));
+      links[basename(f)] = (await call(env, `/issues/comments/${id}/assets?name=${encodeURIComponent(basename(f))}`, { method: "POST", body: form })).browser_download_url;
+    }
+  } catch (err) {
+    // Leave a clear note rather than "Taking screenshots…" or a mix of images; the job still fails.
+    const body = `Screenshots failed for ${env.SHA.slice(0, 7)}.\n\n${MARKER}`;
+    await call(env, `/issues/comments/${id}`, { method: "PATCH", ...json({ body }) }).catch(() => {});
+    throw err;
   }
   await call(env, `/issues/comments/${id}`, { method: "PATCH", ...json({ body: formatComment(env.SHA, links) }) });
   for (const a of old) await call(env, `/issues/comments/${id}/assets/${a.id}`, { method: "DELETE" });

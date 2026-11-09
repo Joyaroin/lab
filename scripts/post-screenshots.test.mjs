@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cli, formatComment, MARKER, parseName, post } from "./post-screenshots.mjs";
 
 const TOKEN = ["tok", "en", "-", "value", "-1234"].join(""); // built at runtime: not a literal
+
+const requireRead = (f) => readFileSync(f, "utf8");
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -36,6 +38,7 @@ describe("screenshot comment", () => {
   it("reads station and size from a file name", () => {
     expect(parseName("/x/software-factory-phone.png")).toEqual({ station: "software-factory", size: "phone" });
     expect(parseName("notes.txt")).toBeUndefined();
+    for (const bad of ["Home_Lab-desktop.png", "a b-phone.png", "-desktop.png", "../x/a.b-phone.png"]) expect(parseName(bad), bad).toBeUndefined();
   });
   it("puts each station's two sizes in one row", () => {
     const text = formatComment("abcdef123", { "a-desktop.png": "https://f/1", "a-phone.png": "https://f/2" });
@@ -81,14 +84,28 @@ describe("cli", () => {
     process.exitCode = undefined;
     await cli({ ...env, GITHUB_OUTPUT: out }, "find");
     expect(process.exitCode).toBeUndefined();
-    expect(require_read(out)).toBe("pr=\n");
+    expect(requireRead(out)).toBe("pr=\n");
   });
   it("finds this branch's PR", async () => {
     forgejo({ prs: [{ number: 7, head: { ref: "b", repo: { full_name: "o/r" } } }] });
     const out = join(mkdtempSync(join(tmpdir(), "out-")), "output");
     writeFileSync(out, "");
     await cli({ ...env, GITHUB_OUTPUT: out }, "find");
-    expect(require_read(out)).toBe("pr=7\n");
+    expect(requireRead(out)).toBe("pr=7\n");
+  });
+  it("leaves a failure note in the comment when an upload fails partway", async () => {
+    const calls = forgejo({ prs: [], comments: [{ id: 5, body: `old\n${MARKER}` }] });
+    const inner = globalThis.fetch;
+    let uploads = 0;
+    vi.stubGlobal("fetch", async (url, init = {}) => {
+      if (init.method === "POST" && /assets/.test(url) && ++uploads === 2) return { ok: false, status: 500 };
+      return inner(url, init);
+    });
+    await expect(post(env, 7, shots().files)).rejects.toThrow("HTTP 500");
+    const patch = calls.find((c) => c.method === "PATCH");
+    expect(patch.body).toContain("Screenshots failed for abcdef1");
+    expect(patch.body).toContain(MARKER);
+    expect(patch.body).not.toContain("![");
   });
   it("fails the job when posting fails, and never prints the token", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -101,6 +118,3 @@ describe("cli", () => {
     log.mockRestore();
   });
 });
-
-import { readFileSync } from "node:fs";
-const require_read = (f) => readFileSync(f, "utf8");

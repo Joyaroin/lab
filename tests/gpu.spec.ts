@@ -5,7 +5,7 @@ import { test, expect } from "@playwright/test";
 test.skip(!process.env.CI, "Only CI has the GPU");
 
 test("WebGL draws on the real GPU, not SwiftShader", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("about:blank");
   const renderer = await page.evaluate(() => {
     const gl = document.createElement("canvas").getContext("webgl2");
     const info = gl?.getExtension("WEBGL_debug_renderer_info");
