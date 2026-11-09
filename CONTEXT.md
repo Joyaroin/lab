@@ -7,13 +7,18 @@ The language of this project: its terms, what each one means, and what it doesn'
 - **Room**: the 3D scene itself, its models and baked lighting.
 - **Station**: a stop on the tour, with its own place in the room, world line and reading.
 - **Tour**: visiting the stations by clicking. The site opens on the overview; the HUD's links, the meter and
-  Esc move the visitor, and the camera follows the visit. Nothing scrolls: the wheel never moves the camera
+  Esc move the visitor, as does clicking a TV (see **TV click**), and the camera follows the visit. Nothing scrolls: the wheel never moves the camera
   (ADR 0005, spec #170).
+- **TV click**: at the overview only, a TV takes a click and flies the visitor to its station, and a hover glow shows which
+  one (`clickable` in `src/clickable.ts`, `easeGlow` in `src/glow.ts`). At a station or in flight no TV is clickable and no
+  glow shows.
 - **Overview**: stop 0. A camera pose that shows every TV on a landscape window, with its own wider field of
   view (`OVERVIEW` in `src/crts.ts`, 75 degrees at most; stations use `CAMERA_FOV`), and a separate pose for a
   portrait window. It is where the site opens and where Back (the HUD's Room link, Esc) goes. The meter shows
   the gap there. It is not a station.
 - **Visit**: where the visitor is and is going: at a stop, or flying to one. `src/visit/` owns it.
+- **Cover**: the dark layer over the room that hides the cut of a reduced-motion fade. It rises at once but falls no faster
+  than `COVER_MAX_FALL_PER_SEC` (`nextCover` in `src/visit/cover.ts`), so it never snaps off.
 - **Flight**: the camera's move from where it is to a station (or to the overview): one smooth curve of about
   1.2 s that passes no other station (`flightPose` in `src/visit/flight.ts`). A move started mid-flight starts
   from where the camera really is. Under reduced motion a move is a quick fade, out, cut, in, about 300 ms, with
@@ -65,7 +70,10 @@ The language of this project: its terms, what each one means, and what it doesn'
   drift, which Argo CD keeps at zero.
 - **Boot screen**: the instant lightweight first screen with Adham's name, title and real load progress.
 - **Signal lost**: the one static screen shown when 3D can't start. Not a second site.
-- **HUD**: the small always-on corner overlay with résumé, contact and station links.
+- **HUD**: the always-on overlay with résumé, contact and station links, and the Room link that goes back to the overview. On a
+  landscape window it sits at the top right. On a portrait window the Room and station links move to a full-width menu along
+  the bottom, in buttons at least 44 px tall, and the meter bar rises above it. A hint line above the meter bar tells the
+  visitor what to click; it fades after the first landing at a station and stays gone.
 - **Phone stop**: a station's own camera stop, look point and text pin used on a portrait window instead of
   the pulled-back view, where that view would be mostly dark. Only MediaSafe and Software factory have one.
 - **Framing**: how the camera and the text are set for the window's shape. Two exist. **Square** (a window
@@ -99,7 +107,9 @@ get a folder; the rest are still flat files in `src/`.
   included; `land(stop)` puts the visitor at a stop with no flight. `where(nowMs)` and `fade(nowMs)` read it, and
   `launch(nowMs)` gives where the current flight began (a chain of re-targets), which `framing.cameraAt` resolves with
   `flightPose`. The visit has no timer: the room's per-frame read (`CameraRig`) is what notices a landing and fires
-  `land`. `flight.ts` is the pure path (`flightPose`, with its field of view) and is tested without a browser.
+  `land`. `flight.ts` is the pure path (`flightPose`, with its field of view) and is tested without a browser. `history.ts` holds
+  `linkHistory`, which ties the browser's history to the visit. `route.ts` holds `stopForHash` and `hashForStop`, which turn a URL
+  hash into a stop and back. `cover.ts` holds `nextCover`, the cover limiter.
 - **`src/shift/`**: the shift, start to finish. `createShift(reduced)` makes the one shift object; the app
   creates it and passes it to the room and the tour as a prop. Views read `shift.playing` (the shift the
   bar and the desk meter play; null once the visitor leaves its station) and hear changes with
@@ -110,8 +120,8 @@ get a folder; the rest are still flat files in `src/`.
   gives it one function to ask for a frame (`setWake`). The module owns the wait timer, the power-on hold,
   the tear-over wake-up, the leaving rule, the page-turn limit and the
   shift's lengths (`SHIFT_SECONDS`). No shift starts until the desk meter reports its power-on, which it
-  does on the first frame it draws once the room is ready (`src/App.tsx:48` sets `meter.on`,
-  `src/Effects.tsx:120` reports), so a room that never draws a frame plays no shift. `src/nixie.ts`
+  does on the first frame it draws once the room is ready (`src/App.tsx:53` sets `meter.on`,
+  `src/Effects.tsx:124` reports), so a room that never draws a frame plays no shift. `src/nixie.ts`
   re-exports `SHIFT_SECONDS` for the browser specs. `shift.hold` is the station the visitor is at (0 at the overview or in flight). The room
   asks it one question per station per frame, `shift.textState(station, nowMs)` (the shift knows where the visitor is): `held`,
   `resolving` or `showing`. Asking changes nothing; the module's state changes when it learns something
