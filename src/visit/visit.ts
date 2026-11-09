@@ -84,7 +84,11 @@ export function createVisit({ reduced, now = () => performance.now() }: { reduce
       emit({ type: "land", stop: rest });
       const next = waiting;
       waiting = null;
-      if (next) go(next.to, next.opts, t);
+      if (next && next.to === rest && !next.opts.fromHistory) {
+        // The press is for the stop the visitor just reached, but the URL left it (a Back press during the fade):
+        // announce a move with no fade so history pushes this stop's entry again.
+        emit({ type: "move", from: { kind: "at", stop: rest }, to: rest, fromHistory: false });
+      } else if (next) go(next.to, next.opts, t);
     }
   }
 
@@ -94,9 +98,11 @@ export function createVisit({ reduced, now = () => performance.now() }: { reduce
     settle(t);
     if (reduced && move) {
       // A fade is running: the press waits for it, and the latest press replaces any earlier one. A press for the
-      // fade's own stop cancels the waiting one. Nothing is emitted until the move really starts, so history
-      // (#175) gets one entry per move that happens.
-      waiting = to === move.to ? null : { to, opts };
+      // fade's own stop cancels the waiting one, unless that one came from history: the browser already moved the
+      // URL for it, so the press stays and settle() pushes the stop's entry. Nothing is emitted until the move
+      // really starts, so history (#175) gets one entry per move that happens.
+      const cancels = to === move.to && (opts.fromHistory || !waiting?.opts.fromHistory);
+      waiting = cancels ? null : { to, opts };
       return;
     }
     if (to === target()) return;

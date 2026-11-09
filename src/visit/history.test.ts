@@ -56,4 +56,56 @@ describe("linkHistory", () => {
     visit.go(1);
     expect(calls).toEqual([]);
   });
+
+  describe("under reduced motion, Back during a fade", () => {
+    function reducedSetup() {
+      const stack = ["./"];
+      let i = 0;
+      let pop: () => void = () => {};
+      let clock = 0;
+      const host: HistoryHost = {
+        history: {
+          pushState: (_s, _t, url) => { stack.splice(i + 1, stack.length, String(url)); i++; },
+          replaceState: (_s, _t, url) => { stack[i] = String(url); },
+        },
+        location: { get hash() { return stack[i] === "./" ? "" : stack[i]; } } as Location,
+        addEventListener: (_t, l) => { pop = l; },
+        removeEventListener: () => {},
+      };
+      const visit = createVisit({ reduced: true, now: () => clock });
+      linkHistory(visit, host);
+      return {
+        visit, stack, at: (ms: number) => { clock = ms; visit.where(ms); },
+        back: () => { i--; pop(); },
+        url: () => stack[i],
+        index: () => i,
+      };
+    }
+    it("a press for the fade's stop keeps the URL on the stop the visitor ends at", () => {
+      const s = reducedSetup();
+      s.visit.go(1);
+      s.at(100);
+      s.back();
+      expect(s.url()).toBe("./");
+      s.at(120);
+      s.visit.go(1);
+      s.at(400);
+      expect(s.visit.target()).toBe(1);
+      expect(s.url()).toBe("#work");
+      s.back();
+      expect(s.url()).toBe("./");
+      expect(s.index()).toBe(0);
+    });
+    it("a press for another stop ends with the URL on that stop", () => {
+      const s = reducedSetup();
+      s.visit.go(1);
+      s.at(100);
+      s.back();
+      s.at(120);
+      s.visit.go(2);
+      s.at(700);
+      expect(s.visit.target()).toBe(2);
+      expect(s.url()).toBe("#mediasafe");
+    });
+  });
 });
