@@ -149,6 +149,12 @@ get a folder; the rest are still flat files in `src/`.
   codes such as `no-webgl` and the other identifiers stay in code: they are ids, not copy.
 - The tour view (`TourView.tsx`) reports the visit to the shift and the HUD, and renders. The HUD (`Hud.tsx`) has the links: stations fly, Room goes back. The room (`Room.tsx`, `Effects.tsx`) draws the
   scene and the desk meter. The nixie module (`nixie.ts`) is the meter's digits and power-on.
+- **`src/frames.ts`**: the frame loop. `runFrames(step, opts)` runs `step` with the seconds since the loop started,
+  the first time at once with 0 s and then on each requested frame, until `step` returns true; it returns a function
+  that stops it. Its clock and frame scheduler are `opts.now`, `opts.request` and `opts.cancel`, defaulting to
+  `performance.now`, `requestAnimationFrame` and `cancelAnimationFrame`; `opts.onStart` gets the clock reading the loop
+  counts from. `useTear` (`src/TearView.tsx`) and `useShifted` (`src/Meter.tsx`) run on it. Its timing is tested in
+  `src/frames.test.ts` with a fake clock and a fake frame scheduler.
 - **`src/tear.ts`** and **`tests/lib/snap.ts`**: the flash count takes the snap back from `snapBackMs` in
   `src/tear.ts` (where the slip reaches 0), and the browser specs watch for it with `tests/lib/snap.ts`
   (changed by ddf9420), not for the filter coming off.

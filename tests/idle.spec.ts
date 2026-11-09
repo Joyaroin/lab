@@ -56,7 +56,7 @@ test("the power-on draws frame after frame, then stops", { tag: "@timing" }, asy
   await page.waitForTimeout(2_000);
   expect(await frames(page)).toBe(settled);
 });
-// Measured on this VM: 4 frames without the power-on, 17 with it. CI's slower rendering still
+// Measured on the agents' old VM: 4 frames without the power-on, 17 with it. CI's slower rendering still
 // is expected to manage the power-on's 1.4 s in about 7 (an estimate, not measured on the runner), so 5 should separate the two.
 const POWER_ON_MIN_FRAMES = 5;
 
