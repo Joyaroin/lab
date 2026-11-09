@@ -13,7 +13,8 @@ export const ease = (t: number) => {
 };
 
 export type MoveOptions = {
-  /** True when the move came from browser history (#175), so it must not push another entry. */
+  /** True when the move came from browser history (#175). history.ts no longer relies on it: it compares the
+   *  stop the URL shows with the move's. */
   fromHistory?: boolean;
 };
 
@@ -84,11 +85,8 @@ export function createVisit({ reduced, now = () => performance.now() }: { reduce
       emit({ type: "land", stop: rest });
       const next = waiting;
       waiting = null;
-      if (next && next.to === rest && !next.opts.fromHistory) {
-        // The press is for the stop the visitor just reached, but the URL left it (a Back press during the fade):
-        // announce a move with no fade so history pushes this stop's entry again.
-        emit({ type: "move", from: { kind: "at", stop: rest }, to: rest, fromHistory: false });
-      } else if (next) go(next.to, next.opts, t);
+      // A waiting press for the stop just reached is dropped: nothing moves. (history.ts fixes the URL if it differs.)
+      if (next && next.to !== rest) go(next.to, next.opts, t);
     }
   }
 
@@ -97,12 +95,9 @@ export function createVisit({ reduced, now = () => performance.now() }: { reduce
     const t = at ?? now();
     settle(t);
     if (reduced && move) {
-      // A fade is running: the press waits for it, and the latest press replaces any earlier one. A press for the
-      // fade's own stop cancels the waiting one, unless that one came from history: the browser already moved the
-      // URL for it, so the press stays and settle() pushes the stop's entry. Nothing is emitted until the move
-      // really starts, so history (#175) gets one entry per move that happens.
-      const cancels = to === move.to && (opts.fromHistory || !waiting?.opts.fromHistory);
-      waiting = cancels ? null : { to, opts };
+      // A fade is running: the press waits for it, and the latest press replaces any earlier one. Nothing is
+      // emitted until a move really starts; history.ts keeps the URL right, wherever the waiting presses end.
+      waiting = { to, opts };
       return;
     }
     if (to === target()) return;
