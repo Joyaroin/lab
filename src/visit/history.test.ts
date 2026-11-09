@@ -122,6 +122,7 @@ describe("a direct link and the shift", () => {
     shift.subscribe(() => { if (shift.playing) played(shift.playing); });
     shift.setWake(() => {});
     shift.mount({ startWhere: visit.where(performance.now()) });
+    shift.powerOnBegan(performance.now());
     shift.observe(visit.where(performance.now()));
     vi.advanceTimersByTime(WAIT_MS + 5000);
     shift.observe(visit.where(performance.now()));
