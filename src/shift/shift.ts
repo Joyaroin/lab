@@ -5,7 +5,7 @@ import { snapBackMs, TEAR_POSES } from "../tear";
 import { SHIFT_SECONDS, type ShiftKind } from "./lengths";
 
 // The shift: a moment of arrival at a station. This module runs it from start to finish (the wait, the
-// restore window, the leaving rule, the page-turn limit, the wake-up after a tear); the views draw it. Visits live in the tracker (memory), so a reload starts over.
+// leaving rule, the page-turn limit, the wake-up after a tear); the views draw it. Visits live in the tracker (memory), so a reload starts over.
 
 /** The wait: how long the visitor must stay at a station before the shift fires, so passing
  *  quickly through a station doesn't trigger it. */
@@ -61,25 +61,13 @@ export type TextState = "held" | "resolving" | "showing";
  *  when one fires the moment has really come: the wait is over, the tear has snapped back. */
 const TIMER_SLACK_MS = 30;
 
-/** After a reload the browser puts the scroll position back once the page is tall enough, which is
- *  just after the tour mounts. The first move off the top within this long counts as that restore,
- *  not an arrival. Long, because a slow device restores late; the cost is that a visitor who jumps
- *  to a station within this long of a reload gets no shift there, which is harmless. */
-export const RESTORE_WINDOW_MS = 5000;
-
-/** The browser's navigation type, as `PerformanceNavigationTiming.type` says it. */
-export type NavigationKind = "navigate" | "reload" | "back_forward" | "prerender";
-
 /** What the tour gives the shift when it mounts. */
 export type Mount = {
   /** Where the page opens: a page that opens at a station is not an arrival, so it gets no shift and its text shows. */
   startWhere: Where;
-  /** Reload and back/forward put the scroll position back after mounting; that is not an arrival. */
-  navigationType: NavigationKind;
 };
 
-/** One shift object per app. The app creates it; the tour `mount`s it and calls `observe` on every
- *  scroll. The desk meter says when its power-on really began (`powerOnBegan`): no shift starts until
+/** One shift object per app. The app creates it; the tour `mount`s it and calls `observe` whenever it changes. The desk meter says when its power-on really began (`powerOnBegan`): no shift starts until
  *  `POWER_ON_SECONDS` after that. The module sets its own timers, so a visitor who stops still gets the
  *  shift. Views read `playing` and hear changes through `subscribe`; the room gives `setWake` the one
  *  function that asks it for a frame. Visits are kept in memory only. */
@@ -109,7 +97,7 @@ export function createShift(reduced = false) {
 
   let at = 0, since = 0, fired = false, readyAt = 0;
   let poweredOnAt: number | null = null; // when the desk meter says its power-on really began
-  let mountedAt = 0, restoring = false, where: Where = { kind: "at", stop: 0 }, playId = 0;
+  let where: Where = { kind: "at", stop: 0 }, playId = 0;
   let active: number | null = null; // the station whose shift is playing
   let waitTimer: ReturnType<typeof setTimeout> | undefined, wakeTimer: ReturnType<typeof setTimeout> | undefined;
   let mounted = false, wake: (() => void) | null = null;
@@ -147,18 +135,11 @@ export function createShift(reduced = false) {
     wake?.(); // the text may now show
   };
 
-  const restore = () => {
-    at = stationAt(where);
-    fired = at !== 0;
-    if (at) revealed.add(at);
-  };
-
   return {
     /** The tour is up. Returns the unmount. */
     mount(m: Mount): () => void {
       mounted = true;
-      mountedAt = performance.now();
-      restoring = m.navigationType === "reload" || m.navigationType === "back_forward";
+      const mountedAt = performance.now();
       where = m.startWhere;
       at = stationAt(where); fired = at !== 0; since = mountedAt; active = null; current = null;
       if (at) revealed.add(at);
@@ -186,10 +167,6 @@ export function createShift(reduced = false) {
     observe(w: Where) {
       const nowMs = performance.now();
       where = w;
-      if (restoring && !(w.kind === "at" && w.stop === 0)) { // the first move off the top, soon after mounting
-        restoring = false;
-        if (nowMs - mountedAt < RESTORE_WINDOW_MS) restore();
-      }
       check(nowMs);
       for (let i = 1; i <= STATION_COUNT; i++) { // a panel that has gone is forgotten (after check, which may keep it through the fade)
         if (panelStrength(w, i) < PANEL_SHOWN) { revealed.delete(i); resolving.delete(i); }

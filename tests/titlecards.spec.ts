@@ -4,15 +4,13 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { PerspectiveCamera, Vector3 } from "three";
 import { stations } from "../src/content";
-import { CAMERA_FOV, crts } from "../src/crts";
+import { crts } from "../src/crts";
 import { glassOnScreen } from "../src/glass";
-import { travelProgress } from "./lib/travel";
 import { framingFor } from "../src/framing";
-import { whereAt } from "../src/where";
-import { readCamera, readShot, scrollToProgress } from "./lib/page";
+import { goBack, readCamera, readShot } from "./lib/page";
 
 // A TV you aren't at carries a title card: its station's world line over its name, drawn on the
-// glass. This scrolls to each TV on the way into it (its text not yet showing), finds the glass on
+// glass. This takes one shot from the overview (every TV in view, no text showing), finds each glass on
 // screen from the tour's own camera, and works out WHICH card is there: it draws every station's
 // card with the app's own drawing code (src/card.ts, run in a blank page) and checks that the glass
 // matches its own station's card better than any other station's, and better than plain glass.
@@ -21,26 +19,22 @@ import { readCamera, readShot, scrollToProgress } from "./lib/page";
 // ("the text sits on the glass with no card and no phosphor behind it").
 
 const size = { width: 1280, height: 800 };
-// Far enough into the travel that the TV is nearly square on, but before its text starts to fade in.
-const INTO_TRAVEL = 0.8;
 // The comparison grid, in cells across and down the glass.
 const GRID = { w: 64, h: 50 };
 
-/** The tour's camera at progress `p`, on the path the page flies with normal motion. */
-const viewAt = (p: number) => framingFor(size).cameraAt(whereAt(p));
+/** The tour's camera at the overview: stop 0, with its own field of view. */
+const viewAt = () => framingFor(size).cameraAt({ kind: "at", stop: 0 });
 
-/** Scrolls to `p` and waits until the camera has arrived there: it eases toward the scroll position,
- *  so the glass is only where the test works it out to be once the canvas reports that position. */
-async function scrollAndArrive(page: Page, p: number) {
-  await scrollToProgress(page, p);
-  const want = viewAt(p).camera;
-  await expect.poll(async () => Math.hypot(...(await readCamera(page)).map((g, k) => g - want[k])), { message: "camera arrived at the scroll position" }).toBeLessThan(0.02);
+/** Waits until the camera has arrived at the overview, which is where the page opens. */
+async function arriveAtOverview(page: Page) {
+  const want = viewAt().camera;
+  await expect.poll(async () => Math.hypot(...(await readCamera(page)).map((g, k) => g - want[k])), { message: "camera arrived at the overview" }).toBeLessThan(0.02);
 }
 
 /** The glass's four corners on screen (texture corners top-left, top-right, bottom-left, bottom-right). */
-function glassCornersAt(i: number, p: number) {
-  const s = viewAt(p);
-  const cam = new PerspectiveCamera(CAMERA_FOV, size.width / size.height, 0.1, 1000);
+function glassCornersAt(i: number) {
+  const s = viewAt();
+  const cam = new PerspectiveCamera(s.fov, size.width / size.height, 0.1, 1000);
   cam.position.set(...s.camera); cam.lookAt(new Vector3(...s.look)); cam.updateMatrixWorld();
   const [bl, tl, br, tr] = glassOnScreen(crts[i], cam, size); // glassCorners' order: x then y
   return [tl, tr, bl, br];
@@ -149,7 +143,7 @@ function scoreOf(want: Expected, seen: number[]) {
   return unique.map((u) => alike(left, u));
 }
 
-test("every TV shows its own title card from the wide view", { tag: "@render" }, async ({ page }) => {
+test("every TV shows its own title card from the overview", { tag: "@render" }, async ({ page }) => {
   test.setTimeout(120_000);
   await page.setViewportSize(size);
   await page.route("https://api.github.com/**", (r) => r.fulfill({ status: 403, json: {} }));
@@ -157,16 +151,17 @@ test("every TV shows its own title card from the wide view", { tag: "@render" },
   await expect(page.getByRole("navigation", { name: "HUD" })).toBeVisible();
   const want = await expectedCards(page);
   const rows: string[] = [];
+  await goBack(page);
+  await arriveAtOverview(page);
+  await page.waitForTimeout(300); // let the drawn frame land
+  const full = await page.screenshot({ path: "test-results/titlecard-overview-desktop.png" }); // for the PR's contact sheet
   for (const [i, s] of stations.entries()) {
-    const p = travelProgress(i + 1, INTO_TRAVEL);
-    const corners = glassCornersAt(i, p);
+    const corners = glassCornersAt(i);
     for (const c of corners) {
       expect(c.x, `${s.id}: glass inside the window`).toBeGreaterThan(0); expect(c.x).toBeLessThan(size.width);
       expect(c.y, `${s.id}: glass inside the window`).toBeGreaterThan(0); expect(c.y).toBeLessThan(size.height);
     }
-    await scrollAndArrive(page, p);
     await expect(page.locator(`[data-screen="${s.id}"]`)).toBeHidden(); // its text isn't showing
-    const full = await page.screenshot({ path: `test-results/titlecard-full-desktop-${s.id}.png` }); // for the PR's contact sheet
     const seen = await sampleGlass(page, full, homography(corners));
     const own = scoreOf(want, seen)[i], others = scoreOf(want, seen).filter((_, j) => j !== i);
     rows.push(`${s.id}: own ${own.toFixed(2)}, best other ${Math.max(...others).toFixed(2)}`);

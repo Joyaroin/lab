@@ -219,7 +219,7 @@ export function Phosphor({ where }: { where: MutableRefObject<Where> }) {
   const clearNow = useRef<boolean[]>([]);
   useEffect(() => {
     let queued = 0;
-    // Looks after the scroll handlers have run (they are what move `where`), then asks for a frame.
+    // Looks after the camera rig has moved `where` (and after a resize), then asks for a frame if a swap is due.
     const look = () => {
       cancelAnimationFrame(queued);
       queued = requestAnimationFrame(() => {
@@ -227,9 +227,8 @@ export function Phosphor({ where }: { where: MutableRefObject<Where> }) {
         if (screens.some((_, k) => framing.textOnGlass(where.current, k + 1) !== !!clearNow.current[k])) invalidate();
       });
     };
-    window.addEventListener("scroll", look, { passive: true });
     window.addEventListener("resize", look);
-    return () => { cancelAnimationFrame(queued); window.removeEventListener("scroll", look); window.removeEventListener("resize", look); };
+    return () => { cancelAnimationFrame(queued); window.removeEventListener("resize", look); };
   }, [screens, where, invalidate]);
   useFrame(({ size }) => {
     const framing = framingFor(size);

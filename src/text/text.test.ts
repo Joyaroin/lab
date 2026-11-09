@@ -35,7 +35,7 @@ const FULL_MS = SHIFT_SECONDS.full * 1000 + 1000; // generous: the tear and the 
 function setup(window = { width: 1280, height: 800 }) {
   const shift = createShift(false);
   shift.setWake(() => {});
-  shift.mount({ startWhere: whereAt(0), navigationType: "navigate" });
+  shift.mount({ startWhere: whereAt(0) });
   shift.powerOnBegan(performance.now());
   vi.advanceTimersByTime(POWER_ON_SECONDS * 1000 + 1);
   const cam = new PerspectiveCamera(CAMERA_FOV, window.width / window.height, 0.1, 1000);

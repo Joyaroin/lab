@@ -1,9 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import { pageSwitch, stations } from "../src/content";
-import { holdSpan } from "../src/hold";
 import { SHIFT_SECONDS } from "../src/nixie";
 import { busiestWindow, MAX_CHANGES_PER_SECOND, SNAP_BACK_MS } from "../src/shift";
-import { countDraws, draws, frames, goTo, overflowPanel, panelOf, waitForCamera, waitForPanel, waitUntilStill } from "./lib/page";
+import { countDraws, draws, frames, goBack, goTo, landedAt, overflowPanel, panelOf, waitForCamera, waitForPanel, waitUntilStill } from "./lib/page";
 import { defineSnapWatcher } from "./lib/snap";
 import { WORK_COPY, WORK_LEADS } from "./fixtures/work-copy";
 
@@ -94,40 +93,21 @@ test("a turn starts the new page at its top", async ({ page }) => {
   expect(await workPanel(page).evaluate((e) => e.scrollTop)).toBe(0);
 });
 
-/** Waits for the page to move past `prev` and then stop, so a slow runner doesn't read as a stuck wheel.
- *  Returns undefined if it never moved. */
-async function movedFrom(page: Page, prev: number) {
-  let now = prev;
-  for (let i = 0; i < 40 && now <= prev; i++) { await page.waitForTimeout(75); now = await page.evaluate(() => scrollY); }
-  if (now <= prev) return undefined;
-  for (let last = -1, i = 0; i < 20 && now !== last; i++) { last = now; await page.waitForTimeout(60); now = await page.evaluate(() => scrollY); }
-  return now;
-}
-
-// Leaving Work: the moment the hold is over, the panel shrinks with the camera and has more text than
-// room, which used to swallow the wheel. Every step must now move the tour on.
-test("leaving Work, every wheel step over the panel moves the page on", async ({ page }) => {
+// Leaving Work: the panel has more text than room and has been read to its end. Clicking Room still leaves, and
+// afterwards the wheel over where the panel was moves nothing: the camera stays at the overview.
+test("leaving Work with a long panel works, and the wheel over the room then moves nothing", async ({ page }) => {
   test.setTimeout(90_000);
   await openWork(page, 1280, 800);
   await overflowPanel(page, "work"); // the real copy is too short to overflow, so the test makes it
-  const end = holdSpan(1)[1];
-  const to = (f: number) => page.evaluate((f) => { scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)); }, f);
   await workPanel(page).evaluate((e) => { e.scrollTop = 1e6; }); // read to the end first
-  await to(end + 0.001); // just past the hold: inside it the panel takes the wheel on purpose
-  await waitForPanel(page, "work"); // the panel has finished shrinking with the camera
   const box = (await workPanel(page).boundingBox())!;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 3 });
-  let prev = await page.evaluate(() => scrollY), stuck: number[] = [], arrived = false;
-  for (let i = 0; i < 40; i++) {
-    await page.mouse.wheel(0, 40);
-    const now = await movedFrom(page, prev);
-    if (now === undefined) { stuck.push(i); continue; }
-    const f = now / (await page.evaluate(() => document.documentElement.scrollHeight - innerHeight));
-    if (f >= holdSpan(2)[0]) { arrived = true; break; } // arrived at MediaSafe, whose own panel then reads
-    prev = now;
-  }
-  expect(stuck, "wheel steps that did not move the page").toEqual([]);
-  expect(arrived, "reached MediaSafe's hold").toBe(true);
+  await goBack(page);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 3 }); // the pointer's parallax settles first
+  const camera = await waitForCamera(page);
+  for (let i = 0; i < 10; i++) { await page.mouse.wheel(0, 40); await page.waitForTimeout(75); }
+  expect(await waitForCamera(page), "the camera did not move").toEqual(camera);
+  expect(await page.evaluate(() => scrollY), "the page did not scroll").toBe(0);
+  await landedAt(page, 0);
 });
 
 // Ticket 58: turning the page plays the short flick on the Work TV only.

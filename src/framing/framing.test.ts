@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { crts, ENTRANCE } from "../crts";
+import { CAMERA_FOV, crts, OVERVIEW } from "../crts";
+import { flightPose } from "../visit/flight";
+import type { Launch } from "../visit";
 import { progressFor, STATION_COUNT } from "../hold";
 import { squareStop } from "../stop";
 import { framingFor } from ".";
@@ -24,7 +26,7 @@ describe("the framing", () => {
 
   it("square: the stop for the window, the text on the glass in a hold, the layout's panel point", () => {
     const w = win(1280, 800), f = framingFor(w);
-    expect(f.cameraAt(whereAt(progressFor(0))).camera).toEqual(ENTRANCE.camera);
+    expect(f.cameraAt(whereAt(progressFor(0))).camera).toEqual(OVERVIEW.camera);
     for (let i = 1; i <= STATION_COUNT; i++) {
       expect(f.cameraAt(whereAt(progressFor(i))).camera).toEqual(squareStop(crts[i - 1], w).camera);
       expect(f.textOnGlass(whereAt(progressFor(i)), i)).toBe(true);
@@ -51,5 +53,31 @@ describe("the framing's stops", () => {
     expect(sq[1].camera).toEqual(squareStop(crts[0], win(1280, 800)).camera);
     expect(tall[0].camera).toEqual(OVERVIEW.portrait.camera);
     expect(tall[1].camera).toEqual(framingFor(win(390, 844)).cameraAt({ kind: "at", stop: 1 }).camera);
+  });
+});
+
+describe("cameraAt over a flight", () => {
+  const f = framingFor(win(1280, 800)), [a, b, c] = [f.stops[0], f.stops[3], f.stops[5]];
+  it("gives the overview's own field of view at stop 0 and the stations' at a station", () => {
+    expect(f.cameraAt({ kind: "at", stop: 0 }).fov).toBe(OVERVIEW.fov);
+    expect(f.cameraAt({ kind: "at", stop: 3 }).fov).toBe(CAMERA_FOV);
+  });
+  it("flies a flying Where with flightPose between the framing's own stops, field of view eased too", () => {
+    const w = { kind: "flying", from: 0, to: 3, f: 0.4 } as const;
+    expect(f.cameraAt(w)).toEqual(flightPose(a, b, 0.4));
+    const mid = f.cameraAt(w).fov;
+    expect(mid).toBeLessThan(OVERVIEW.fov);
+    expect(mid).toBeGreaterThan(CAMERA_FOV);
+  });
+  it("starts a re-target from the launch pose, however many flights deep, so it never jumps", () => {
+    const launch: Launch = { kind: "flying", from: { kind: "flying", from: { kind: "at", stop: 0 }, to: 3, f: 0.5 }, to: 5, f: 0.3 };
+    const first = flightPose(a, b, 0.5), second = flightPose(first, c, 0.3);
+    expect(f.cameraAt({ kind: "flying", from: 5, to: 1, f: 0 }, launch)).toEqual(flightPose(second, f.stops[1], 0));
+    const start = f.cameraAt({ kind: "flying", from: 5, to: 1, f: 0 }, launch);
+    expect(start.camera).toEqual(second.camera);
+    expect(start.look).toEqual(second.look);
+    expect(start.fov).toBe(second.fov);
+    const later = f.cameraAt({ kind: "flying", from: 5, to: 1, f: 0.5 }, launch);
+    expect(later).toEqual(flightPose(second, f.stops[1], 0.5));
   });
 });

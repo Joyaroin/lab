@@ -6,6 +6,7 @@ import { Tour, prefersReducedMotion } from "./TourView";
 import { useGap } from "./useGap";
 import { meterLink } from "./nixie";
 import { createShift } from "./shift";
+import { createVisit } from "./visit";
 import { watchForStall } from "./stall";
 import { ui } from "./content";
 import type { Where } from "./where";
@@ -38,6 +39,7 @@ export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
   const gap = useGap();
   const where = useRef<Where>({ kind: "at", stop: 0 });
   const [reduced] = useState(() => capability.ok && prefersReducedMotion());
+  const [visit] = useState(() => createVisit({ reduced }));
   const [meter] = useState(meterLink);
   const [shift] = useState(() => createShift(reduced));
   const [booted, setBooted] = useState(false); // the boot screen has faded out
@@ -79,10 +81,10 @@ export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
       {!booted && <BootScreen steps={steps} fading={sceneReady} />}
       <SceneBoundary onFail={() => setFailed("scene-error")}>
         <Suspense fallback={null}>
-          {codeLoaded && <Room onReady={() => setSceneReady(true)} onProgress={onLoadProgress} where={where} reduced={reduced} meter={meter} shift={shift} />}
+          {codeLoaded && <Room onReady={() => setSceneReady(true)} onProgress={onLoadProgress} visit={visit} where={where} reduced={reduced} meter={meter} shift={shift} />}
         </Suspense>
       </SceneBoundary>
-      {sceneReady && <Tour gap={gap} where={where} meter={meter} shift={shift} />}
+      {sceneReady && <Tour gap={gap} visit={visit} meter={meter} shift={shift} />}
     </>
   );
 }

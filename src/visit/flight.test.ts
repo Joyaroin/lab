@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { CAMERA_FOV, crts, glassCorners, OVERVIEW } from "../crts";
 import { framingFor } from "../framing";
 import { nearestSurface } from "../../tests/lib/room-mesh";
-import { flightFov, flightPose, type Pose } from "./flight";
+import { flightFov, flightPose, HUB, type Pose } from "./flight";
 
 type V3 = [number, number, number];
 const CLEAR = 0.15, GLASS_CLEAR = 0.6, SAMPLES = 40;
@@ -128,5 +128,23 @@ describe("every flight between the stops", () => {
         if (p) failures.push(`${name}: ${i} to ${j} then ${k}: ${p}`);
       }
     expect(failures).toEqual([]);
+  });
+});
+
+describe("a flight with control points in the same place", () => {
+  const finite = (v: number[]) => v.every(Number.isFinite);
+  it("gives finite poses when the start is on the hub or the look points coincide", () => {
+    const onHub: Pose = { camera: [...HUB.camera], look: [...HUB.look] };
+    const there: Pose = { camera: [-1, 1.2, -1], look: [...HUB.look] };
+    for (const [a, b] of [[onHub, there], [there, onHub], [onHub, onHub]])
+      for (let s = 0; s <= 10; s++) {
+        const p = flightPose(a, b, s / 10);
+        expect(finite(p.camera) && finite(p.look), `f=${s / 10}`).toBe(true);
+      }
+  });
+  it("gives finite poses when a mid-flight start sits on its exit point", () => {
+    const start: Pose = { camera: [1, 1, 1], look: [0, 1, 0], exit: [[1, 1, 1]] };
+    const p = flightPose(start, { camera: [-1, 1.2, -1], look: [0, 1, -1] }, 0.3);
+    expect(finite(p.camera)).toBe(true);
   });
 });

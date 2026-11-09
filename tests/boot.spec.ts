@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import type { AddressInfo } from "node:net";
 import { stations } from "../src/content";
 import { GAP_TIMEOUT_MS } from "../src/gap";
-import { holdSpan, progressFor, STATION_COUNT } from "../src/hold";
-import { goBack, goTo, readShot, stationIds, waitForCamera } from "./lib/page";
+import { STATION_COUNT } from "../src/hold";
+import { goBack, goTo, landedAt, readCamera, readShot, stationIds, waitForCamera } from "./lib/page";
 
 const signalLost = async (page: Page, reason?: string) => {
   await expect(page.getByRole("alert")).toContainText("SIGNAL LOST");
@@ -100,9 +100,6 @@ test("meter does not say 'saved value' while the live call is still pending", as
 });
 
 // --- tour ---
-const scrollFraction = (page: Page) =>
-  page.evaluate(() => window.scrollY / (document.documentElement.scrollHeight - innerHeight));
-
 async function startTour(page: Page) {
   await page.route("https://api.github.com/**", (r) =>
     r.fulfill({ json: commits(...deploys(9), "Promote MediaSafe abc to prod") }),
@@ -112,21 +109,33 @@ async function startTour(page: Page) {
   await expect(hud(page)).toContainText("Open to co-op and full-time");
 }
 
-test("scrolling moves the tour and rolls the meter, and back again", async ({ page }) => {
+test("visiting a station rolls the meter, and Room rolls it back", async ({ page }) => {
   await startTour(page);
   const reading = page.getByRole("img", { name: /^Reading/ });
   await expect(reading).toHaveAttribute("aria-label", "Reading 0.000009");
-  await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
+  await goTo(page, STATION_COUNT);
   await expect(reading).toHaveAttribute("aria-label", "Reading 0.000861");
-  await page.evaluate(() => scrollTo(0, 0));
+  await goBack(page);
   await expect(reading).toHaveAttribute("aria-label", "Reading 0.000009");
 });
 
+// The wheel never moves the camera. At the overview there is no panel to take it, and the page has nothing to scroll.
+test("the wheel at the overview moves nothing", async ({ page }) => {
+  await startTour(page);
+  await landedAt(page, 0);
+  await page.mouse.move(640, 400); // the pointer's parallax settles first: only the wheel is under test
+  const camera = await waitForCamera(page);
+  for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, 300); await page.waitForTimeout(100); }
+  expect(await waitForCamera(page), "the camera did not move").toEqual(camera);
+  expect(await page.evaluate(() => scrollY), "the page did not scroll").toBe(0);
+  await landedAt(page, 0);
+});
+
 test("HUD links and the meter jump to stations; the HUD stays reachable", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" }); // jumps land at once
+  await page.emulateMedia({ reducedMotion: "reduce" }); // a move is a quick fade
   await startTour(page);
   const reading = page.getByRole("img", { name: /^Reading/ });
-  await hud(page).getByRole("link", { name: "Home lab" }).click();
+  await goTo(page, stationIds.indexOf("home-lab") + 1);
   await expect(reading).toHaveAttribute("aria-label", "Reading 0.000512");
   await page.screenshot({ path: "test-results/tour-home-lab.png" });
   await page.getByRole("button", { name: /^Meter/ }).click(); // next station
@@ -139,48 +148,46 @@ test("HUD links and the meter jump to stations; the HUD stays reachable", async 
   }
   await expect(reading).toHaveAttribute("aria-label", "Reading 0.000861");
   await page.screenshot({ path: "test-results/tour-contact.png" });
-  await page.getByRole("button", { name: /^Meter/ }).click(); // wraps to the entrance
+  await page.getByRole("button", { name: /^Meter/ }).click(); // wraps to the overview
   await expect(reading).toHaveAttribute("aria-label", "Reading 0.000009");
-  await expect.poll(() => scrollFraction(page)).toBe(0);
+  await landedAt(page, 0);
 });
 
-// Records how the page asks to scroll. Under load the browser can finish a glide before the test
-// reads the position, so the glide is checked by what the click asked for, not by catching the
-// page part-way.
-const recordScrolls = (page: Page) =>
+// Records every camera position the canvas draws (its data-camera), so a flight can be told from a cut: a flight
+// passes through places between the two ends, a cut shows only the two ends.
+const recordCamera = (page: Page) =>
   page.addInitScript(() => {
-    const w = window as unknown as { __scrolls: unknown[] };
-    w.__scrolls = [];
-    const orig = window.scrollTo.bind(window);
-    window.scrollTo = ((o: ScrollToOptions) => { w.__scrolls.push(o?.behavior); return orig(o); }) as typeof window.scrollTo;
-    // and where the page actually was at each scroll event, so a glide can be told from a jump
-    (window as unknown as { __positions: number[] }).__positions = [];
-    window.addEventListener("scroll", () => (window as unknown as { __positions: number[] }).__positions.push(window.scrollY), { passive: true });
+    const w = window as unknown as { __camera: string[] };
+    w.__camera = [];
+    const watch = () => {
+      const canvas = document.querySelector("canvas");
+      if (!canvas) return requestAnimationFrame(watch);
+      new MutationObserver(() => w.__camera.push(canvas.dataset.camera ?? "")).observe(canvas, { attributes: true, attributeFilter: ["data-camera"] });
+    };
+    watch();
   });
-const scrollPositions = (page: Page) => page.evaluate(() => (window as unknown as { __positions: number[] }).__positions);
-const scrollBehaviors = (page: Page) => page.evaluate(() => (window as unknown as { __scrolls: unknown[] }).__scrolls);
+const camerasSeen = (page: Page) => page.evaluate(() => [...new Set((window as unknown as { __camera: string[] }).__camera)]);
 
-test("reduced motion: jumps are instant; otherwise they glide", async ({ page }) => {
+test("reduced motion: a move is a cut, otherwise a flight", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await recordScrolls(page);
+  await recordCamera(page);
   await startTour(page);
-  await page.getByRole("link", { name: "Contact" }).click();
-  expect(await scrollBehaviors(page)).toEqual(["auto"]);
-  expect(await scrollFraction(page)).toBeCloseTo(progressFor(STATION_COUNT), 2); // the middle of the hold
-  expect((await scrollPositions(page)).length, "a jump is one step").toBeLessThanOrEqual(1);
+  await waitForCamera(page);
+  const start = (await camerasSeen(page)).length;
+  await goTo(page, STATION_COUNT);
+  await waitForCamera(page);
+  expect((await camerasSeen(page)).length - start, "a cut shows only where the camera lands").toBeLessThanOrEqual(1);
 
   const page2 = await page.context().newPage();
   await page2.emulateMedia({ reducedMotion: "no-preference" });
-  await recordScrolls(page2);
+  await recordCamera(page2);
   await startTour(page2);
-  await page2.getByRole("link", { name: "Contact" }).click();
-  expect(await scrollBehaviors(page2)).toEqual(["smooth"]);
-  await expect.poll(() => scrollFraction(page2)).toBeCloseTo(progressFor(STATION_COUNT), 2);
-  // ...and the page really did glide: it passed through places between the start and the end.
-  // (Scroll events come once per frame, so this counts the frames it moved in. A jump is one.)
-  const steps = await scrollPositions(page2);
-  const end = steps[steps.length - 1];
-  expect(steps.filter((y) => y > 0 && y < end - 1).length, "positions seen part-way along").toBeGreaterThanOrEqual(2);
+  await waitForCamera(page2);
+  const start2 = (await camerasSeen(page2)).length;
+  await goTo(page2, STATION_COUNT);
+  await waitForCamera(page2);
+  // ...and the camera really did fly: it passed through places between the start and the end.
+  expect((await camerasSeen(page2)).length - start2, "positions seen part-way along").toBeGreaterThanOrEqual(3);
 });
 
 // --- text on the CRT screens ---
@@ -248,65 +255,25 @@ for (const [name, size] of Object.entries(sizes)) {
   });
 }
 
-// --- the desk meter and the scroll cue (ticket 9) ---
-// --- the entrance is the meter, then the room (ticket 29) ---
+// --- the overview, with the gap on the meter, then a station (ticket 29, click-to-visit #174) ---
 for (const [name, size] of Object.entries(sizes)) {
-  test(`the entrance shows the desk meter large; scrolling reveals the room and back returns to it (${name})`, async ({ page }) => {
+  test(`the site opens on the overview with the gap on the meter; a station shows its digits and Room returns (${name})`, async ({ page }) => {
     await page.setViewportSize(size);
     await page.emulateMedia({ reducedMotion: "reduce" });
     await startTour(page);
     const bar = page.getByRole("button", { name: /^Meter/ });
-    await expect(bar).toHaveAttribute("data-desk-meter", "in-view");
-    await expect(bar.getByTestId("tube").first()).not.toBeInViewport(); // visually hidden, still read out
+    await landedAt(page, 0);
     await expect(page.getByText("prod is 9 deploys behind staging", { exact: true })).toBeVisible(); // the plain label stays
-    await page.screenshot({ path: `test-results/entrance-${name}.png` });
+    await expect(page.getByRole("img", { name: /^Reading/ })).toHaveAttribute("aria-label", "Reading 0.000009");
+    await page.screenshot({ path: `test-results/overview-${name}.png` });
 
-    const to = (f: number) => page.evaluate((f) => scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)), f);
-    await to(holdSpan(1)[0] / 2); // halfway to the first station: the wide view of the room
-    await page.mouse.move(10, 400); // a frame at the new position
-    await page.waitForTimeout(300);
-    await page.screenshot({ path: `test-results/entrance-reveal-${name}.png` });
     await goTo(page, 1); // a station: the desk meter is out of frame, so the bar shows the digits
     await expect(bar).toHaveAttribute("data-desk-meter", "out-of-view");
     await expect(bar.getByTestId("tube").first()).toBeVisible();
     await goBack(page);
-    await expect(bar).toHaveAttribute("data-desk-meter", "in-view");
     await expect(page.getByRole("img", { name: /^Reading/ })).toHaveAttribute("aria-label", "Reading 0.000009");
   });
 }
-
-// Mouse parallax is a slight sideways shift, so moving the pointer at the close-up entrance
-// never pushes the desk meter out of frame and the bar's own digits never pop up over it.
-test("moving the pointer at the entrance keeps the desk meter in view (desktop)", async ({ page }) => {
-  test.setTimeout(60_000); // five pointer moves, each followed by a wait, in software WebGL
-  await page.setViewportSize(sizes.desktop);
-  await page.emulateMedia({ reducedMotion: "no-preference" }); // parallax is on
-  await startTour(page);
-  const bar = page.getByRole("button", { name: /^Meter/ });
-  await expect(bar).toHaveAttribute("data-desk-meter", "in-view");
-  const { width, height } = sizes.desktop;
-  // Record every value other than in-view the bar's attribute takes while the camera eases to each new place. The
-  // page watches itself, so the test doesn't poll the page again and again under load.
-  await bar.evaluate((el) => {
-    const w = window as unknown as { __seen: string[] };
-    w.__seen = [];
-    new MutationObserver(() => {
-      const v = el.getAttribute("data-desk-meter") ?? "";
-      if (v !== "in-view") w.__seen.push(v);
-    }).observe(el, {
-      attributes: true, attributeFilter: ["data-desk-meter"],
-    });
-  });
-  for (const [x, y] of [[1, height / 2], [width - 2, height / 2], [1, 1], [width - 2, height - 2], [width / 2, height / 2]]) {
-    await page.mouse.move(x, y, { steps: 4 });
-    await waitForCamera(page); // the camera has eased to where the pointer puts it
-    expect(await page.evaluate(() => (window as unknown as { __seen: string[] }).__seen), `pointer at ${x},${y}`).toEqual([]);
-    if (x === 1 && y === height / 2) await page.screenshot({ path: "test-results/entrance-pointer-left-desktop.png" });
-  }
-  // Each of these waits for a drawn frame, which is slow on a loaded machine, so ask once at the end.
-  await expect(bar).toHaveAttribute("data-desk-meter", "in-view");
-  await expect(bar.getByTestId("tube").first()).not.toBeInViewport();
-});
 
 // A panel that overflows shows a "more" cue until its end. Which panel overflows depends on the copy,
 // so this makes one: it appends paragraphs to a panel until it is longer than its box, whatever

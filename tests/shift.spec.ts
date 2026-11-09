@@ -1,10 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
-import { holdSpan, progressFor } from "../src/hold";
 import { POWER_ON_SECONDS, SHIFT_SECONDS } from "../src/nixie";
 import { busiestWindow, MAX_CHANGES_PER_SECOND, WAIT_MS, SNAP_BACK_MS } from "../src/shift";
 import { defineSnapWatcher } from "./lib/snap";
 import { lockTimesMs } from "./lib/lock";
-import { goBack, goTo, panelOf } from "./lib/page";
+import { clickLink, defineHudDriver, goBack, goTo, hudHref, landedAt, panelOf } from "./lib/page";
 
 test.setTimeout(60_000);
 
@@ -31,6 +30,7 @@ const installMeterReaders = (page: Page) => page.addInitScript(() => {
 async function boot(page: Page) {
   await installMeterReaders(page);
   await page.addInitScript(defineSnapWatcher);
+  await page.addInitScript(defineHudDriver);
   await page.goto("/");
   await expect(page.locator(METER_BAR)).toBeVisible();
   await expect(page.getByLabel("Boot log")).toBeHidden();
@@ -236,18 +236,15 @@ test("reduced motion gets no tear, and the text is there straight away", { tag: 
 test("moving quickly between stations can't make more than the limit of sudden changes in a second, tear after tear", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
   await watch(page, "work");
-  // Hop between the stations, spending a little over the wait at each, for 6 s.
-  await page.evaluate(([stops, wait]) => new Promise<void>((res) => {
-    const max = () => document.documentElement.scrollHeight - window.innerHeight;
-    let k = 0;
-    const hop = () => {
-      window.scrollTo(0, stops[k++ % stops.length] * max());
-      window.dispatchEvent(new Event("scroll"));
-    };
-    hop();
-    const id = setInterval(hop, wait + 60);
-    setTimeout(() => { clearInterval(id); res(); }, 6_000);
-  }), [[1, 2, 3, 4, 5, 6].map(progressFor), WAIT_MS] as const);
+  // Hop between the stations through the HUD, spending a little over the wait at each (timed from the landing), for 6 s.
+  await page.evaluate(async ([hrefs, wait]) => {
+    const go = (window as unknown as { __hudGo: (href: string) => Promise<number> }).__hudGo;
+    const end = performance.now() + 6_000;
+    for (let k = 0; performance.now() < end; k++) {
+      await go(hrefs[k % hrefs.length]);
+      await new Promise((r) => setTimeout(r, wait + 60));
+    }
+  }, [[1, 2, 3, 4, 5, 6].map(hudHref), WAIT_MS] as const);
   await page.waitForTimeout(1500);
   // A sudden change is the tear starting, each re-cut (watched: the noise seed changing) and the visible snap back (the displacement scale reaching 0, #124).
   const { starts, snaps, cuts } = await watched(page);
@@ -279,9 +276,7 @@ for (const rate of [16]) {
     // Leave the hold the moment the tear starts, from inside the page, so no round trip delays it. Time
     // the tear on the page's own clock, from the filter going on to it coming off, and watch the bar
     // for 2 s after leaving. Nothing here waits on a timer for its result.
-    const away = holdSpan(1)[1] + 0.03;
-    const left = page.evaluate(([p, watchMs]) => new Promise<{ seen: string[]; stillThere: boolean; length: number | null; slowestFrame: number }>((res) => {
-      const max = () => document.documentElement.scrollHeight - window.innerHeight;
+    const left = page.evaluate(([room, watchMs]) => new Promise<{ seen: string[]; length: number | null; slowestFrame: number }>((res) => {
       const canvas = document.querySelector("canvas")!;
       const on = () => canvas.style.filter.includes("shift-tear");
       const seen: string[] = [];
@@ -292,7 +287,7 @@ for (const rate of [16]) {
         mo.disconnect();
         const started = performance.now();
         lastFrame = started; requestAnimationFrame(frames); // frames from here on, the tear's own
-        window.scrollTo(0, p * max()); window.dispatchEvent(new Event("scroll"));
+        void (window as unknown as { __hudGo: (href: string) => Promise<number> }).__hudGo(room); // leaving is clicking Room
         let length: number | null = null;
         new MutationObserver((_, end) => {
           if (on()) return;
@@ -307,14 +302,16 @@ for (const rate of [16]) {
           seen.push(window.__meter.scramble());
           if (performance.now() - started < watchMs) return requestAnimationFrame(tick);
           bar.disconnect();
-          res({ seen, stillThere: Math.abs(window.scrollY / max() - p) < 0.01, length: on() ? null : length, slowestFrame });
+          res({ seen, length: on() ? null : length, slowestFrame });
         };
         tick();
       }).observe(canvas, { attributes: true, attributeFilter: ["style"] });
-    }), [away, WATCH_AFTER_LEAVING_MS] as const);
-    await goTo(page, 1);
-    const { seen, stillThere, length, slowestFrame } = await left;
-    expect(stillThere).toBe(true);
+    }), [hudHref(0), WATCH_AFTER_LEAVING_MS] as const);
+    // Click Work without waiting for the landing: the in-page watcher leaves for Room the moment the tear starts, which
+    // can come before a round trip to the page could see Work's aria-current.
+    await clickLink(page, 1);
+    const { seen, length, slowestFrame } = await left;
+    await landedAt(page, 0); // the visitor did leave: back in the room
     expect(length, `the tear never came off in the ${WATCH_AFTER_LEAVING_MS} ms after leaving`).not.toBeNull();
     // the tear plays out its own length after leaving, never cut short
     console.log(`leaving-16x length ${length!.toFixed(0)} ms, slowest frame ${slowestFrame.toFixed(0)} ms`);

@@ -46,8 +46,8 @@ export type Diagram = { description: string; steps: string[]; hops: string[] };
 export const pageSwitch = { name: "Pages", hint: "Click a job to read it", open: "open", openMark: "▸", closedMark: "›" };
 /** The app's other words. Strings with `{name}` in them are templates: `fill` puts the values in. */
 export const ui = {
-  /** the HUD's link to the entrance, and the nav's aria label */
-  entrance: "Entrance",
+  /** the HUD's link back to the overview, and the nav's aria label */
+  room: "Room",
   hud: "HUD",
   /** the cue at the foot of a panel with more text below */
   more: "more ▾",

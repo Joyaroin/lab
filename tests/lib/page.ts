@@ -1,6 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { stations } from "../../src/content";
-import { holdSpan, progressFor } from "../../src/hold";
+import { stations, ui } from "../../src/content";
 
 // Helpers the browser specs share. Specs that need a page to settle, scroll to a stop or read
 // pixels use these, so there is one way of doing each.
@@ -16,23 +15,48 @@ export async function openTour(page: Page) {
   await expect(page.getByLabel("Boot log")).toBeHidden();
 }
 
-/** Jumps the page to scroll progress `p` (0..1) at once. Only the helpers below use it, and the
- *  specs that test scrolling itself. */
-export const scrollToProgress = (page: Page, p: number) =>
-  page.evaluate((f) => window.scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)), p);
+// How a spec gets somewhere. A spec moves the way a visitor does: it clicks the HUD's links. These helpers
+// are the one place that knows which link and what signal says the visitor has landed.
 
-// How a spec gets somewhere. A spec never scrolls the page itself: it uses these, so the way the
-// visitor moves is decided here. The progressFor and holdSpan imports stay in this file only.
+/** The HUD's link for `stop` (0 is Room, the overview). */
+export const hudLink = (page: Page, stop: number) =>
+  page.getByRole("navigation", { name: ui.hud }).getByRole("link", { name: stop === 0 ? ui.room : stations[stop - 1].name, exact: true });
 
-/** Goes to `stop` (0 is the entrance) and resolves once the visitor is there: the middle of the
- *  stop's hold. */
-export const goTo = (page: Page, stop: number) => scrollToProgress(page, progressFor(stop));
+/** Resolves once the visitor has landed at `stop`: the HUD sets aria-current on its link then (not during a flight). */
+export const landedAt = (page: Page, stop: number) => expect(hudLink(page, stop)).toHaveAttribute("aria-current", "location");
 
-/** Goes back to stop 0, the entrance. */
-export const goBack = (page: Page) => scrollToProgress(page, 0);
+/** Clicks `stop`'s HUD link (0 is Room) without waiting for the flight. */
+export const clickLink = (page: Page, stop: number) => hudLink(page, stop).click();
 
-/** Leaves station `stop` for the next stretch of the tour: just past the end of its hold. */
-export const leave = (page: Page, stop: number) => scrollToProgress(page, holdSpan(stop)[1] + 0.03);
+/** The HUD link's href for `stop`: Room's is "./", a station's its #id. */
+export const hudHref = (stop: number) => (stop === 0 ? "./" : `#${stations[stop - 1].id}`);
+
+/** For specs that move inside the page, where Playwright's own click is too slow or too late: install it with
+ *  `page.addInitScript(defineHudDriver)` and call `window.__hudGo(hudHref(stop))` in the page. It clicks that HUD
+ *  link and resolves with `performance.now()` at the landing (the link's aria-current), the same signal `goTo` waits for.
+ *  It runs in the browser, so it uses nothing from this file. */
+export function defineHudDriver() {
+  (window as unknown as { __hudGo: (href: string) => Promise<number> }).__hudGo = (href) => new Promise<number>((res) => {
+    const nav = document.querySelector('nav[aria-label="HUD"]')!;
+    const link = nav.querySelector<HTMLAnchorElement>(`a[href="${href}"]`)!;
+    const current = () => link.getAttribute("aria-current") === "location";
+    const mo = new MutationObserver(() => { if (current()) { mo.disconnect(); res(performance.now()); } });
+    mo.observe(nav, { attributes: true, subtree: true, attributeFilter: ["aria-current"] });
+    if (current()) { mo.disconnect(); res(performance.now()); } else link.click();
+  });
+}
+
+/** Goes to `stop` (0 is the overview) through the HUD, and resolves once the visitor has landed there. */
+export async function goTo(page: Page, stop: number) {
+  await clickLink(page, stop);
+  await landedAt(page, stop);
+}
+
+/** Goes back to the overview: clicks Room and waits for its aria-current. */
+export const goBack = (page: Page) => goTo(page, 0);
+
+/** Leaves a station for the overview: clicks Room. */
+export const leave = (page: Page) => goTo(page, 0);
 
 /** The longest `waitUntilStill` waits for things to stop moving: three times the 15 s `expect` limit,
  *  because on a slow runner (software WebGL, a host under load) the camera eases in far fewer frames
@@ -121,7 +145,7 @@ export const meanBrightness = (page: Page, png: Buffer) => readShot(page, png, (
 
 // Counts the 3D scene's draw calls, which is what a drawn frame is made of. Headless Chromium has
 // software WebGL, so this proves the scene is idle, not how much a phone would spend drawing.
-// Nothing on the CRTs moves, so every draw is the power-on, a scroll or a pointer move.
+// Nothing on the CRTs moves, so every draw is the power-on, a flight or a pointer move.
 export const countDraws = async (page: Page) => {
   await page.addInitScript(() => {
     const w = window as unknown as { __draws: number; __frames: number };

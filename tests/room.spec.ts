@@ -1,12 +1,11 @@
 import { test, expect } from "@playwright/test";
-import { holdSpan, progressFor } from "../src/hold";
 import { BOTTOM_CLEAR, SIDE, TOP_CLEAR } from "../src/pin";
-import { boxOf, meanBrightness, goTo, openTour, scrollToProgress, stationIds, waitForCamera, waitForPanel, waitUntilStill } from "./lib/page";
+import { boxOf, panelOf, meanBrightness, goTo, openTour, stationIds, waitForCamera, waitForPanel, waitUntilStill } from "./lib/page";
 
 // Baked room loads and the tour still moves the camera. Screenshots go to test-results/.
 // Seven software-WebGL screenshots: each waits for a drawn frame, which is slow on a loaded machine.
 test.setTimeout(60_000);
-test("baked room loads and the entrance and every station render", { tag: "@render" }, async ({ page }) => {
+test("baked room loads and the overview and every station render", { tag: "@render" }, async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   const glb = page.waitForResponse((r) => r.url().includes("room-") && r.url().endsWith(".glb") && r.ok());
@@ -14,11 +13,11 @@ test("baked room loads and the entrance and every station render", { tag: "@rend
   await glb;
   await expect(page.locator("canvas")).toBeVisible();
   const shots: Buffer[] = [];
-  const stops = ["entrance", ...stationIds];
+  const stops = ["overview", ...stationIds];
   for (const [i, name] of stops.entries()) {
     await goTo(page, i);
     // Wait for the station's text to be fully in, which only happens inside its hold, rather
-    // than a fixed time. The entrance has no text, so it gets a short settle instead.
+    // than a fixed time. The overview has no text, so it gets a short settle instead.
     if (i === 0) await page.waitForTimeout(300);
     else await expect(page.locator(`[data-screen="${name}"]`)).toHaveCSS("opacity", "1");
     shots.push(await page.screenshot({ path: `test-results/room-${name}.png` }));
@@ -27,8 +26,8 @@ test("baked room loads and the entrance and every station render", { tag: "@rend
   expect(errors).toEqual([]);
 });
 
-// Ticket 36: on a portrait phone, MediaSafe and Software factory used to be mostly dark. Scrolled to with
-// the wheel, each must now frame lit parts of the room. Mean frame brightness (0-255) was about
+// Ticket 36: on a portrait phone, MediaSafe and Software factory used to be mostly dark. Visited
+// through the HUD, each must now frame lit parts of the room. Mean frame brightness (0-255) was about
 // 22 for both before; the other stations sit between 22 and 31. The mean covers the whole window,
 // station text and HUD included, so this shows the frame got brighter, not which part is lit.
 
@@ -38,6 +37,9 @@ test("on a phone, MediaSafe and Software factory frame lit parts of the room", a
   for (const [name, label] of [["mediasafe", "World line 02: MediaSafe"], ["software-factory", "World line 05: Software factory"]]) {
     await goTo(page, stationIds.indexOf(name) + 1);
     await expect(page.getByText(label, { exact: true })).toBeVisible();
+    // The first visit's tear plays after the landing, and the text comes out of it: measure once it is over.
+    await expect(panelOf(page, name)).toHaveCSS("opacity", "1");
+    await expect.poll(() => page.locator("canvas").evaluate((e) => (e as HTMLElement).style.filter)).toBe("");
     // Measure once the camera has arrived and the frame stops changing, not after a guessed delay.
     // Brightness is rounded to 0.1 so the rendering's tiny noise doesn't read as movement.
     const bright = await waitUntilStill(async () => Math.round((await meanBrightness(page, await page.screenshot())) * 10) / 10, 500);
@@ -77,34 +79,5 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
       // allow for the camera's last sub-pixel of easing; a parallax shift would be tens of pixels
       for (const k of ["left", "top", "width", "height"] as const) expect(Math.abs(after[k] - b[k]), `${id} ${k}`).toBeLessThan(1);
     }
-  });
-}
-
-// Ticket 72: with reduced motion, travel between stations is a straight line, but the leg from the
-// entrance keeps its curve. Each test reads the camera from the canvas's data-camera at the two stops
-// of a leg and halfway between them, once it has stopped moving. Halfway along a straight line is
-// the average of the two stops; the arc sits well off that (about 2 m here).
-for (const [name, leg, straight] of [["between stations 1 and 2", 1, true], ["out of the entrance", 0, false]] as const) {
-  test(`reduced motion, ${name}: the camera ${straight ? "is on the straight line" : "keeps its curve"}`, async ({ browser }) => {
-    test.setTimeout(90_000);
-    const ctx = await browser.newContext({ reducedMotion: "reduce", viewport: { width: 1280, height: 800 } });
-    const page = await ctx.newPage();
-    await openTour(page);
-    // scroll to progress `p` and wait for the camera to stop moving; readCamera fails if the canvas
-    // has no data-camera, so a build that dropped it can't pass as a camera sitting at zero
-    const settleAt = async (p: number) => {
-      await scrollToProgress(page, p);
-      return waitForCamera(page);
-    };
-    const [from, to] = [leg === 0 ? 0 : holdSpan(leg)[1], progressFor(leg + 1)];
-    const start = await waitForCamera(page);
-    expect(Math.hypot(...start), "the camera is somewhere in the room").toBeGreaterThan(0.5);
-    const a = await settleAt(from);
-    const b = await settleAt(to);
-    const m = await settleAt((from + (leg === 0 ? holdSpan(1)[0] : holdSpan(leg + 1)[0])) / 2);
-    const offLine = Math.hypot(...m.map((v, k) => v - (a[k] + b[k]) / 2));
-    if (straight) expect(offLine).toBeLessThan(0.01);
-    else expect(offLine).toBeGreaterThan(0.3);
-    await ctx.close();
   });
 }

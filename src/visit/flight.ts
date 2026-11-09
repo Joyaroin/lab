@@ -25,7 +25,11 @@ function out(pose: Pose): V3[] {
 }
 
 /** The point `s` of the way along a smooth curve through `pts` (Catmull-Rom with chord-length knots, so it passes through every point and has no corners). */
-function through(pts: V3[], s: number): V3 {
+function through(all: V3[], s: number): V3 {
+  // Two control points in the same place would give a zero-length segment and NaN (a mid-flight start can
+  // sit on its own exit point or on the hub): keep one of each run.
+  const pts = all.filter((p, i) => i === 0 || Math.hypot(p[0] - all[i - 1][0], p[1] - all[i - 1][1], p[2] - all[i - 1][2]) > 1e-9);
+  if (pts.length === 1) return [...pts[0]];
   const knots = [0];
   for (let i = 1; i < pts.length; i++) knots.push(knots[i - 1] + Math.sqrt(Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1], pts[i][2] - pts[i - 1][2])));
   const t = s * knots[knots.length - 1];

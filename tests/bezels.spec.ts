@@ -1,25 +1,24 @@
 import { test, expect, type Page } from "@playwright/test";
 import { PerspectiveCamera, Vector3 } from "three";
 import { stations } from "../src/content";
-import { CAMERA_FOV, crts, CRT_GLASS, NOTE_AT, PLATE_AT } from "../src/crts";
-import { PER_STATION, TOTAL, TRAVEL, progressFor } from "../src/hold";
+import { crts, CRT_GLASS, NOTE_AT, PLATE_AT } from "../src/crts";
 import { framingFor } from "../src/framing";
-import { whereAt } from "../src/where";
-import { goTo, scrollToProgress } from "./lib/page";
+import type { Where } from "../src/where";
+import { goBack, goTo } from "./lib/page";
 
 // Each TV's bezel has a crisp dark edge round the glass, a maker's plate and its own sticky note.
-// This flies to each TV the way the page does, projects points on the bezel from the tour's own
+// This goes to each TV the way a visitor does (the HUD), and back to the overview for the wide view, projects points on the bezel from the tour's own
 // camera, and reads the pixels the page really drew there, at normal and 2x pixel density.
 // Screenshots go to test-results/ for the PR's contact sheet.
 
 const size = { width: 1280, height: 800 };
-const WIDE = 0.6; // far enough into the travel that the whole bezel is in frame
+// The wide view is the overview: the whole bezel is in frame there, small.
+const at = (stop: number): Where => ({ kind: "at", stop });
+const poseAt = (stop: number) => framingFor(size).cameraAt(at(stop));
 
-const cameraAt = (p: number) => framingFor(size).cameraAt(whereAt(p)).camera;
-
-/** Waits until the camera has arrived at the one that scroll progress `p` asks for. */
-async function arrivedAt(page: Page, p: number) {
-  const want = cameraAt(p);
+/** Waits until the camera has arrived at the stop's pose. */
+async function arrivedAt(page: Page, stop: number) {
+  const want = poseAt(stop).camera;
   await expect.poll(async () => {
     const got = (await page.locator("canvas").first().getAttribute("data-camera"))?.split(",").map(Number) ?? [];
     return got.length === 3 ? Math.hypot(...got.map((g, k) => g - want[k])) : Infinity;
@@ -28,9 +27,9 @@ async function arrivedAt(page: Page, p: number) {
 }
 
 /** Window-pixel position of the point `x` metres right and `y` up from TV `i`'s glass centre. */
-function onBezel(i: number, p: number, x: number, y: number): [number, number] {
-  const s = framingFor(size).cameraAt(whereAt(p));
-  const cam = new PerspectiveCamera(CAMERA_FOV, size.width / size.height, 0.01, 50);
+function onBezel(i: number, stop: number, x: number, y: number): [number, number] {
+  const s = poseAt(stop);
+  const cam = new PerspectiveCamera(s.fov, size.width / size.height, 0.01, 50);
   cam.position.set(...s.camera); cam.lookAt(new Vector3(...s.look)); cam.updateMatrixWorld();
   const c = crts[i], a = (c.yaw * Math.PI) / 180;
   const v = new Vector3(c.screen[0] + Math.cos(a) * x, c.screen[1] + y, c.screen[2] - Math.sin(a) * x).project(cam);
@@ -66,16 +65,16 @@ for (const scale of [1, 2]) {
     for (const [i, s] of stations.entries()) {
       // 1. at the stop: the dark lip sits just outside the glass, where the screen layer reaches
       await goTo(page, i + 1);
-      await arrivedAt(page, progressFor(i + 1));
+      await arrivedAt(page, i + 1);
       const hold = await page.screenshot({ path: `test-results/bezel-hold-${scale}x-${s.id}.png` });
       // sample 2 mm outside the middle of each side of the glass, which is where the lip is
-      const p0 = progressFor(i + 1), hw = CRT_GLASS.width / 2, hh = CRT_GLASS.height / 2, out = 0.002;
+      const p0 = i + 1, hw = CRT_GLASS.width / 2, hh = CRT_GLASS.height / 2, out = 0.002;
       const sides = await pixels(page, hold, [onBezel(i, p0, hw + out, 0), onBezel(i, p0, -hw - out, 0), onBezel(i, p0, 0, hh + out), onBezel(i, p0, 0, -hh - out)], scale);
       sides.forEach((px, k) => expect(lum(px), `${s.id}: edge on side ${k} is dark (${px})`).toBeLessThan(60));
 
-      // 2. from the wide view: the plate is metal grey and the note has this TV's own colour
-      const p = (i * PER_STATION + WIDE * TRAVEL) / TOTAL;
-      await scrollToProgress(page, p); // mid-leg: a position, not a stop
+      // 2. from the wide view (the overview): the plate is metal grey and the note has this TV's own colour
+      const p = 0;
+      await goBack(page);
       await arrivedAt(page, p);
       const wide = await page.screenshot({ path: `test-results/bezel-wide-${scale}x-${s.id}.png` });
       const [plate] = await pixels(page, wide, [onBezel(i, p, ...PLATE_AT)], scale);

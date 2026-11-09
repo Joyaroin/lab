@@ -25,7 +25,7 @@ test("at rest the 3D scene draws no frames", async ({ page }) => {
   expect(await draws(page)).toBe(before);
 });
 
-test("scrolling and pointer movement still draw, and then it goes idle again", async ({ page }) => {
+test("a flight and pointer movement still draw, and then it goes idle again", async ({ page }) => {
   await countDraws(page);
   await powerOnSettled(page);
   let before = await draws(page);

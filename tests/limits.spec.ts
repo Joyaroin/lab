@@ -1,6 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { progressFor } from "../src/hold";
-import { goBack, goTo, waitForCamera } from "./lib/page";
+import { defineHudDriver, goBack, goTo, hudHref, waitForCamera } from "./lib/page";
 import { defineSnapWatcher } from "./lib/snap";
 
 // Ticket 131: specs for stated limits that no other spec pins on its own. Every number here is written
@@ -10,7 +9,6 @@ import { defineSnapWatcher } from "./lib/snap";
 //   - a full tear starts and ends (#46, #57); its 0.8 s length is pinned in src/tear.test.ts, not here: real time can't tell a loaded 0.8 s from a 1.0 s
 //   - no one-second window holds more than 3 sudden changes (#46, CONTEXT.md), in the room and on a Work page turn
 //   - the short flick lasts about 0.25 s; its snap back is visible when the displacement scale reaches 0, at 0.85 of its length (#58, #124)
-//   - a reload within 5 s of the tour mounting is a restore, not an arrival (#90)
 //   - a visit makes one call to GitHub (ADR-0003: 60 an hour is GitHub's, one call per visit is ours)
 // Each one that depends on speed sweeps a range of speeds.
 // The flash limit counts the snap back when it is visible: the displacement map's scale reaching 0 (tests/lib/snap.ts), at
@@ -27,6 +25,7 @@ type Seen = { on: number[]; off: number[]; cuts: number[]; snaps: number[]; t0: 
 /** Installs the observer once; it runs again in every document the page loads. */
 async function watchTear(page: Page) {
   await page.addInitScript(defineSnapWatcher);
+  await page.addInitScript(defineHudDriver);
   await page.addInitScript(() => {
     window.addEventListener("DOMContentLoaded", () => {
       const w = window as unknown as { __seen: Seen };
@@ -77,6 +76,7 @@ const seen = (page: Page) => page.evaluate(() => (window as unknown as { __seen:
 /** The most changes in any window of 1000 ms that starts at one of them: the limit's own definition, counted here. */
 const busiest = (times: number[]) => Math.max(0, ...times.map((a) => times.filter((b) => b >= a && b < a + 1000).length));
 
+// Every stay below is timed from the landing (the HUD link's aria-current), not from the click: a flight takes about 1.2 s.
 // A visitor who stays in a hold for less than 250 ms is passing through and gets no shift; one who stays
 // longer gets it. Swept at 100 and 210 ms (inside the wait; 210 is past 180, where a wait of 150 plus the app's
 // 30 ms of timer slack would already have fired) and at 400 and 600 ms (past it).
@@ -98,12 +98,14 @@ for (const wanted of [100, 210, 400, 600]) {
     for (let attempt = 0; attempt < 3 && (attempt === 0 || (fires && dwelt <= 300)); attempt++) {
       await page.waitForTimeout(1_500); // the last try's tear is over
       const before = (await seen(page)).on.length;
-      dwelt = await page.evaluate(([stop, ms]) => new Promise<number>((res) => {
-        const to = (f: number) => { window.scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)); window.dispatchEvent(new Event("scroll")); };
-        const t0 = performance.now();
-        to(stop);
-        setTimeout(() => { to(0); res(performance.now() - t0); }, ms);
-      }), [progressFor(1), wanted] as const);
+      dwelt = await page.evaluate(async ([stop, room, ms]) => {
+        const go = (window as unknown as { __hudGo: (href: string) => Promise<number> }).__hudGo;
+        const landed = await go(stop); // flies there; resolves at the landing
+        await new Promise((r) => setTimeout(r, ms));
+        const left = performance.now();
+        void go(room);
+        return left - landed;
+      }, [hudHref(1), hudHref(0), wanted] as const);
       await page.waitForTimeout(1_500); // longer than the wait plus the flick, so a late shift would show
       shifts = (await seen(page)).on.length - before;
     }
@@ -131,14 +133,15 @@ test("a full tear starts and ends", async ({ page }) => {
 // (2 changes). A full tear and a short flick can't both fit under 3 (the 4 changes of two short flicks would), so the
 // warm cases are the ones that notice a limit raised from 3 to 4. (A cold 310 ms case was dropped: with the limit at 5 it
 // passed, so it proved nothing. Hops much faster than the 250 ms wait mostly cancel before they fire.)
-const hop = (page: Page, stops: number[], every: number) => page.evaluate(([stops, every]) => new Promise<void>((res) => {
-  const to = (f: number) => { window.scrollTo(0, f * (document.documentElement.scrollHeight - innerHeight)); window.dispatchEvent(new Event("scroll")); };
-  let k = 0;
-  const next = () => to(stops[k++ % stops.length]);
-  next();
-  const id = setInterval(next, every);
-  setTimeout(() => { clearInterval(id); res(); }, 6_000);
-}), [stops, every] as const);
+// Each hop is a HUD click, and each stay is timed from the landing: the flights (about 1.2 s) are on top of the stay.
+const hop = (page: Page, stops: number[], every: number) => page.evaluate(async ([hrefs, every]) => {
+  const go = (window as unknown as { __hudGo: (href: string) => Promise<number> }).__hudGo;
+  const end = performance.now() + 6_000;
+  for (let k = 0; performance.now() < end; k++) {
+    await go(hrefs[k % hrefs.length]);
+    await new Promise((r) => setTimeout(r, every));
+  }
+}, [stops.map(hudHref), every] as const);
 for (const [kind, stays] of [["cold", [450, 700, 1000]], ["warm", [450, 550, 650]]] as const) {
   for (const stay of stays) {
     test(`hopping ${kind === "cold" ? "between stations" : "back and forth between two visited stations"} every ${stay} ms never puts more than 3 sudden changes in a real second`, { tag: "@timing" }, async ({ page }) => {
@@ -152,7 +155,7 @@ for (const [kind, stays] of [["cold", [450, 700, 1000]], ["warm", [450, 550, 650
         await page.waitForTimeout(500);
       }
       const before = (await seen(page)).on.length;
-      await hop(page, (kind === "cold" ? [1, 2, 3, 4, 5, 6] : [1, 2]).map(progressFor), stay);
+      await hop(page, kind === "cold" ? [1, 2, 3, 4, 5, 6] : [1, 2], stay);
       await page.waitForTimeout(1500);
       const s = await seen(page);
       const since = (ts: number[]) => ts.slice(kind === "warm" ? before : 0); // warm: only what the hopping did
@@ -179,23 +182,6 @@ test("a return plays the short flick: about 0.25 s", { tag: "@timing" }, async (
   expect(len, "the return's flick").toBeGreaterThan(250);
   expect(len, "the return's flick").toBeLessThan(390);
 });
-
-// A reload puts the scroll position back just after the tour mounts; the first move off the top within 5 s
-// of that is the restore (no shift), later than that it is an arrival (a shift). Real time: 3 s and 7 s,
-// 2 s either side of the edge. The bar appearing is about when the tour mounts.
-for (const [after, fires] of [[3_000, false], [7_000, true]] as const) {
-  test(`after a reload, going into a hold ${after / 1000} s later ${fires ? "is an arrival: it shifts" : "is the restore: no shift"}`, { tag: "@timing" }, async ({ page }) => {
-    await boot(page);
-    await page.reload();
-    await expect(page.locator("[data-meter-bar]")).toBeVisible();
-    await page.waitForTimeout(after);
-    await goTo(page, 1);
-    await page.waitForTimeout(2_000); // past the wait, and into the tear if there is one
-    const s = await seen(page);
-    if (fires) expect(s.on.length, "it shifted").toBeGreaterThan(0);
-    else expect(s.on, "no shift").toEqual([]);
-  });
-}
 
 // The limit of 3 counts a Work page turn too: it flicks the Work TV only, so its changes are the panel's filter going on
 // and its snap back. Turning the page every `every` ms, never more than 3 changes in a real second.

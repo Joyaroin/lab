@@ -366,7 +366,7 @@ describe("interface words", () => {
   it("rejects a missing ui block, not a crash", () => {
     const c = good();
     delete (c as Partial<typeof c>).ui;
-    expect(validateContent(c).join("\n")).toContain("ui.entrance: missing");
+    expect(validateContent(c).join("\n")).toContain("ui.room: missing");
   });
   it("rejects a template that lost its placeholder", () => {
     const c = good();
@@ -375,14 +375,14 @@ describe("interface words", () => {
   });
   it("blocks a phone number in them like other copy", () => {
     const c = good();
-    c.ui.entrance = "Call 613-555-0142";
-    expect(validateContent(c).join("\n")).toContain("ui.entrance: looks like a phone number");
+    c.ui.room = "Call 613-555-0142";
+    expect(validateContent(c).join("\n")).toContain("ui.room: looks like a phone number");
   });
   it("fill puts values in their placeholders", () => {
     expect(fill("a {x} b {y}", { x: "1", y: "2" })).toBe("a 1 b 2");
   });
   it("keeps the words visitors saw before", () => {
-    expect(ui.entrance).toBe("Entrance");
+    expect(ui.room).toBe("Room");
     expect(ui.more).toBe("more ▾");
     expect(ui.readingPending).toBe("reading prod and staging…");
     expect(fill(ui.meterButton, { label: "L" })).toBe("Meter. L. Click for the next station");

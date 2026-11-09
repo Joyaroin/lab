@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { busiestWindow, changeOffsets, createShift, MAX_CHANGES_PER_SECOND, RESTORE_WINDOW_MS, SNAP_BACK_MS, WAIT_MS, type NavigationKind, type Play } from "./index";
+import { busiestWindow, changeOffsets, createShift, MAX_CHANGES_PER_SECOND, SNAP_BACK_MS, WAIT_MS, type Play } from "./index";
 import { SHIFT_SECONDS, POWER_ON_SECONDS } from "../nixie";
 import { tearAt } from "../tear";
 import { whereAt, type Where } from "../where";
@@ -17,13 +17,13 @@ const POWER_ON_MS = POWER_ON_SECONDS * 1000;
 /** A shift mounted with spies: `started` collects each new play, `ended` counts the times the views were told
  *  it ended. The desk meter's power-on begins at the mount, as on a fast device; `quiet` runs it out first,
  *  as most tests want. */
-const setup = ({ reduced = false, startWhere = { kind: "at", stop: 0 } as Where, navigationType = "navigate" as NavigationKind, quiet = true, powerOn = true } = {}) => {
+const setup = ({ reduced = false, startWhere = { kind: "at", stop: 0 } as Where, quiet = true, powerOn = true } = {}) => {
   const shift = createShift(reduced);
   const started: Play[] = [];
   const ended = vi.fn(), wake = vi.fn();
   shift.subscribe(() => { if (shift.playing) started.push(shift.playing); else ended(); });
   shift.setWake(wake);
-  const unmount = shift.mount({ startWhere, navigationType });
+  const unmount = shift.mount({ startWhere });
   if (powerOn) shift.powerOnBegan(performance.now());
   if (quiet) vi.advanceTimersByTime(POWER_ON_MS + 1);
   return { shift, started, ended, wake, unmount };
@@ -150,46 +150,21 @@ describe("a gone panel", () => {
   });
 });
 
-describe("a reload", () => {
+describe("a page that opens at a station", () => {
   it("does not play a shift for the hold the page opened in, and shows its text", () => {
-    const s = setup({ startWhere: whereAt(mid(2)), navigationType: "reload" });
+    const s = setup({ startWhere: whereAt(mid(2)), });
     expect(s.shift.textState(2, performance.now())).toBe("showing");
     arrive(s, mid(2), 3000);
     expect(s.started).toEqual([]);
     arrive(s, 0, 100); arrive(s, mid(2), 1000); // leaving and coming back is an arrival, nothing was remembered
     expect(s.started.map((p) => p.kind)).toEqual(["full"]);
   });
-  it("treats the first move off the top soon after a reload as the page's restore, not an arrival", () => {
-    const s = setup({ navigationType: "reload", quiet: false });
+  it("treats a move off the overview soon after load as an arrival: there is no restore window", () => {
+    const s = setup({ quiet: false });
     s.shift.observe(whereAt(0));
     vi.advanceTimersByTime(POWER_ON_MS + 100);
-    s.shift.observe(whereAt(mid(4))); // the browser put the visitor back
-    expect(s.shift.textState(4, performance.now())).toBe("showing");
-    vi.advanceTimersByTime(3000);
-    expect(s.started).toEqual([]);
-  });
-  it("does the same for back and forward", () => {
-    const s = setup({ navigationType: "back_forward" });
-    s.shift.observe(whereAt(0)); s.shift.observe(whereAt(mid(4))); vi.advanceTimersByTime(3000);
-    expect(s.started).toEqual([]);
-  });
-  it("treats a move off the top after the restore window as an arrival", () => {
-    const s = setup({ navigationType: "reload" });
-    s.shift.observe(whereAt(0));
-    vi.advanceTimersByTime(RESTORE_WINDOW_MS + 1);
     arrive(s, mid(4));
     expect(s.started.map((p) => p.kind)).toEqual(["full"]);
-  });
-  it("treats an ordinary page load's first move off the top as an arrival", () => {
-    const s = setup({ navigationType: "navigate" });
-    s.shift.observe(whereAt(0)); arrive(s, mid(4));
-    expect(s.started).toHaveLength(1);
-  });
-  it("only the first move off the top is the restore", () => {
-    const s = setup({ navigationType: "reload" });
-    s.shift.observe(whereAt(0)); s.shift.observe(whereAt(mid(4)));
-    arrive(s, 0, 100); arrive(s, mid(4), 1000);
-    expect(s.started).toHaveLength(1);
   });
 });
 

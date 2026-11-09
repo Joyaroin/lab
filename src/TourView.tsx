@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type MutableRefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { MeterLink } from "./nixie";
 import { Tear, type PageTurn } from "./TearView";
 import { stations, ui } from "./content";
@@ -7,26 +7,19 @@ import { ScreenPanels } from "./text/ScreenPanels";
 import { Meter } from "./Meter";
 import { formatReading, gapLabel, type Gap } from "./gap";
 import { pendingDeploys } from "./useGap";
-import type { NavigationKind, Shift } from "./shift";
-import { progressFor, STATION_COUNT } from "./hold";
+import type { Shift } from "./shift";
 import { readingAt } from "./tour";
-import { whereAt, type Where } from "./where";
-
-// Page height in screens: how much scrolling the tour takes. 9 screens is 8 of scrolling, about
-// 0.8 of a screen per stretch of travel, plus half a screen of hold at each station.
-const SCROLL_SCREENS = 9;
+import type { Visit } from "./visit";
+import type { Where } from "./where";
 
 export const prefersReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-const scrollProgress = () => {
-  const max = document.documentElement.scrollHeight - window.innerHeight;
-  return max > 0 ? window.scrollY / max : 0;
-};
-
-// Scroll drives the tour. The page scrolls (a tall spacer); the room is fixed behind it.
-// `where` is shared with the room's camera via a ref so frames don't re-render React.
-export function Tour({ gap, where, meter, shift: shifts }: { gap: Gap | null; where: MutableRefObject<Where>; meter: MeterLink; shift: Shift }) {
-  const [here, setHere] = useState<Where>(() => whereAt(scrollProgress()));
+// The visit drives the tour: the camera follows it (see Room's CameraRig), and this reports where the
+// visitor is to the shift and the HUD as it changes. The page does not scroll.
+export function Tour({ gap, visit, meter, shift: shifts }: { gap: Gap | null; visit: Visit; meter: MeterLink; shift: Shift }) {
+  const [here, setHere] = useState<Where>(() => visit.where(performance.now()));
+  // The first landing at a station: the hint (#177) fades after it.
+  const [visited, setVisited] = useState(false);
   // The tour mounts as the meter starts its power-on, and tells the shift so (below). It reports where
   // the visitor is and that a page turned; the shift owns all the timing.
   const [reduced] = useState(prefersReducedMotion);
@@ -40,46 +33,39 @@ export function Tour({ gap, where, meter, shift: shifts }: { gap: Gap | null; wh
     if (shifts.turn()) setTurn({ el, id: ++turnId.current });
   }, [shifts]);
 
+  // The shift hears of the visitor's place in the same commit that shows it (the HUD's aria-current), so what the
+  // visitor sees and what the shift waits from are the same moment, even when the page is busy.
+  useLayoutEffect(() => shifts.mount({ startWhere: visit.where(performance.now()) }), [visit, shifts]);
+  useLayoutEffect(() => { shifts.observe(here); }, [here, shifts]);
   useEffect(() => {
-    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
-    const unmount = shifts.mount({
-      startWhere: whereAt(scrollProgress()),
-      navigationType: (nav?.type ?? "navigate") as NavigationKind,
+    // A move starting or landing is what changes where the visitor is.
+    const report = () => setHere(visit.where(performance.now()));
+    const off = visit.subscribe((e) => {
+      if (e.type === "land" && e.stop >= 1) setVisited(true);
+      report();
     });
-    const onScroll = () => {
-      where.current = whereAt(scrollProgress()); setHere(where.current);
-      shifts.observe(where.current);
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => { unmount(); window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); };
-  }, [where, shifts]);
-
-  const jump = useCallback((station: number) => {
-    const max = document.documentElement.scrollHeight - window.innerHeight;
-    window.scrollTo({ top: progressFor(station) * max, behavior: prefersReducedMotion() ? "auto" : "smooth" });
-  }, []);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && visit.target() >= 1) visit.back(); };
+    window.addEventListener("keydown", onKey);
+    return () => { off(); window.removeEventListener("keydown", onKey); };
+  }, [visit]);
 
   const deploys = gap ? gap.deploys : pendingDeploys;
   const nearestStop = here.kind === "at" ? here.stop : Math.round(here.from + here.f);
   const t = { nearestStop, reading: readingAt(here, deploys) };
   const label = gap ? gapLabel(gap) : ui.readingPending;
-  const next = t.nearestStop >= STATION_COUNT ? 0 : t.nearestStop + 1;
   const digits = formatReading(Math.round(t.reading));
-  useEffect(() => { meter.next = () => jump(next); }, [meter, jump, next]);
+  useEffect(() => { meter.next = () => visit.next(); }, [meter, visit]);
   useEffect(() => { meter.digits = digits; meter.redraw?.(); }, [meter, digits]);
 
   return (
     <>
-      <div aria-hidden style={{ height: `${SCROLL_SCREENS * 100}vh` }} />
       <Tear shift={shifts} turn={turn} reduced={reduced} />
       <ScreenPanels onTurn={pageTurned} />
-      <Hud nearestStop={t.nearestStop} onJump={jump} />
-      <div style={{ position: "fixed", left: 0, right: 0, bottom: "1rem", zIndex: 10, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+      <Hud where={here} visited={visited} visit={visit} />
+      <div style={{ position: "fixed", left: 0, right: 0, bottom: "var(--meter-bottom, 1rem)", zIndex: 10, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto" }}>
           <Meter reading={Math.round(t.reading)} label={t.nearestStop === 0 ? label : stationLabel(t.nearestStop)}
-            live={gap ? gap.live : true} pending={!gap} shift={barShift} onClick={() => jump(next)} />
+            live={gap ? gap.live : true} pending={!gap} shift={barShift} onClick={() => visit.next()} />
         </div>
       </div>
     </>

@@ -1,8 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openTour, overflowPanel, panelOf, waitForPanel, goTo } from "./lib/page";
+import { landedAt, openTour, overflowPanel, panelOf, waitForCamera, waitForPanel, goTo } from "./lib/page";
 
-// Ticket 63: a panel that scrolls must keep its scroll position while the wheel turns, and
-// at the end the wheel must carry on to the next stop.
+// Ticket 63: a panel that scrolls must keep its scroll position while the wheel turns. At its end the wheel does
+// nothing more: it never moves the camera (click-to-visit, ADR 0005).
 //
 // About the fixed waits (waitForTimeout) below. A panel's own scrolling fires no window scroll
 // event, so it asks the scene for no frame; the panel's position is only put back, wrongly, in the
@@ -11,16 +11,12 @@ import { openTour, overflowPanel, panelOf, waitForPanel, goTo } from "./lib/page
 // frame's worth, after which a jump back would have happened. They cannot be "wait for X", because
 // the bug is the absence of a change.
 const FRAME_WAIT_MS = 150;
-// The gap between wheel ticks while carrying on to the next stop. This loop waits for something to
-// appear, not for the absence of a change, so the time only sets how often it looks: short enough
-// that it stops soon after the panel shows, long enough not to flood the page with wheel events.
-const NEXT_STOP_POLL_MS = 100;
 
 const panelScrollTop = (page: Page, id: string) => panelOf(page, id).evaluate((e) => e.scrollTop);
 const panelRoom = (page: Page, id: string) => panelOf(page, id).evaluate((e) => e.scrollHeight - e.clientHeight);
 
 for (const [w, h] of [[1280, 800], [1920, 1080]]) {
-  test(`desktop ${w}x${h}: the real wheel over Work reads to the end without jumping back, then moves on`, async ({ page }) => {
+  test(`desktop ${w}x${h}: the real wheel over Work reads to the end without jumping back, and never moves the camera`, async ({ page }) => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width: w, height: h });
     await openTour(page);
@@ -45,13 +41,12 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     await page.mouse.move(box.x + 20, box.y + 20, { steps: 5 });
     await page.waitForTimeout(FRAME_WAIT_MS);
     expect(await panelScrollTop(page, "work")).toBe(prev);
-    // carrying on moves to the next stop
-    for (let i = 0; i < 40; i++) {
-      await page.mouse.wheel(0, 200);
-      await page.waitForTimeout(NEXT_STOP_POLL_MS);
-      if (await panelOf(page, "mediasafe").evaluate((e) => getComputedStyle(e).visibility) === "visible") break;
-    }
-    await expect(panelOf(page, "mediasafe")).toBeVisible();
+    // wheeling on past the end moves nothing: the camera stays on Work
+    const camera = await waitForCamera(page);
+    for (let i = 0; i < 8; i++) { await page.mouse.wheel(0, 200); await page.waitForTimeout(FRAME_WAIT_MS); }
+    expect(await waitForCamera(page), "the camera did not move").toEqual(camera);
+    await landedAt(page, 1);
+    await expect(panelOf(page, "mediasafe")).toBeHidden();
   });
 }
 
@@ -122,13 +117,13 @@ test.describe("phone-sized window", () => {
     }
     expect(prev).toBeGreaterThanOrEqual(room - 2); // all the way to the end, past where it used to jump back
     // Past the end: further swipes must not send the panel back toward the top, and (as with the
-    // wheel) carry the page on toward the next stop.
-    const pageAtEnd = await page.evaluate(() => scrollY);
+    // wheel) must not move the page or the camera.
     for (let i = 0; i < 5; i++) {
       await swipe();
       expect(await panelScrollTop(page, "mediasafe"), `swipe past the end ${i}`).toBeGreaterThanOrEqual(prev - 1);
     }
-    expect(await page.evaluate(() => scrollY), "swiping past the end carries the page on").toBeGreaterThan(pageAtEnd + 20);
+    expect(await page.evaluate(() => scrollY), "swiping past the end does not scroll the page").toBe(0);
+    await landedAt(page, 2);
     await page.mouse.move(box.x + 20, box.y + 20, { steps: 4 });
     await page.waitForTimeout(FRAME_WAIT_MS);
     expect(await panelScrollTop(page, "mediasafe")).toBeGreaterThanOrEqual(prev - 1);
@@ -156,19 +151,20 @@ test("phone-sized window: the real wheel over MediaSafe does not jump back", asy
 });
 
 // The "more" cue follows its panel's visibility: marked as having more, it still must not count as
-// visible while the panel is hidden (at the entrance), and shows once the panel does.
+// visible while the panel is hidden (at the overview), and shows once the panel does.
 test("the more cue is visible only when its panel is", async ({ page }) => {
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 1280, height: 800 });
   await openTour(page);
   const cue = panelOf(page, "work").locator(".crt-more");
   const visibility = () => cue.evaluate((e) => getComputedStyle(e).visibility);
-  await panelOf(page, "work").evaluate((e) => { e.dataset.more = "true"; }); // the entrance: panel hidden
+  await panelOf(page, "work").evaluate((e) => { e.dataset.more = "true"; }); // the overview: panel hidden
   expect(await panelOf(page, "work").evaluate((e) => getComputedStyle(e).visibility)).toBe("hidden");
   expect(await visibility()).toBe("hidden");
   await goTo(page, 1);
   await expect(panelOf(page, "work")).toBeVisible();
+  await expect(panelOf(page, "work")).toHaveCSS("opacity", "1"); // the first visit's tear has played out and the text is in
   await waitForPanel(page, "work");
   await panelOf(page, "work").evaluate((e) => { e.dataset.more = "true"; });
-  expect(await visibility()).toBe("visible");
+  await expect.poll(visibility).toBe("visible");
 });

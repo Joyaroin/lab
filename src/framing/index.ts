@@ -2,7 +2,9 @@ import { crts, ENTRANCE, OVERVIEW, type Crt } from "../crts";
 import { panelStrength, PANEL_SHOWN } from "../hold";
 import type { Where } from "../where";
 import { squareStop } from "../stop";
-import { flyAlong } from "../tour";
+import { CAMERA_FOV } from "../crts";
+import { flightPose, type Pose } from "../visit/flight";
+import type { Launch } from "../visit";
 
 // The framing: the one place the portrait split is decided. Two framings exist, and both stay.
 //  - Square (a window at least as wide as tall): each station's square stop, worked out from the window
@@ -25,8 +27,9 @@ export type Framing = {
   name: "square" | "portrait";
   /** The stops the visitor flies between in this framing, the overview pose first (the flight path is tested on these). */
   stops: StopList;
-  /** The camera and what it looks at at `where`. `reduced` (reduced motion) straightens the legs between stations. */
-  cameraAt(where: Where, reduced?: boolean): { camera: V3; look: V3 };
+  /** The camera, what it looks at and its field of view at `where`. A flying `where` is the flight from `launch` (where
+   *  the camera really began, `visit.launch(now)`; the `from` stop's pose when left out) to its `to` stop. */
+  cameraAt(where: Where, launch?: Launch | null): { camera: V3; look: V3; fov: number };
   /** True while station `station`'s text is laid over its glass (panel showing). The text placing and the phosphor swap both ask this. */
   textOnGlass(where: Where, station: number): boolean;
   /** How much mouse parallax applies at `where`, 0 to 1. */
@@ -67,10 +70,20 @@ const portraitList: StopList = [
   ...portraitStops.slice(1).map((camera, i) => ({ camera, look: portraitLooks[i + 1] })),
 ];
 
+/** The camera at `where` among `list`'s stops: a stop's own pose, or `flightPose` along the flight. A launch is
+ *  resolved from the bottom up: a stop's pose, then `flightPose(fromPose, toPose, f)` for each re-target. */
+function poseAt(list: StopList, where: Where, launch?: Launch | null): { camera: V3; look: V3; fov: number } {
+  const stop = (i: number): Pose => list[i];
+  const resolve = (l: Launch): Pose => l.kind === "at" ? stop(l.stop) : flightPose(resolve(l.from), stop(l.to), l.f);
+  if (where.kind === "at") { const p = list[where.stop]; return { camera: [...p.camera], look: [...p.look], fov: p.fov ?? CAMERA_FOV }; }
+  const { camera, look, fov } = flightPose(launch ? resolve(launch) : stop(where.from), stop(where.to), where.f);
+  return { camera, look, fov };
+}
+
 const portrait: Framing = {
   name: "portrait",
   stops: portraitList,
-  cameraAt: (where, reduced) => flyAlong(portraitStops, portraitLooks, where, reduced),
+  cameraAt: (where, launch) => poseAt(portraitList, where, launch),
   textOnGlass: () => false,
   parallaxStrength: () => 1, // phones are unchanged
   panelPoint: (crt) => crt.phone?.panel ?? crt.panel,
@@ -78,12 +91,11 @@ const portrait: Framing = {
 
 function square(win: FramingWindow): Framing {
   const squares = crts.map((c) => squareStop(c, win));
-  const cameras: V3[] = [stops[0], ...squares.map((s) => s.camera)];
-  const aims: V3[] = [looks[0], ...squares.map((s) => s.look)];
+  const list: StopList = [{ camera: OVERVIEW.camera, look: OVERVIEW.look, exit: OVERVIEW.exit, fov: OVERVIEW.fov }, ...squares];
   return {
     name: "square",
-    stops: [{ camera: OVERVIEW.camera, look: OVERVIEW.look, exit: OVERVIEW.exit, fov: OVERVIEW.fov }, ...squares],
-    cameraAt: (where, reduced) => flyAlong(cameras, aims, where, reduced),
+    stops: list,
+    cameraAt: (where, launch) => poseAt(list, where, launch),
     textOnGlass: (where, station) => panelStrength(where, station) >= PANEL_SHOWN,
     parallaxStrength: squareParallax,
     panelPoint: (crt) => crt.panel,

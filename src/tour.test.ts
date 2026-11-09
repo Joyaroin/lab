@@ -7,14 +7,14 @@ import { progressFor, holdSpan, panelStrength, PANEL_SHOWN, STATION_COUNT } from
 // tests/lib, where the browser specs share it; src already reaches into tests/ for room-mesh and fixtures.
 import { travelProgress } from "../tests/lib/travel";
 import { stations } from "./content";
-import { crts } from "./crts";
+import { crts, OVERVIEW } from "./crts";
 import { squareStop } from "./stop";
 
 const GAP = 9;
 /** A window of the given aspect and height (16:10 at 800 px unless said), reduced motion off unless said. */
 const win = (aspect = 16 / 10, height = 800, reduced = false) => ({ width: aspect * height, height, reduced });
 /** The tour as the app draws it: the nearest stop and reading from progress, the camera from the window's framing. */
-const view = (p: number, w: { width: number; height: number; reduced?: boolean }) => ({ ...tourAt(p, GAP), ...framingFor(w).cameraAt(whereAt(p), w.reduced) });
+const view = (p: number, w: { width: number; height: number; reduced?: boolean }) => ({ ...tourAt(p, GAP), ...framingFor(w).cameraAt(whereAt(p)) });
 const readings = stations.map((s) => s.reading);
 
 describe("tour", () => {
@@ -184,8 +184,8 @@ describe("portrait framing", () => {
   const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
   it("leaves landscape windows on the approved stops", () => {
     const w = win(16 / 9);
-    expect(view(progressFor(0), w).camera).toEqual(ENTRANCE.camera);
-    expect(view(progressFor(0), w).look).toEqual(ENTRANCE.look);
+    expect(view(progressFor(0), w).camera).toEqual(OVERVIEW.camera);
+    expect(view(progressFor(0), w).look).toEqual(OVERVIEW.look);
     for (let i = 1; i <= STATION_COUNT; i++) {
       const stop = squareStop(crts[i - 1], w), t = view(progressFor(i), w);
       expect(t.camera).toEqual(stop.camera);
@@ -199,10 +199,10 @@ describe("portrait framing", () => {
     for (let i = 0; i <= STATION_COUNT; i++) {
       if (i > 0 && crts[i - 1].phone) continue; // reframed on phones instead, below
       const tall = view(progressFor(i), win(390 / 780));
-      const cam = i === 0 ? ENTRANCE.camera : crts[i - 1].camera, look = i === 0 ? ENTRANCE.look : crts[i - 1].look;
+      if (i === 0) { expect(tall.camera).toEqual(OVERVIEW.portrait.camera); expect(tall.look).toEqual(OVERVIEW.portrait.look); continue; }
+      const cam = crts[i - 1].camera, look = crts[i - 1].look;
       for (let k = 0; k < 3; k++) expect(tall.look[k]).toBeCloseTo(look[k], 9);
-      const pull = i === 0 ? ENTRANCE.portrait : crts[i - 1].portrait;
-      expect(dist(tall.camera, tall.look)).toBeCloseTo(dist(cam, look) * pull, 6);
+      expect(dist(tall.camera, tall.look)).toBeCloseTo(dist(cam, look) * crts[i - 1].portrait, 6);
     }
   });
 });
@@ -263,32 +263,8 @@ function meterOnScreen(p: number, w: number, h: number) {
   return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
 }
 
-describe("entrance framing", () => {
-  it("fills the middle of a desktop window with the meter's tubes", () => {
-    const m = meterOnScreen(0, 1280, 800);
-    expect(m.right - m.left).toBeGreaterThan(1280 * 0.4);
-    expect(m.bottom - m.top).toBeGreaterThan(60); // each tube's digit is big, not 14 px
-    expect(m.left).toBeGreaterThan(1280 * 0.1);
-    expect(m.right).toBeLessThan(1280 * 0.9);
-    expect(m.top).toBeGreaterThan(800 * 0.15);
-    expect(m.bottom).toBeLessThan(800 * 0.75); // clear of the label bar at the bottom
-  });
-  it("shows the whole meter, large, on a portrait phone", () => {
-    const m = meterOnScreen(0, 390, 780);
-    expect(m.right - m.left).toBeGreaterThan(390 * 0.5);
-    expect(m.left).toBeGreaterThan(8);
-    expect(m.right).toBeLessThan(390 - 8);
-  });
-  it("pulls back to the wide view of the room halfway through the travel to the first station", () => {
-    const half = view(holdSpan(1)[0] / 2, win());
-    for (let k = 0; k < 3; k++) {
-      expect(half.camera[k]).toBeCloseTo(ENTRANCE.reveal.camera[k], 6);
-      expect(half.look[k]).toBeCloseTo(ENTRANCE.reveal.look[k], 6);
-    }
-    const m = meterOnScreen(holdSpan(1)[0] / 2, 1280, 800);
-    expect(m.right - m.left).toBeLessThan(1280 * 0.15); // the meter is now a small part of the room
-  });
-  it("moves smoothly from the meter to the first station, with no jumps", () => {
+describe("the overview framing", () => {
+  it("moves smoothly from the overview to the first station, with no jumps", () => {
     const steps = 200, end = progressFor(1);
     let prev = view(0, win()).camera, longest = 0;
     for (let i = 1; i <= steps; i++) {
@@ -305,38 +281,8 @@ import { parallax } from "./tour";
 const DESKTOP = 1280 / 800;
 const strength = (aspect: number, p: number) => framingFor(win(aspect)).parallaxStrength(whereAt(p));
 
-/** The meter on screen at the entrance, with the pointer at (`x`, `y`). */
-function meterWithPointer(x: number, y: number, w: number, h: number) {
-  const t = view(0, win(w / h));
-  const o = parallax(t.camera, t.look, { x, y });
-  const cam = new PerspectiveCamera(CAMERA_FOV, w / h, 0.05, 50);
-  cam.position.set(t.camera[0] + o[0], t.camera[1] + o[1], t.camera[2] + o[2]);
-  cam.lookAt(...t.look);
-  cam.updateMatrixWorld();
-  const pts = DESK_METER.tubeEnds().map((v) => {
-    const q = new Vector3(...v).project(cam);
-    return { x: (q.x * 0.5 + 0.5) * w, y: (-q.y * 0.5 + 0.5) * h };
-  });
-  const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
-  return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys), width: Math.max(...xs) - Math.min(...xs) };
-}
-
 describe("mouse parallax", () => {
   const pointers = [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, 1], [-1, 1], [1, -1]];
-  for (const [w, h] of [[1280, 800], [390, 780]]) {
-    it(`keeps the entrance meter the same size and fully in frame at ${w}x${h}`, () => {
-      const centre = meterWithPointer(0, 0, w, h);
-      for (const [x, y] of pointers) {
-        const m = meterWithPointer(x, y, w, h);
-        expect(m.width / centre.width, `width at ${x},${y}`).toBeGreaterThan(0.95);
-        expect(m.width / centre.width, `width at ${x},${y}`).toBeLessThan(1.05);
-        expect(m.left, `left at ${x},${y}`).toBeGreaterThan(8);
-        expect(m.right, `right at ${x},${y}`).toBeLessThan(w - 8);
-        expect(m.top, `top at ${x},${y}`).toBeGreaterThan(8);
-        expect(m.bottom, `bottom at ${x},${y}`).toBeLessThan(h - 8);
-      }
-    });
-  }
   it("is a small sideways shift at every stop, in proportion to the distance to the look point", () => {
     const sub = (a: number[], b: number[]) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
     const len = (a: number[]) => Math.hypot(a[0], a[1], a[2]);
@@ -455,24 +401,6 @@ describe("arcs between stations", () => {
   it("has one wide view for each leg between stations", () => {
     expect(ARCS.length).toBe(STATION_COUNT - 1);
   });
-  it("shows a wide view of the room at the midpoint of every leg", () => {
-    for (const i of legs) {
-      const t = view(half(i), win());
-      for (let k = 0; k < 3; k++) {
-        expect(t.camera[k], `leg ${i}`).toBeCloseTo(ARCS[i - 1].camera[k], 6);
-        expect(t.look[k], `leg ${i}`).toBeCloseTo(ARCS[i - 1].look[k], 6);
-      }
-      // wide: well back from what it looks at, and both TVs of the leg small in frame
-      expect(Math.hypot(...(t.look.map((v, k) => v - t.camera[k]) as number[])), `leg ${i}`).toBeGreaterThan(2);
-      for (const crt of [crts[i - 1], crts[i]]) {
-        const cam = new PerspectiveCamera(CAMERA_FOV, 16 / 10, 0.05, 50);
-        cam.position.set(...t.camera); cam.lookAt(...t.look); cam.updateMatrixWorld();
-        const [l, r] = glassCorners(crt).filter((_, k) => k % 2 === 0).map((c) => new Vector3(...c).project(cam)); // the glass's left and right edges
-        expect(Math.max(l.z, r.z), `${crt.id} is in front of the camera on leg ${i}`).toBeLessThan(1);
-        expect(Math.abs(r.x - l.x) * 640, `${crt.id} on leg ${i}`).toBeLessThan(1280 * 0.21);
-      }
-    }
-  });
   for (const aspect of [16 / 10, 390 / 780]) {
     it(`never takes the camera through a wall or prop, on any leg (aspect ${aspect.toFixed(2)})`, () => {
       // The room's real surfaces, the whole way along every leg and at both window shapes, with no
@@ -507,46 +435,6 @@ describe("arcs between stations", () => {
       const to = arrive.look.map((v, k) => v - arrive.camera[k]);
       expect(to[0] * fwd[0] + to[2] * fwd[2]).toBeCloseTo(Math.hypot(...to), 9); // looking straight at the glass
     }
-  });
-});
-
-describe("reduced motion", () => {
-  const on = (p: number, aspect = 16 / 9, h = 800) => view(p, win(aspect, h, true));
-  for (const aspect of [16 / 9, 390 / 780]) {
-    it(`travels in a straight line between every pair of stops (aspect ${aspect.toFixed(2)})`, () => {
-      for (let i = 1; i < STATION_COUNT; i++) {
-        const b = progressFor(i + 1);
-        const from = on(holdSpan(i)[1], aspect), to = on(b, aspect);
-        const [s, e] = [holdSpan(i)[1], holdSpan(i + 1)[0]];
-        for (let k = 1; k < 10; k++) {
-          const f = k / 10, t = on(s + (e - s) * f, aspect);
-          for (let c = 0; c < 3; c++) {
-            expect(t.camera[c]).toBeCloseTo(from.camera[c] + (to.camera[c] - from.camera[c]) * f, 6);
-            expect(t.look[c]).toBeCloseTo(from.look[c] + (to.look[c] - from.look[c]) * f, 6);
-          }
-        }
-      }
-    });
-  }
-  it("keeps the entrance leg's curve", () => {
-    for (const aspect of [16 / 9, 390 / 780]) {
-      for (let k = 0; k <= 10; k++) {
-        const p = holdSpan(1)[0] * (k / 10);
-        expect(on(p, aspect)).toEqual(view(p, win(aspect)));
-      }
-    }
-  });
-  it("still ends square on each TV, exactly as without it", () => {
-    for (let i = 1; i <= STATION_COUNT; i++) {
-      const p = progressFor(i);
-      expect(on(p, 1280 / 800)).toEqual(view(p, win(1280 / 800)));
-    }
-  });
-  it("differs from the arcs mid-travel, which are unchanged by default", () => {
-    const p = (holdSpan(1)[1] + holdSpan(2)[0]) / 2;
-    expect(on(p).camera).not.toEqual(view(p, win()).camera);
-    const { reduced: _left, ...without } = win(16 / 9); // a window with no `reduced` at all
-    expect(view(p, without)).toEqual(view(p, win(16 / 9)));
   });
 });
 

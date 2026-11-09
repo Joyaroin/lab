@@ -1,9 +1,19 @@
-import type { CSSProperties } from "react";
+import { useEffect, type CSSProperties } from "react";
 import { identity, links, stations, ui } from "./content";
+import type { Visit } from "./visit";
+import type { Where } from "./where";
 
-// Always-on corner overlay: résumé, contact and station links. Fixed, so it is reachable
-// at every point in the tour.
-export function Hud({ nearestStop, onJump }: { nearestStop: number; onJump: (station: number) => void }) {
+/** Where the meter bar's wrapper stands above the window's bottom. The HUD owns it (it is what changes on a phone, #177). */
+const METER_BOTTOM = "1rem";
+
+// Always-on corner overlay: résumé, contact and station links. Fixed, so it is reachable at every
+// point. The station links are real #id links that fly to that station; Room flies back to the overview.
+// It owns what #177 changes: the parts that depend on where the visitor is and on whether they have
+// visited a station yet (`visited`, set on the first landing at one), and the meter bar's bottom offset
+// (the CSS variable --meter-bottom, which the bar's wrapper reads).
+export function Hud({ where, visit }: { where: Where; visited: boolean; visit: Visit }) {
+  useEffect(() => { document.documentElement.style.setProperty("--meter-bottom", METER_BOTTOM); }, []);
+  const stop = where.kind === "at" ? where.stop : -1; // during a flight no link is current
   return (
     <nav aria-label={ui.hud} style={hud}>
       <div style={{ color: "#ffb347" }}>{identity.availability}</div>
@@ -11,11 +21,11 @@ export function Hud({ nearestStop, onJump }: { nearestStop: number; onJump: (sta
         {links.map((l) => <a key={l.label} href={l.href} style={link}>{l.label}</a>)}
       </div>
       <div style={row}>
-        <a href="#entrance" style={link} aria-current={nearestStop === 0 ? "location" : undefined}
-          onClick={(e) => { e.preventDefault(); onJump(0); }}>{ui.entrance}</a>
+        <a href="./" style={link} aria-current={stop === 0 ? "location" : undefined}
+          onClick={(e) => { e.preventDefault(); visit.back(); }}>{ui.room}</a>
         {stations.map((s, i) => (
-          <a key={s.id} href={`#${s.id}`} style={link} aria-current={nearestStop === i + 1 ? "location" : undefined}
-            onClick={(e) => { e.preventDefault(); onJump(i + 1); }}>{s.name}</a>
+          <a key={s.id} href={`#${s.id}`} style={link} aria-current={stop === i + 1 ? "location" : undefined}
+            onClick={(e) => { e.preventDefault(); visit.go(i + 1); }}>{s.name}</a>
         ))}
       </div>
     </nav>

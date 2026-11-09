@@ -1,9 +1,9 @@
 # Lab
 
 A 3D late-night home lab that hiring teams tour to learn what Adham does. The room is the site: you
-scroll along a fixed camera path through stations, and a nixie-tube meter on the desk shows how many
+open on an overview and click a monitor, or a HUD link, to fly to its station, and a nixie-tube meter on the desk shows how many
 MediaSafe staging deploys have landed since the last promotion to prod. It shows that gap only at the
-entrance; each station has its own fixed reading. It is static files served by
+overview; each station has its own fixed reading. It is static files served by
 nginx, with no server code.
 
 ## Run it
