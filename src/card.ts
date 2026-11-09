@@ -8,8 +8,8 @@ import type { Station } from "./content";
 /** The size the screen is drawn at. */
 export const CARD_PX = { width: 640, height: 500 };
 
-/** The card's font size, as a share of the screen's height (the world line's cap; the name's is larger). */
-const LINE_CAP = { worldLine: 1 / 8, name: 1 / 5 };
+/** The card's font size, as a share of the screen's height (the most each line gets: the name on one line or on two, the world line). */
+const LINE_CAP = { worldLine: 1 / 11, nameOne: 1 / 5, nameTwo: 1 / 5 };
 
 export const MONO = '"DejaVu Sans Mono", ui-monospace, monospace';
 
@@ -23,18 +23,28 @@ export function drawPhosphor(c: HTMLCanvasElement, card?: Pick<Station, "worldLi
     g.textAlign = "center"; g.textBaseline = "middle";
     g.shadowColor = "rgba(90,255,150,0.9)"; g.shadowBlur = 8;
     g.fillStyle = "#7dffb0";
-    // Each line is as large as fits inside the visible part of the glass, up to a cap.
-    // The one place the font is set: it measures at the cap, then draws at the size that fits.
-    const line = (text: string, cap: number, y: number) => {
-      g.font = `bold ${cap}px ${MONO}`;
-      const wide = g.measureText(text).width;
-      const size = Math.floor(wide > w * 0.8 ? (cap * w * 0.8) / wide : cap);
-      g.font = `bold ${size}px ${MONO}`; g.fillText(text, w / 2, y);
+    // The name is the part read from across the room, so it gets most of the glass: as large as fits,
+    // on one line or, when that is larger, on two split at a space. The world line above it is smaller.
+    // The one place the font is set: it measures at a probe size, then draws at the size that fits.
+    const fit = (text: string, max: number) => {
+      g.font = `bold 100px ${MONO}`;
+      return Math.floor(Math.min(max, (100 * w * 0.8) / g.measureText(text).width));
     };
-    line(card.worldLine, h * LINE_CAP.worldLine, h * 0.34);
-    line(card.name, h * LINE_CAP.name, h * 0.56);
+    const words = card.name.split(" ");
+    let lines = [card.name], size = fit(card.name, h * LINE_CAP.nameOne);
+    for (let i = 1; i < words.length; i++) {
+      const pair = [words.slice(0, i).join(" "), words.slice(i).join(" ")];
+      const s2 = Math.min(...pair.map((t) => fit(t, h * LINE_CAP.nameTwo)));
+      if (s2 > size) { lines = pair; size = s2; }
+    }
+    const draw = (text: string, px: number, y: number) => {
+      g.font = `bold ${px}px ${MONO}`; g.fillText(text, w / 2, y);
+    };
+    draw(card.worldLine, fit(card.worldLine, h * LINE_CAP.worldLine), h * 0.3);
+    const mid = h * (lines.length > 1 ? 0.66 : 0.56), gap = size * 1.12;
+    lines.forEach((t, i) => draw(t, size, mid + (i - (lines.length - 1) / 2) * gap));
     g.shadowBlur = 0;
-    g.fillRect(w * 0.15, h * 0.44, w * 0.7, Math.max(2, h / 120)); // rule between the lines
+    g.fillRect(w * 0.15, h * 0.4, w * 0.7, Math.max(2, h / 120)); // rule between the lines
   }
   g.fillStyle = "rgba(0,0,0,0.35)"; // scanlines
   for (let y = 0; y < h; y += 3) g.fillRect(0, y, w, 1);

@@ -21,7 +21,9 @@ The language of this project: its terms, what each one means, and what it doesn'
 - **World line**: a station's themed label, such as "World line 03". A label only: the copy beside it
   stays plain.
 - **Title card**: the big label on the glass of a TV you aren't at: its station's world line over its
-  name, such as "World line 03 / Home lab", readable from across the room. The words come from the
+  name, such as "World line 03 / Home lab", readable from across the room. The name is the large part:
+  as big as the glass allows, wrapped onto two lines at a space when that makes it larger; the world
+  line is small, above a rule. The words come from the
   station's `worldLine` and `name` in the content module, nothing else. It clears when that station's
   text is on its glass, which happens only in the Square framing (`textOnGlass`); on a portrait window
   the text is pinned beside the CRT and the card stays. It never moves and never reads as a live status
