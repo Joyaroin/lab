@@ -25,7 +25,7 @@ function StationPanel({ s, onTurn }: { s: Station; onTurn?: OnPageTurn }) {
   // A new page starts at its top, and the "more" cue is worked out for the new text.
   useLayoutEffect(() => { if (ref.current) { ref.current.scrollTop = 0; markMore(ref.current); } }, [open]);
   return (
-    <section ref={ref} data-screen={s.id} aria-label={s.name} className="crt-panel" style={{ ...panel, visibility: "hidden" }}
+    <section ref={ref} tabIndex={-1} data-screen={s.id} aria-label={s.name} className="crt-panel" style={{ ...panel, visibility: "hidden" }}
       onScroll={(e) => markMore(e.currentTarget)}>
       <p style={worldLine}>{s.worldLine}</p>
       <h2 style={heading}>{s.heading}</h2>

@@ -6,7 +6,7 @@ import { Tour, prefersReducedMotion } from "./TourView";
 import { useGap } from "./useGap";
 import { meterLink } from "./nixie";
 import { createShift } from "./shift";
-import { createVisit } from "./visit";
+import { createVisit, linkHistory } from "./visit";
 import { watchForStall } from "./stall";
 import { ui } from "./content";
 import type { Where } from "./where";
@@ -42,6 +42,8 @@ export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
   const [visit] = useState(() => createVisit({ reduced }));
   const [meter] = useState(meterLink);
   const [shift] = useState(() => createShift(reduced));
+  // The visit and the browser's history are one: a direct link lands before the tour mounts (see linkHistory).
+  useEffect(() => (capability.ok ? linkHistory(visit, window) : undefined), [capability, visit]);
   const [booted, setBooted] = useState(false); // the boot screen has faded out
 
   // Boot screen to meter is one moment: once the room is ready the boot screen fades out over
