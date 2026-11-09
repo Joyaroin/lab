@@ -11,15 +11,17 @@ export type Fit = { left: number; top: number; width: number; maxHeight: number 
  * @param cx,cy      CRT centre in window pixels
  * @param crtWidth   CRT width in window pixels (the panel is at least a readable size)
  * @param panelHeight the panel's natural height (px); it scrolls if it can't fit
+ * @param menuHeight the phone menu's height (px), 0 when there is none: it stands under the meter, which it lifts
  */
-export function fitPanel(win: { width: number; height: number }, cx: number, cy: number, crtWidth: number, panelHeight: number): Fit {
+export function fitPanel(win: { width: number; height: number }, cx: number, cy: number, crtWidth: number, panelHeight: number, menuHeight = 0): Fit {
+  const bottomClear = BOTTOM_CLEAR + menuHeight;
   const width = Math.min(Math.max(crtWidth, 352), win.width - 2 * SIDE, 640);
-  const free = win.height - TOP_CLEAR - BOTTOM_CLEAR;
+  const free = win.height - TOP_CLEAR - bottomClear;
   const room = Math.max(120, win.width < NARROW ? free / 2 : free);
   const maxHeight = Math.min(room, win.height - 2 * SIDE);
   const h = Math.min(panelHeight, maxHeight);
   const left = Math.min(Math.max(cx - width / 2, SIDE), win.width - width - SIDE);
-  const lowest = Math.max(TOP_CLEAR, win.height - BOTTOM_CLEAR - h);
+  const lowest = Math.max(TOP_CLEAR, win.height - bottomClear - h);
   const top = Math.min(Math.max(cy - h / 2, TOP_CLEAR), lowest);
   return { left, top, width, maxHeight };
 }

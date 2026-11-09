@@ -44,3 +44,13 @@ describe("glassFontSize", () => {
     expect(glassFontSize(800)).toBeGreaterThanOrEqual(16);
   });
 });
+
+describe("fitPanel with a phone menu", () => {
+  it("keeps the panel above the menu's height as well as the usual clearance", () => {
+    const phone = { width: 390, height: 844 }, menu = 106;
+    for (const cy of [0, 400, 844, 1500]) {
+      const f = fitPanel(phone, 195, cy, 200, 2000, menu);
+      expect(f.top + f.maxHeight).toBeLessThanOrEqual(phone.height - BOTTOM_CLEAR - menu);
+    }
+  });
+});

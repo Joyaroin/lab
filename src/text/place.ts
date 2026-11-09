@@ -94,12 +94,14 @@ export function placeText(el: PanelEl, crt: Crt, k: number, f: Frame) {
   const crtWidth = Math.hypot((e.x - c.x) * size.width, (e.y - c.y) * size.height);
   // Set the width first, then measure the natural height at that width and fit, so the
   // panel settles in this one frame: frames are only drawn on demand.
-  el.style.width = `${fitPanel(size, px, py, crtWidth, 0).width}px`;
+  // The phone menu lifts the meter bar (Hud.tsx), so the panel stays clear of the menu's real height too.
+  const menu = document.querySelector<HTMLElement>("[data-menu]")?.offsetHeight ?? 0;
+  el.style.width = `${fitPanel(size, px, py, crtWidth, 0, menu).width}px`;
   // With no height limit nothing overflows, so the browser resets scrollTop to 0: keep it and
   // put it back once the limit is restored (it is clamped to the new range if the panel shrank).
   const kept = el.scrollTop;
   el.style.maxHeight = "none";
-  const fit = fitPanel(size, px, py, crtWidth, el.scrollHeight);
+  const fit = fitPanel(size, px, py, crtWidth, el.scrollHeight, menu);
   el.style.maxHeight = `${fit.maxHeight}px`;
   el.scrollTop = kept;
   el.style.transform = `translate(${fit.left}px, ${fit.top}px)`;

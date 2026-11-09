@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { ui } from "../src/content";
-import { goTo, hudLink, landedAt, openTour, stationIds } from "./lib/page";
+import { goTo, hudLink, landedAt, openTour, stationIds, waitForPanel } from "./lib/page";
 
 // The phone menu and the hint line (#177). The hint's words depend on the window's shape; the bottom
 // buttons are for a portrait window only.
@@ -51,3 +51,18 @@ test("the hint says Tap a monitor, or pick one below on portrait, and is gone af
   await goTo(page, 0);
   await expect(hint(page)).toBeHidden();
 });
+
+// The meter bar stands above the phone menu, so the station text must end above the bar at every station.
+for (const [w, h] of [[390, 844], [360, 740]]) {
+  test(`portrait ${w}x${h}: the station text ends above the meter bar at every station`, async ({ page }) => {
+    test.setTimeout(150_000);
+    await page.setViewportSize({ width: w, height: h });
+    await openTour(page);
+    for (const [k, id] of stationIds.entries()) {
+      await goTo(page, k + 1);
+      const panel = await waitForPanel(page, id);
+      const bar = (await page.locator("[data-meter-bar]").boundingBox())!;
+      expect(panel.top + panel.height, `${id} ends above the meter bar (${bar.y})`).toBeLessThanOrEqual(bar.y);
+    }
+  });
+}
