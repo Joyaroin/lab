@@ -4,11 +4,11 @@ import { MeshBasicMaterial, type Mesh, type MeshStandardMaterial, type Perspecti
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import roomUrl from "./assets/room.glb?url";
 import { OVERVIEW } from "./crts";
-import type { Visit } from "./visit";
+import { FADE_MS, type Visit } from "./visit";
 import { framingFor } from "./framing";
 import { parallax } from "./tour";
 import type { Where } from "./where";
-import { Bezels, DeskMeter, Phosphor, Rain } from "./Effects";
+import { Bezels, DeskMeter, Phosphor, Rain, TvTargets } from "./Effects";
 import type { MeterLink } from "./nixie";
 import type { Shift } from "./shift";
 import { TextPins } from "./text/TextPins";
@@ -43,8 +43,9 @@ function BakedRoom({ onLoaded, onProgress }: { onLoaded: () => void; onProgress:
 // mean testing a different build from the one that ships.)
 // The room is drawn only on demand (see Room): this asks for the next frame while a move runs or the
 // parallax is still easing, and a move starting or the pointer moving starts it again. The wheel never moves the camera.
-function CameraRig({ visit, where, reduced }: { visit: Visit; where: MutableRefObject<Where>; reduced: boolean }) {
+function CameraRig({ visit, where, reduced, cover }: { visit: Visit; where: MutableRefObject<Where>; reduced: boolean; cover: MutableRefObject<HTMLDivElement | null> }) {
   const invalidate = useThree((s) => s.invalidate);
+  const covered = useRef(0); // the cover's opacity now
   const offset = useRef<V3>([0, 0, 0]); // the parallax now, eased toward the pointer's
   useEffect(() => {
     const redraw = () => invalidate();
@@ -75,7 +76,13 @@ function CameraRig({ visit, where, reduced }: { visit: Visit; where: MutableRefO
     gl.domElement.dataset.camera = [camera.position.x, camera.position.y, camera.position.z].join(",");
     // A move is running while flying, before a cut's midpoint, and through a fade's second half (fade > 0): frames
     // must go on until the landing, which only this read notices.
-    const moving = w.kind === "flying" || w.stop !== visit.target() || visit.fade(nowMs) > 0;
+    // The reduced-motion fade's cover. The cover never jumps: it follows the visit's fade() but may fall no faster
+    // than a fade's own half (a move begun after the cut makes fade() drop from near 0.8 to 0 in one frame, #160).
+    const want = visit.fade(nowMs);
+    const fall = Math.min(dt, 0.1) / (FADE_MS / 2000);
+    covered.current = want >= covered.current ? want : Math.max(want, covered.current - fall);
+    if (cover.current) cover.current.style.opacity = String(covered.current);
+    const moving = covered.current > 0 || w.kind === "flying" || w.stop !== visit.target() || visit.fade(nowMs) > 0;
     if (moving || (!tail && Math.hypot(dx, dy, dz) * (1 - k) > 1e-4)) invalidate();
   });
   return null;
@@ -84,24 +91,31 @@ function CameraRig({ visit, where, reduced }: { visit: Visit; where: MutableRefO
 export default function Room({ onReady, onProgress, visit, where, reduced, meter, shift }: {
   onReady: () => void; onProgress: () => void; visit: Visit; where: MutableRefObject<Where>; reduced: boolean; meter: MeterLink; shift: Shift;
 }) {
+  const cover = useRef<HTMLDivElement | null>(null);
   return (
-    // Drawn on demand, not 60 times a second: the baked room is costly to draw (texture
-    // sampling over many layered props) and mostly stands still between stops, so this saves
-    // phone batteries and keeps software WebGL (CI, locked-down laptops) from starving the page.
+    <>
+    {/* Drawn on demand, not 60 times a second: the baked room is costly to draw (texture
+        sampling over many layered props) and mostly stands still between stops, so this saves
+        phone batteries and keeps software WebGL (CI, locked-down laptops) from starving the page. */}
     <Canvas
       frameloop="demand"
       style={{ position: "fixed", inset: 0 }}
       camera={{ position: OVERVIEW.camera, fov: OVERVIEW.fov }}
     >
-      <CameraRig visit={visit} where={where} reduced={reduced} />
+      <CameraRig visit={visit} where={where} reduced={reduced} cover={cover} />
       <TextPins where={where} shift={shift} />
       <Suspense fallback={null}>
         <BakedRoom onLoaded={onReady} onProgress={onProgress} />
         <DeskMeter link={meter} shift={shift} reduced={reduced} />
         <Phosphor where={where} />
         <Bezels />
+        <TvTargets visit={visit} where={where} reduced={reduced} />
         <Rain />
       </Suspense>
     </Canvas>
+    {/* The reduced-motion fade: a dark cover over the room and its text, under the HUD. CameraRig sets its opacity. */}
+    <div ref={cover} data-fade-cover aria-hidden="true"
+      style={{ position: "fixed", inset: 0, zIndex: 15, background: "#05080a", opacity: 0, pointerEvents: "none" }} />
+    </>
   );
 }
