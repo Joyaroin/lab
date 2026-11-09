@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Play, Shift } from "./shift";
+import { runFrames } from "./frames";
 import { tearAt, TEAR_SEEDS } from "./tear";
 
 const FILTER = "shift-tear", TURN_FILTER = "shift-tear-page"; // the whole view's, and a Work page turn's
@@ -47,22 +48,19 @@ function useTear(filter: string, target: () => HTMLElement | null, shift: Play |
   useEffect(() => {
     const el = target();
     if (!shift || reducedNow.current || !el) return;
-    const start = performance.now(); // the effect runs a frame or more after the shift fired; time it from here
-    onStart?.(shift.kind, start);
-    let raf = 0;
-    const tick = () => {
-      const t = tearAt((performance.now() - start) / 1000, shift.kind);
-      if (t.done || reducedNow.current) { el.style.filter = ""; return; }
+    // The effect runs a frame or more after the shift fired; the loop times from here.
+    const stop = runFrames((seconds) => {
+      const t = tearAt(seconds, shift.kind);
+      if (t.done || reducedNow.current) { el.style.filter = ""; return true; }
       const w = window.innerWidth;
       refs.turb.current?.setAttribute("seed", String(TEAR_SEEDS[shift.kind][t.pose]));
       refs.disp.current?.setAttribute("scale", String(t.slip * w * 2)); // the map spans ±half the scale
       refs.red.current?.setAttribute("dx", String(t.edge * w));
       refs.cyan.current?.setAttribute("dx", String(-t.edge * w));
       el.style.filter = `url(#${filter})`;
-      raf = requestAnimationFrame(tick);
-    };
-    tick();
-    return () => { cancelAnimationFrame(raf); el.style.filter = ""; };
+      return false;
+    }, { onStart: (startMs) => onStart?.(shift.kind, startMs) });
+    return () => { stop(); el.style.filter = ""; };
   }, [shift?.id, shift?.kind]); // eslint-disable-line react-hooks/exhaustive-deps
   return refs;
 }

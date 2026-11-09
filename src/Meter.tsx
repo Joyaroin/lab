@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { formatReading } from "./gap";
 import { fill, ui } from "./content";
+import { runFrames } from "./frames";
 import { digitsToShow, shiftDigits, type ShiftKind } from "./nixie";
 
 /** The digits the bar shows: the reading, except for a moment while a shift scrambles them. Frames
@@ -11,15 +12,12 @@ function useShifted(digits: string, shift?: { kind: ShiftKind; id: number } | nu
   now.current = digits;
   useEffect(() => {
     if (!shift) return;
-    const start = performance.now();
-    let raf = 0;
-    const tick = () => {
-      const s = shiftDigits((performance.now() - start) / 1000, now.current, shift.kind);
+    const stop = runFrames((seconds) => {
+      const s = shiftDigits(seconds, now.current, shift.kind);
       setShown(s.done ? null : s.digits);
-      if (!s.done) raf = requestAnimationFrame(tick);
-    };
-    tick();
-    return () => { cancelAnimationFrame(raf); setShown(null); };
+      return s.done;
+    });
+    return () => { stop(); setShown(null); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shift?.id]);
   return digitsToShow(digits, shown, !!shift);
