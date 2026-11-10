@@ -8,6 +8,7 @@ import { easeGlow } from "./glow";
 import { crts } from "./crts";
 import type { PressTarget } from "./RoomClick";
 import { stations } from "./content";
+import type { MeterLink } from "./nixie";
 import { BEZEL, BEZEL_GAP, SCREEN_LAYER, pointGlowTexture } from "./draw";
 
 // ---------------------------------------------------------------- the TVs as click targets
@@ -20,9 +21,10 @@ import { BEZEL, BEZEL_GAP, SCREEN_LAYER, pointGlowTexture } from "./draw";
 /** How far in front of the bezel layer the hit target and the glow stand. */
 const TARGET_GAP = 0.003;
 
-export function TvTargets({ visit, where }: { visit: Visit; where: MutableRefObject<Where> }) {
+export function TvTargets({ visit, where, meter }: { visit: Visit; where: MutableRefObject<Where>; meter: MeterLink }) {
   const invalidate = useThree((s) => s.invalidate);
   const hovered = useRef<string | null>(null);
+  const byPointer = useRef(true); // the pointer on the TV is a mouse or pen: a touch has no hover preview
   const shown = useRef<string | null>(null); // what the cursor and data-hover currently say
   const glow = useRef<Record<string, number>>({});
   const mats = useRef<Record<string, MeshBasicMaterial | null>>({});
@@ -34,6 +36,8 @@ export function TvTargets({ visit, where }: { visit: Visit; where: MutableRefObj
       shown.current = hot;
       document.body.style.cursor = hot ? "pointer" : "";
       if (hot) gl.domElement.dataset.hover = hot; else delete gl.domElement.dataset.hover;
+      // The tour's hover preview (#228) hears of the TV the pointer is on, under the same rule as the glow.
+      meter.tvHover(hot && byPointer.current ? stations.findIndex((s) => s.id === hot) + 1 : null);
     }
     let easing = false;
     for (const crt of crts) {
@@ -47,7 +51,7 @@ export function TvTargets({ visit, where }: { visit: Visit; where: MutableRefObj
     }
     if (easing) invalidate();
   });
-  useEffect(() => () => { if (shown.current) document.body.style.cursor = ""; }, []);
+  useEffect(() => () => { if (shown.current) { document.body.style.cursor = ""; meter.tvHover(null); } }, [meter]);
 
   return (
     <>
@@ -58,7 +62,7 @@ export function TvTargets({ visit, where }: { visit: Visit; where: MutableRefObj
           <group key={crt.id} position={at} rotation={[0, a, 0]}>
             <mesh
               userData={{ press: { on: "tv", stop: stations.findIndex((s) => s.id === crt.id) + 1 } satisfies PressTarget }}
-              onPointerOver={(e) => { e.stopPropagation(); hovered.current = crt.id; invalidate(); }}
+              onPointerOver={(e) => { e.stopPropagation(); hovered.current = crt.id; byPointer.current = e.nativeEvent.pointerType !== "touch"; invalidate(); }}
               onPointerOut={() => { if (hovered.current === crt.id) hovered.current = null; invalidate(); }}
               onClick={(e) => { if (!clickable(where.current) || visit.target() !== 0) return; e.stopPropagation(); visit.go(stations.findIndex((s) => s.id === crt.id) + 1); }}>
               <planeGeometry args={[BEZEL.width, BEZEL.height]} />

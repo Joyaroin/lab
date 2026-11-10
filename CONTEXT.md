@@ -23,7 +23,19 @@ The language of this project: its terms, what each one means, and what it doesn'
   `src/RoomClick.tsx`). A press that moves more than 6 px is a drag and does nothing. The desk meter's click still means
   next, and the HUD, the menu, the meter bar and the station's text are controls, not the room. At the overview and in
   flight it never applies, and not through a reduced-motion fade either (the fade's second half already reads as the new
-  station, so the rule is given `visit.moving()`).
+  station, so the rule is given `visit.moving()`). Resting the pointer on a lit TV also previews its station on the meter
+  (see **Hover preview**): `TvTargets` tells the tour which TV the pointer is on, through the meter link's `tvHover`.
+- **Hover preview**: at the overview, resting the pointer on a lit TV or on a station's HUD link makes the meter show
+  that station before the click. The bar's line changes at once to the station's world line and name only ("World line
+  02: MediaSafe", no count); after the pointer has rested `PREVIEW_REST_MS` (150 ms) the digits play the short scramble
+  (`SHIFT_SECONDS.short`, 0.25 s) onto the station's reading, or change with no scramble under reduced motion. Leaving,
+  or moving to another station before the 150 ms (which starts the rest again), puts the gap's line and digits back at
+  once with no animation. It is pointer only: keyboard focus never previews (the tour puts focus back on a HUD link
+  whenever the visitor returns to the overview), touch has no preview, and it never applies at a station or in a flight.
+  It is not a shift: the room never tears for it. The rule is in `src/bar.ts`: `createHover` (which station the pointer
+  is on, from the TV and the HUD link, each reporting its own enter and leave), `previewStop` (only at the overview) and
+  `meterDigits` (below). The tour feeds it and passes the result to the bar through the `reading`, `label` and `shift`
+  props, so the bar is not edited for it.
 - **Overview**: stop 0. A camera pose that shows the glass of all five station TVs and the whole desk meter on a
   landscape window at 16:9 and 16:10, with none of them under the HUD's name block, link row or the meter device
   (the boxes in `src/pin.ts`). The bench TV may be out of frame. It has its own wider field of
@@ -77,12 +89,18 @@ The language of this project: its terms, what each one means, and what it doesn'
   navigation and a live readout.
 - **Reading**: the number the meter shows. Each station has a fixed reading; the overview shows the gap.
 - **Desk meter**: the meter as built in the room: seven nixie tubes on the desk, drawn live. Clicking it means
-  next. It is a display in the room only: the meter bar's digits do not depend on whether it is in frame.
+  next. It is a display in the room only: the meter bar's digits do not depend on whether it is in frame. Its digits
+  and scramble come from `meterDigits` in `src/bar.ts`, the one function the bar reads too, so through a hover preview
+  the two show the same digits and the same scramble; outside a preview it shows the reading at the visitor's place
+  (rolling between two stops in a flight, where the bar shows the stop flown to) and the shift that is playing. The tour
+  gives it the gap and the preview through the meter link (`deploys`, `preview`).
 - **Meter bar**: the bar under the room: the reading's digits, always shown, a line under them, and the keys. The
   line is the gap's sentence at the overview and, at a station, `ui.stopLine` filled in ("World line 02: MediaSafe · 2 of
   5"; the total is the number of stations in the content module). The bar itself takes no click: only the keys do. In a
   flight it shows the stop being flown to (keys, line and digits). What it shows is one pure rule, `barFor(where,
-  framing)` in `src/bar.ts`, drawn by `src/Meter.tsx`.
+  framing)` in `src/bar.ts`, drawn by `src/Meter.tsx`. At the overview, a pointer resting on a TV or a station link
+  changes the line, then the digits (see **Hover preview**); `meterDigits` in `src/bar.ts` gives the bar's digits and
+  scramble.
 - **Keys**: the buttons on the meter bar, with their words in `ui` (`keyPrev`, `keyRoom`, `keyNext`, `keyStart`) and
   their accessible names (`prevStation`, `backToRoom`, `nextStation`, `startTour`), each at least 44 x 44 px. At a
   station on a landscape window they are PREV, ROOM, NEXT; on a portrait window PREV and NEXT (the phone menu has the
@@ -166,7 +184,7 @@ get a folder; the rest are still flat files in `src/`.
   the tear-over wake-up, the leaving rule, the page-turn limit and the
   shift's lengths (`SHIFT_SECONDS`). No shift starts until the desk meter reports its power-on, which it
   does on the first frame it draws once the room is ready (`src/App.tsx:53` sets `meter.on`,
-  `src/DeskMeter.tsx:94` reports), so a room that never draws a frame plays no shift. `src/nixie.ts`
+  `src/DeskMeter.tsx:76` reports), so a room that never draws a frame plays no shift. `src/nixie.ts`
   re-exports `SHIFT_SECONDS` for the browser specs. `shift.hold` is the station the visitor is at (0 at the overview or in flight). The room
   asks it one question per station per frame, `shift.textState(station, nowMs)` (the shift knows where the visitor is): `held`,
   `resolving` or `showing`. Asking changes nothing; the module's state changes when it learns something

@@ -38,11 +38,13 @@ export function usePortrait() {
 // and outside links on one line and the stops under it, or from under COMPACT_MIN_W three short lines. On a portrait window the name block spans the top with the outside links (no
 // availability line) and Room and the stations are a bottom menu, three to a row. Fixed, so it is reachable at every
 // point. The station links are real #id links that fly to that station; Room flies back to the overview.
+// `onPoint` tells the tour which station link the pointer is on (by number, null off them): the hover preview (#228). It is
+// pointer events only, never focus, and never touch.
 // It owns what #177 changes: the parts that depend on where the visitor is and on whether they have
 // visited a station yet (`visited`, set on the first landing at one), and the meter bar's bottom offset
 // (the CSS variable --meter-bottom, which the bar's wrapper reads). The sizes that matter (the boxes, the
 // clearances, the hint's height) come from src/pin.ts, so the fitting rule and the HUD can't drift apart.
-export function Hud({ where, visited, visit }: { where: Where; visited: boolean; visit: Visit }) {
+export function Hud({ where, visited, visit, onPoint }: { where: Where; visited: boolean; visit: Visit; onPoint?: (stop: number | null) => void }) {
   const win = useWin();
   const tier = hudTier(win); // the same rule the clearances follow (src/pin.ts)
   const portrait = tier === "phone";
@@ -69,7 +71,8 @@ export function Hud({ where, visited, visit }: { where: Where; visited: boolean;
         onClick={(e) => { e.preventDefault(); visit.back(); }}>{ui.room}</a>
       {stations.map((s, i) => (
         <a key={s.id} href={`#${s.id}`} style={look(i + 1, stopLink, stopHere)} aria-current={stop === i + 1 ? "location" : undefined}
-          onClick={(e) => { e.preventDefault(); visit.go(i + 1); }}>{s.name}</a>
+          onClick={(e) => { e.preventDefault(); visit.go(i + 1); }}
+          onPointerEnter={(e) => { if (e.pointerType !== "touch") onPoint?.(i + 1); }} onPointerLeave={() => onPoint?.(null)}>{s.name}</a>
       ))}
     </>
   );

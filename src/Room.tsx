@@ -112,10 +112,10 @@ export default function Room({ onReady, onProgress, visit, where, reduced, meter
       <TextPins where={where} shift={shift} />
       <Suspense fallback={null}>
         <BakedRoom onLoaded={onReady} onProgress={onProgress} />
-        <DeskMeter link={meter} shift={shift} reduced={reduced} />
+        <DeskMeter link={meter} shift={shift} reduced={reduced} where={where} />
         <Phosphor where={where} />
         <Bezels />
-        <TvTargets visit={visit} where={where} />
+        <TvTargets visit={visit} where={where} meter={meter} />
         <Rain />
       </Suspense>
     </Canvas>
