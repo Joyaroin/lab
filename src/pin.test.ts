@@ -104,12 +104,14 @@ describe("clearances", () => {
     expect(clearances({ width: ONE_ROW_MIN_W, height: 900 }).top).toBe(oneRow);
     expect(clearances({ width: 1920, height: 1080 }).top).toBe(oneRow);
     expect(clearances({ width: ONE_ROW_MIN_W - 1, height: 900 }).top).toBe(twoLine);
-    expect(clearances({ width: 1280, height: 800 }).top).toBe(twoLine); // the threshold ends above 1280: accepted
+    expect(clearances({ width: 1280, height: 800 }).top).toBe(oneRow); // 1280 x 800 keeps the one-row HUD
+    expect(clearances({ width: 1279, height: 800 }).top).toBe(twoLine);
     expect(clearances({ width: 1024, height: 768 }).top).toBe(twoLine);
     expect(clearances({ width: 390, height: 844 }).top).toBe(96);
   });
   it("ONE_ROW_MIN_W is worked out from the HUD's boxes: name block, link row, the gap and both margins", () => {
     expect(ONE_ROW_MIN_W).toBe(NAME_BLOCK_W + HUD_GAP + LINK_ROW_W + 2 * HUD_MARGIN);
+    expect(ONE_ROW_MIN_W).toBeLessThanOrEqual(1280); // so a 1280 x 800 window gets the one-row HUD
   });
   it("the phone menu's height comes from the button, gap, padding and rows", () => {
     expect(BUTTON_PX).toBe(44);

@@ -20,9 +20,10 @@ export const PHONE_MENU_H = PHONE_ROWS * BUTTON_PX + (PHONE_ROWS - 1) * PHONE_GA
 
 // The landscape HUD's boxes (px): the name block at the top left, the link row at the top right. The
 // threshold for one row is worked out from them. #222 asserts the real HUD fits them; #226 tests the
-// overview against them. If the HUD needs more room, change a box here and the rest follows.
-export const NAME_BLOCK_W = 440, NAME_BLOCK_H = 72;
-export const LINK_ROW_W = 830, LINK_ROW_H = 36;
+// overview against them. If the HUD needs more room, change a box here and the rest follows. The boxes
+// are sized so ONE_ROW_MIN_W is 1280: a 1280 x 800 window keeps the one-row HUD (420 + 24 + 800 + 2 x 18).
+export const NAME_BLOCK_W = 420, NAME_BLOCK_H = 72;
+export const LINK_ROW_W = 800, LINK_ROW_H = 36;
 export const HUD_MARGIN = 18; // round the boxes: the window's top and sides
 export const HUD_GAP = 24; // between the name block and the link row when they share a line
 /** From this width (landscape) the name block and the link row share the top of the window. */

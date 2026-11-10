@@ -23,10 +23,10 @@ function glassAtHold(i: number, w: number, h: number) {
 const windows = [[1280, 800], [1920, 1080], [1440, 900], [1024, 768], [1366, 640], [2560, 1440]];
 
 describe("square stops", () => {
-  it("stand about 0.58 m from the glass at 1280x800", () => {
+  it("stand about 0.54 m from the glass at 1280x800", () => {
     for (const c of crts) {
       const s = squareStop(c, { width: 1280, height: 800 });
-      expect(Math.hypot(s.camera[0] - c.screen[0], s.camera[2] - c.screen[2])).toBeCloseTo(0.58, 2);
+      expect(Math.hypot(s.camera[0] - c.screen[0], s.camera[2] - c.screen[2])).toBeCloseTo(0.54, 2);
     }
   });
   for (const [w, h] of windows) {
