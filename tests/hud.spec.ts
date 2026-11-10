@@ -100,6 +100,26 @@ for (const [width, height, tier] of [[667, 375, "compactTwo"], [740, 360, "compa
   });
 }
 
+// COMPACT_MIN_W is the narrowest two-line width, so the first line has no slack there: every link must still sit inside the
+// name block's backdrop and the window (the first build overflowed from 655 to 666 px, a 4 px space before each mark).
+test(`${COMPACT_MIN_W}x375: every link sits inside the HUD's backdrop and inside the window`, async ({ page }) => {
+  const width = COMPACT_MIN_W;
+  expect(hudTier({ width, height: 375 })).toBe("compactTwo");
+  await open(page, width, 375);
+  const name = await box(nameBlock(page));
+  const rights = await hud(page).locator("a").evaluateAll((as) => as.map((a) => ({ text: a.textContent, left: a.getBoundingClientRect().left, right: a.getBoundingClientRect().right })));
+  expect(rights.length, "every link is there").toBe(links.length + 1 + stations.length);
+  for (const a of rights) {
+    expect(a.left, `${a.text} starts inside the window`).toBeGreaterThanOrEqual(0);
+    expect(a.right, `${a.text} ends inside the window, with its margin`).toBeLessThanOrEqual(width - 8);
+  }
+  for (const l of links) {
+    const a = await box(nameBlock(page).getByRole("link", { name: l.label }));
+    expect(a.x + a.width, `${l.label} ends inside the name block's backdrop`).toBeLessThanOrEqual(name.x + name.width + 0.5);
+  }
+  expect(await nameBlock(page).evaluate((e) => e.scrollWidth <= e.clientWidth), "the first line fits its box with no overflow").toBe(true);
+});
+
 test("1024x768: the row holds Room, the stations and the outside links as whole groups", async ({ page }) => {
   await open(page, 1024, 768);
   expect(await linkRow(page).locator("a").count()).toBe(1 + stations.length + links.length);

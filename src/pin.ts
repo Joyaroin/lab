@@ -39,7 +39,8 @@ const PHONE_TOP = 96;
 // The compact HUD, for a short landscape window: name and title (with the outside links beside them where they fit),
 // then the stops row. Lines are COMPACT_LINE_H tall (the name's 24 px, a link's 18.2 px and 8 px of padding),
 // COMPACT_GAP apart. `COMPACT_TOP_W` is the width of the first line at 14 px: name 132 + 10 + title 236 + 16 +
-// the outside links (Résumé, LinkedIn, GitHub, with ↗, 4 px padding, 4 px gaps) about 225, measured in Chromium.
+// the outside links (Résumé, LinkedIn, GitHub, each with ↗ right after the word, no space, 4 px padding, 4 px gaps) about 225,
+// measured in Chromium. A space before each ↗ would add 12 px and push the line past this width.
 // Narrower than COMPACT_MIN_W the outside links take a line of their own, so three short lines.
 export const COMPACT_LINE_H = 27, COMPACT_GAP = 4;
 export const COMPACT_TOP_W = 619;

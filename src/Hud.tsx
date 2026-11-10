@@ -75,7 +75,7 @@ export function Hud({ where, visited, visit }: { where: Where; visited: boolean;
   );
   // The outside links open a new tab; the mark is decoration, so it is out of the link's name.
   const outside = links.map((l) => (
-    <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" style={compact ? linkTight : link}>{l.label}<span aria-hidden="true" style={{ marginLeft: 4 }}>↗</span></a>
+    <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" style={compact ? linkTight : link}>{l.label}<span aria-hidden="true" style={compact ? undefined : { marginLeft: 4 }}>↗</span></a>
   ));
   return (
     <>
