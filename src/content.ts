@@ -193,24 +193,7 @@ export const content: Content = {
       bezel: { plate: "HALDEN HX-330", note: "Water\nthe fern" },
     },
     {
-      id: "order-tracker", name: "Order Tracker", worldLine: "World line 04", reading: 640,
-      heading: "Order Tracker GitOps Platform",
-      lead: "A GitOps delivery platform on AWS, from Terraform modules to an app for each environment.",
-      body: [
-        "Argo CD ApplicationSets and Kustomize overlays generate an app for each environment.",
-        "GitHub Actions pushes images to ECR over OIDC, with no static AWS keys.",
-        "A pull request against a hotfix branch spins up its own isolated EKS environment.",
-      ],
-      diagram: {
-        description: "GitHub Actions pushes images to ECR over OIDC. Argo CD ApplicationSets generate an app for each environment.",
-        steps: ["GitHub Actions", "ECR", "Argo CD", "app for each environment"],
-        hops: ["OIDC", "", "ApplicationSets"],
-      },
-      links: [],
-      bezel: { plate: "HALDEN HX-418", note: "Lamp\nbulb?" },
-    },
-    {
-      id: "software-factory", name: "Software factory", worldLine: "World line 05", reading: 733,
+      id: "software-factory", name: "Software factory", worldLine: "World line 04", reading: 733,
       heading: "Software factory",
       lead: "My AI software factory: I plan, and agents build, review and merge. It built this site.",
       body: [
@@ -227,7 +210,7 @@ export const content: Content = {
       bezel: { plate: "HALDEN HX-552", note: "Lunch\nat 1" },
     },
     {
-      id: "contact", name: "Contact", worldLine: "World line 06", reading: 861,
+      id: "contact", name: "Contact", worldLine: "World line 05", reading: 861,
       heading: "Contact",
       lead: "I'm Adham Sedik, a software and platform engineer.",
       body: [

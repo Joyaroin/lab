@@ -34,7 +34,7 @@ test("baked room loads and the overview and every station render", { tag: "@rend
 test("on a phone, MediaSafe and Software factory frame lit parts of the room", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openTour(page);
-  for (const [name, label] of [["mediasafe", "World line 02: MediaSafe"], ["software-factory", "World line 05: Software factory"]]) {
+  for (const [name, label] of [["mediasafe", "World line 02: MediaSafe"], ["software-factory", "World line 04: Software factory"]]) {
     await goTo(page, stationIds.indexOf(name) + 1);
     await expect(page.getByText(label, { exact: true })).toBeVisible();
     // The first visit's tear plays after the landing, and the text comes out of it: measure once it is over.
@@ -72,7 +72,7 @@ for (const [name, size, bar] of [["desktop", { width: 1280, height: 800 }, 0], [
 // moving the pointer inside a hold doesn't move either.
 for (const [w, h] of [[1280, 800], [1920, 1080]]) {
   test(`desktop ${w}x${h}: text sits on the glass at every station and the pointer does not move it`, { tag: "@render" }, async ({ page }) => {
-    test.setTimeout(150_000); // six stations, each waits for the camera on software WebGL
+    test.setTimeout(150_000); // five stations, each waits for the camera on software WebGL
     await page.setViewportSize({ width: w, height: h });
     await openTour(page);
     for (const [k, id] of stationIds.entries()) {

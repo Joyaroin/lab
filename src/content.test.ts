@@ -135,8 +135,12 @@ describe("lead and bullets", () => {
       expect(pg.body.length).toBeLessThanOrEqual(3);
     }
   });
-  it("the stations are, in order, work, mediasafe, home-lab, order-tracker, software-factory, contact", () => {
-    expect(content.stations.map((s) => s.id)).toEqual(["work", "mediasafe", "home-lab", "order-tracker", "software-factory", "contact"]);
+  it("the stations are, in order, work, mediasafe, home-lab, software-factory, contact", () => {
+    expect(content.stations.map((s) => s.id)).toEqual(["work", "mediasafe", "home-lab", "software-factory", "contact"]);
+  });
+  it("the world lines run 01 to 05 and the readings keep their values", () => {
+    expect(content.stations.map((s) => s.worldLine)).toEqual(["World line 01", "World line 02", "World line 03", "World line 04", "World line 05"]);
+    expect(content.stations.map((s) => s.reading)).toEqual([214, 377, 512, 733, 861]);
   });
   it("Software factory links to this site's source", () => {
     expect(content.stations.find((s) => s.id === "software-factory")!.links.map((l) => l.href)).toContain("https://github.com/Joyaroin/lab");
@@ -224,8 +228,8 @@ describe("diagram", () => {
     expect(missingWords({ ...s, diagram: { ...s.diagram, steps: ["automatically"] } })).toEqual([]);
     expect(missingWords(s)).toEqual(['"automatic" in "automatic"']);
   });
-  it("exactly MediaSafe, Home lab, Order Tracker and Software factory have one; Work and Contact do not", () => {
-    expect(content.stations.filter((s) => s.diagram).map((s) => s.id)).toEqual(["mediasafe", "home-lab", "order-tracker", "software-factory"]);
+  it("exactly MediaSafe, Home lab and Software factory have one; Work and Contact do not", () => {
+    expect(content.stations.filter((s) => s.diagram).map((s) => s.id)).toEqual(["mediasafe", "home-lab", "software-factory"]);
   });
   describe.each(content.stations.filter((s) => s.diagram).map((s) => [s.id]))("%s", (id) => {
     it("is checked for live-status words like the other copy", () => {

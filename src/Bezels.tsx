@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { crts, CRT_GLASS, NOTE_AT, PLATE_AT } from "./crts";
 import { stations } from "./content";
 import { MONO } from "./card";
+import { noteStyleFor } from "./notes";
 import { BEZEL, BEZEL_GAP, SCREEN_LAYER, canvas, texture } from "./draw";
 
 // ---------------------------------------------------------------- the bezels
@@ -23,9 +24,6 @@ const EDGE_WIDTH = 0.006;
 // build.py's numbers, not seen in a render).
 const NOTE_SIZE = { width: 0.056, height: 0.082 };
 const PLATE_SIZE = { width: 0.13, height: 0.028 };
-// One tilt per TV, all different (radians). Small enough that the note still covers the part of the baked note left of the glass.
-const NOTE_TILTS = [-0.06, 0.02, 0.05, -0.03, 0.06, -0.01];
-const NOTE_COLOURS = ["#f4e27a", "#f2a6b8", "#9fd8f0", "#b9e59a", "#f7c68b", "#d3b8f0"];
 
 /** Adds a rounded rectangle to the current path (the caller starts the path). */
 function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -33,7 +31,7 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
   g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
 }
 
-function drawBezel(c: HTMLCanvasElement, bezel: { plate: string; note: string }, k: number) {
+function drawBezel(c: HTMLCanvasElement, bezel: { plate: string; note: string }, stationId: string) {
   const g = c.getContext("2d")!, w = c.width, h = c.height, m = w / BEZEL.width; // pixels per metre
   g.clearRect(0, 0, w, h);
   const hx = (CRT_GLASS.width / 2 - EDGE_OVERLAP) * m, hy = (CRT_GLASS.height / 2 - EDGE_OVERLAP) * m, r = 0.01 * m;
@@ -56,12 +54,12 @@ function drawBezel(c: HTMLCanvasElement, bezel: { plate: string; note: string },
   g.strokeStyle = "rgba(40,36,28,0.7)"; g.lineWidth = Math.max(1, 0.0007 * m); g.stroke();
   g.fillStyle = "#2a261e"; g.textAlign = "center"; g.textBaseline = "middle";
   g.font = `bold ${0.014 * m}px ${MONO}`; g.fillText(bezel.plate, px + pw / 2, py + ph / 2 + 0.0005 * m, pw * 0.92);
-  // the sticky note, at the bezel's top left corner, tilted differently on each TV
-  const nw = NOTE_SIZE.width * m, nh = NOTE_SIZE.height * m, tilt = NOTE_TILTS[k % NOTE_TILTS.length];
+  // the sticky note, at the bezel's top left corner, tilted differently on each TV (its style is the station's, in notes.ts)
+  const nw = NOTE_SIZE.width * m, nh = NOTE_SIZE.height * m, style = noteStyleFor(stationId);
   g.save();
-  g.translate(cx + NOTE_AT[0] * m, cy - NOTE_AT[1] * m); g.rotate(tilt);
+  g.translate(cx + NOTE_AT[0] * m, cy - NOTE_AT[1] * m); g.rotate(style.tilt);
   g.shadowColor = "rgba(0,0,0,0.45)"; g.shadowBlur = 0.004 * m; g.shadowOffsetY = 0.002 * m;
-  g.fillStyle = NOTE_COLOURS[k % NOTE_COLOURS.length]; g.fillRect(-nw / 2, -nh / 2, nw, nh);
+  g.fillStyle = style.colour; g.fillRect(-nw / 2, -nh / 2, nw, nh);
   g.shadowColor = "transparent";
   g.fillStyle = "rgba(255,255,255,0.25)"; g.fillRect(-nw / 2, -nh / 2, nw, nw * 0.16); // the sticky strip
   g.fillStyle = "#3b2f6b"; g.font = `${0.0095 * m}px ${MONO}`;
@@ -73,12 +71,12 @@ function drawBezel(c: HTMLCanvasElement, bezel: { plate: string; note: string },
 export function Bezels() {
   // Read once, on purpose: moving the window to another screen doesn't redraw the bezels.
   const dense = typeof devicePixelRatio === "number" && devicePixelRatio >= 1.5;
-  const bezels = useMemo(() => crts.map((crt, k) => {
+  const bezels = useMemo(() => crts.map((crt) => {
     const station = stations.find((s) => s.id === crt.id)!;
-    // 1.5 px per mm, 2 on a high-density screen: about 6 MB a texture with mipmaps, 35 MB for six
+    // 1.5 px per mm, 2 on a high-density screen: about 6 MB a texture with mipmaps, 30 MB for five
     const px = dense ? 2000 : 1500;
     const c = canvas(Math.round(BEZEL.width * px), Math.round(BEZEL.height * px));
-    drawBezel(c, station.bezel, k);
+    drawBezel(c, station.bezel, crt.id);
     return { crt, t: texture(c) };
   }), [dense]);
   return (
