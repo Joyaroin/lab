@@ -1,4 +1,4 @@
-import { stations } from "./content";
+import { fill, stations, ui } from "./content";
 
 // How much room the HUD takes at the top and the meter bar at the bottom: one pure rule of the window's
 // size (`clearances`), never measured from the page. The camera's stop (src/stop.ts) and the text panel
@@ -47,12 +47,31 @@ export function deviceSize(win: Win): { width: number; height: number } {
   return { width, height: (width * 280) / 660 };
 }
 
+// The line under the device (the stop's line, or the gap's sentence at the overview): a line is 18 px of 14.4 px type
+// (16 px of 12.8 px type on a portrait window, so the phone keeps room for the text panel), with 4 px of padding above
+// and below, 10 px each side, and never wider than the window less 1 rem. Its longest text sets how many lines it
+// wraps to: the saved gap's sentence is about 85 characters, so one line on a desktop and two or three on a narrow
+// window. A monospace character is taken as 0.602 of the type's size.
+const LINE_PAD = 8, LINE_SIDE = 20, LINE_MARGIN = 16;
+const LONGEST_LINE = Math.max(
+  fill(ui.gapSaved, { gap: fill(ui.gapBehindAtLeast, { n: 99, noun: ui.deploys }) }).length,
+  ...stations.map((s, i) => fill(ui.stopLine, { label: `${s.worldLine}: ${s.name}`, n: i + 1, total: stations.length }).length),
+);
+/** The type of the line under the device (px): its size and line height. */
+export const lineType = (win: Win) => (isPortrait(win) ? { font: 12.8, lineHeight: 16 } : { font: 14.4, lineHeight: 18 });
+/** The height of the line under the device at this window (px): the lines its longest text wraps to. */
+export function lineHeight(win: Win): number {
+  const { font, lineHeight: lh } = lineType(win);
+  const lines = Math.max(1, Math.ceil((LONGEST_LINE * 0.602 * font) / (win.width - LINE_MARGIN - LINE_SIDE)));
+  return lines * lh + LINE_PAD;
+}
+
 /** The room the HUD takes at the top and the meter bar (with the phone menu, on portrait) at the bottom. */
 export function clearances(win: Win): { top: number; bottom: number } {
   const device = deviceSize(win);
-  if (isPortrait(win)) return { top: PHONE_TOP, bottom: PHONE_MENU_H + 16 + device.height + 32 };
-  // 26 px of text, 8 px under it and 8 px over the device
-  return { top: win.width >= ONE_ROW_MIN_W ? ONE_ROW_H : win.width >= TWO_LINE_MIN_W ? TWO_LINE_H : THREE_LINE_H, bottom: device.height + 42 };
+  if (isPortrait(win)) return { top: PHONE_TOP, bottom: PHONE_MENU_H + 16 + device.height + lineHeight(win) };
+  // the line under the device, and the 1 rem under that
+  return { top: win.width >= ONE_ROW_MIN_W ? ONE_ROW_H : win.width >= TWO_LINE_MIN_W ? TWO_LINE_H : THREE_LINE_H, bottom: device.height + 16 + lineHeight(win) };
 }
 
 export type Fit = { left: number; top: number; width: number; maxHeight: number };

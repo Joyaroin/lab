@@ -11,6 +11,8 @@ const local = fileURLToPath(LOCAL_GAP);
 
 export default defineConfig({
   plugins: [react()],
+  // The meter device's images are files of their own: dot.png and numeral-1.png are under the default 4 KB limit.
+  build: { assetsInlineLimit: (file) => (file.includes("/assets/meter/") ? false : undefined) },
   resolve: {
     alias: existsSync(local) ? [{ find: /^\.\/gap-saved\.json$/, replacement: local }] : [],
   },

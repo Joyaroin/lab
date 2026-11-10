@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { stations } from "./content";
 import {
-  BUTTON_PX, clearances, deviceSize, fitPanel, glassFontSize, HUD_GAP, HUD_MARGIN, LINK_ROW_H, LINK_ROW_W, NAME_BLOCK_H, NAME_BLOCK_W,
+  BUTTON_PX, clearances, deviceSize, lineHeight, fitPanel, glassFontSize, HUD_GAP, HUD_MARGIN, LINK_ROW_H, LINK_ROW_W, NAME_BLOCK_H, NAME_BLOCK_W,
   ONE_ROW_MIN_W, PHONE_MENU_H, TWO_LINE_MIN_W,
 } from "./pin";
 
@@ -92,14 +92,21 @@ describe("clearances", () => {
       expect(clearances(win).bottom).toBeCloseTo(deviceSize(win).height + 42, 6);
     }
   });
-  it("on portrait the bottom is the menu, 16, the device and 32", () => {
+  it("the line under the device is 26 px on one line and grows 18 px (16 px on portrait) for each line it wraps to", () => {
+    expect(lineHeight({ width: 1440, height: 900 })).toBe(26);
+    expect(lineHeight({ width: 1024, height: 768 })).toBe(26);
+    expect(lineHeight({ width: 700, height: 500 }), "the longest sentence wraps to two lines at 700 px").toBe(44);
+    expect(lineHeight({ width: 390, height: 844 }), "and on a phone, in smaller type, to two").toBe(40);
+    expect(lineHeight({ width: 360, height: 740 }), "or three on a narrow one").toBe(56);
+  });
+  it("on portrait the bottom is the menu, 16, the device and the line", () => {
     const win = { width: 390, height: 844 };
     const rows = Math.ceil((stations.length + 1) / 3); // Room and one button per station, three to a row
     const menu = rows * 44 + (rows - 1) * 4.8 + 2 * 6.4; // 44 px buttons, the gaps and the padding
     expect(PHONE_MENU_H).toBeCloseTo(menu, 6);
     expect(stations.length, "five stations: two rows, 105.6 px").toBe(5);
     expect(PHONE_MENU_H).toBeCloseTo(105.6, 6);
-    expect(clearances(win).bottom).toBeCloseTo(menu + 16 + 118.8 + 32, 1);
+    expect(clearances(win).bottom).toBeCloseTo(menu + 16 + 118.8 + lineHeight(win), 1);
     expect(clearances(win).top).toBe(96);
   });
   it("the top is the one-row HUD's height from ONE_ROW_MIN_W wide, the two-line HUD's from TWO_LINE_MIN_W, the three-line HUD's under that, and 96 on portrait", () => {

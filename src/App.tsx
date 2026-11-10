@@ -8,6 +8,7 @@ import { meterLink } from "./nixie";
 import { createShift } from "./shift";
 import { createVisit, linkHistory } from "./visit";
 import { watchForStall } from "./stall";
+import { preloadMeterImages } from "./meter-images";
 import { ui } from "./content";
 import type { Where } from "./where";
 import { Component, type ReactNode } from "react";
@@ -55,6 +56,9 @@ export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
     const id = setTimeout(() => setBooted(true), reduced ? 0 : BOOT_FADE_MS);
     return () => clearTimeout(id);
   }, [sceneReady, meter, reduced]);
+
+  // The meter bar's pictures are asked for once the room code is in, while the boot screen is up (the bar shows plain text until they arrive).
+  useEffect(() => { if (capability.ok && codeLoaded) preloadMeterImages(); }, [capability, codeLoaded]);
 
   const stall = useRef<ReturnType<typeof watchForStall>>(undefined);
   useEffect(() => {

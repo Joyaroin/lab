@@ -374,8 +374,8 @@ describe("interface words", () => {
   });
   it("rejects a template that lost its placeholder", () => {
     const c = good();
-    c.ui.meterButton = "Meter. Click for the next station";
-    expect(validateContent(c).join("\n")).toContain("ui.meterButton: must contain {label}");
+    c.ui.gapBehind = "{n} deploys behind";
+    expect(validateContent(c).join("\n")).toContain("ui.gapBehind: must contain {noun}");
   });
   it("has the words the stop controls will use", () => {
     expect([ui.keyPrev, ui.keyRoom, ui.keyNext, ui.keyStart]).toEqual(["PREV", "ROOM", "NEXT", "START"]);
@@ -404,7 +404,6 @@ describe("interface words", () => {
     expect(ui.room).toBe("Room");
     expect(ui.more).toBe("more ▾");
     expect(ui.readingPending).toBe("reading prod and staging…");
-    expect(fill(ui.meterButton, { label: "L" })).toBe("Meter. L. Click for the next station");
     expect(fill(ui.meterReading, { digits: "0.000214" })).toBe("Reading 0.000214");
     expect([ui.loadProgress, ui.bootLog, ui.signalLost]).toEqual(["Load progress", "Boot log", "SIGNAL LOST"]);
     expect(fill(ui.logDone, { step: ui.stepCode })).toBe("[ ok ] room code");

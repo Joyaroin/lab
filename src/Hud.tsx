@@ -3,6 +3,7 @@ import { identity, links, stations, ui } from "./content";
 import {
   BUTTON_PX, clearances, HUD_GAP, HUD_MARGIN, LINK_ROW_H, LINK_ROW_W, NAME_BLOCK_W, ONE_ROW_MIN_W, PHONE_COLS, PHONE_GAP_PX, PHONE_MENU_H, PHONE_PAD_PX,
 } from "./pin";
+import { useWin } from "./useWin";
 import type { Visit } from "./visit";
 import type { Where } from "./where";
 
@@ -10,17 +11,6 @@ import type { Where } from "./where";
 const METER_BOTTOM = "1rem";
 /** The meter bar clears the phone menu (its height is `PHONE_MENU_H`, from src/pin.ts) and the usual 1rem above. */
 const PHONE_METER_BOTTOM = `calc(${PHONE_MENU_H}px + 1rem)`;
-
-/** The window's size, read again on every resize. Everything the HUD places by `clearances` follows it. */
-function useWin() {
-  const [win, setWin] = useState({ width: window.innerWidth, height: window.innerHeight });
-  useEffect(() => {
-    const read = () => setWin((w) => (w.width === window.innerWidth && w.height === window.innerHeight ? w : { width: window.innerWidth, height: window.innerHeight }));
-    window.addEventListener("resize", read);
-    return () => window.removeEventListener("resize", read);
-  }, []);
-  return win;
-}
 
 /** True on a portrait window, the same test the framing makes (width under height). */
 export function usePortrait() {

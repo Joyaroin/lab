@@ -78,13 +78,18 @@ The language of this project: its terms, what each one means, and what it doesn'
 - **Reading**: the number the meter shows. Each station has a fixed reading; the overview shows the gap.
 - **Desk meter**: the meter as built in the room: seven nixie tubes on the desk, drawn live. Clicking it means
   next. It is a display in the room only: the meter bar's digits do not depend on whether it is in frame.
-- **Meter bar**: the bar under the room: the reading's digits, always shown, a line under them, and the keys. The
-  line is the gap's sentence at the overview and, at a station, `ui.stopLine` filled in ("World line 02: MediaSafe · 2 of
-  5"; the total is the number of stations in the content module). The bar itself takes no click: only the keys do. In a
-  flight it shows the stop being flown to (keys, line and digits). What it shows is one pure rule, `barFor(where,
-  framing)` in `src/bar.ts`, drawn by `src/Meter.tsx`.
+- **Meter bar**: the bar under the room, drawn as the **device**: the meter layers put together (below) at the size
+  `deviceSize(win)` in `src/pin.ts` gives (420 px wide at 1920 x 1080, 417.6 at 1440 x 900, 280 on a phone), with the
+  reading's digits as lit numerals over the tubes, the keys over their drawn keys, and the line under it (its height, which wraps on a narrow window, is `lineHeight(win)` in `src/pin.ts`, part of the bottom clearance). The line is the
+  gap's sentence at the overview and, at a station, `ui.stopLine` filled in ("World line 02: MediaSafe · 2 of 5"; the
+  total is the number of stations in the content module). The bar itself takes no click: only the keys do. In a flight
+  it shows the stop being flown to (keys, line and digits). What it shows is one pure rule, `barFor(where, framing)` in
+  `src/bar.ts`; `deviceLayers` in `src/meter-device.ts` maps a reading and the keys to the layers shown (a digit change
+  changes one tube's image); `src/Meter.tsx` draws it. The device is always lit for now (its power-on is #229). The images
+  are files of their own, asked for while the boot screen is up (`src/meter-images.ts`); until they arrive, and for good
+  if they fail, the bar is plain text digits and plain buttons.
 - **Keys**: the buttons on the meter bar, with their words in `ui` (`keyPrev`, `keyRoom`, `keyNext`, `keyStart`) and
-  their accessible names (`prevStation`, `backToRoom`, `nextStation`, `startTour`), each at least 44 x 44 px. At a
+  their accessible names (`prevStation`, `backToRoom`, `nextStation`, `startTour`), each at least 44 x 44 px. On the device each is a transparent button over its drawn key (the drawn key already has the word, so the button's text is not painted); it brightens on hover and focus and shows a press, in CSS. At a
   station on a landscape window they are PREV, ROOM, NEXT; on a portrait window PREV and NEXT (the phone menu has the
   way back to the room); at the overview START alone. PREV is `visit.prev()` (the first station goes to the overview),
   NEXT is `visit.next()` (the last station goes to the overview), ROOM is `back()`, START goes to Work.

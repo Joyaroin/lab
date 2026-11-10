@@ -56,8 +56,7 @@ export const ui = {
   more: "more ▾",
   /** the meter's label while the gap is still being read */
   readingPending: "reading prod and staging…",
-  /** the meter button's aria label ({label}), and the digits' ({digits}) */
-  meterButton: "Meter. {label}. Click for the next station",
+  /** the meter's accessible name ({digits}) */
   meterReading: "Reading {digits}",
   /** the gap's sentence: {n} deploys, {noun} one of the two nouns */
   gapBehind: "MediaSafe: {n} staging {noun} since the last prod release",
@@ -90,7 +89,7 @@ export const ui = {
 };
 /** The placeholders each template must keep. */
 const PLACEHOLDERS: Record<string, string[]> = {
-  meterButton: ["label"], meterReading: ["digits"], gapBehind: ["n", "noun"], gapBehindAtLeast: ["n", "noun"],
+  meterReading: ["digits"], gapBehind: ["n", "noun"], gapBehindAtLeast: ["n", "noun"],
   gapSaved: ["gap"], stopLine: ["label", "n", "total"], logDone: ["step"], logPending: ["step"], signalLostReason: ["reason"],
 };
 export const fill = (template: string, values: Record<string, string | number>) =>
