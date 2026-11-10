@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PerspectiveCamera } from "three";
 import { CAMERA_FOV, crts } from "../crts";
-import { createShift, WAIT_MS } from "../shift";
+import { createShift } from "../shift";
 import { POWER_ON_SECONDS, SHIFT_SECONDS } from "../nixie";
 import { framingFor } from "../framing";
 import type { Where } from "../where";
@@ -59,7 +59,7 @@ describe("a station's text", () => {
     expect(s.el.style.visibility).toBe("visible");
     expect(s.el.style.opacity).toBe("0");
     expect(s.el.dataset.gated).toBe("true");
-    vi.advanceTimersByTime(WAIT_MS + 30); // the shift fires; the tear has not ended
+    vi.advanceTimersByTime(30); // the shift fired on the landing; the tear has not ended
     s.place(1, at(1));
     expect(s.el.style.opacity).toBe("0");
     expect(s.el.dataset.gated).toBe("true");
@@ -67,7 +67,6 @@ describe("a station's text", () => {
   it("resolves once on a first visit when held text comes out, then just shows", () => {
     const s = setup();
     s.observe(at(1));
-    vi.advanceTimersByTime(WAIT_MS + 30);
     vi.advanceTimersByTime(FULL_MS);
     s.place(1, at(1));
     expect(s.el.dataset.gated).toBe("resolving");
@@ -80,7 +79,7 @@ describe("a station's text", () => {
   it("decides from what the module drew, not from `data-gated` on the element", () => {
     const s = setup();
     s.observe(at(1));
-    vi.advanceTimersByTime(WAIT_MS + 30 + FULL_MS);
+    vi.advanceTimersByTime(FULL_MS);
     delete s.el.dataset.gated; // tampered between frames: held text still resolves when it comes out
     s.place(1, at(1));
     expect(s.el.dataset.gated).toBe("resolving");
@@ -92,13 +91,13 @@ describe("a station's text", () => {
   });
   it("just appears on a return: it never resolves", () => {
     const s = setup();
-    s.observe(at(1)); vi.advanceTimersByTime(WAIT_MS + 30 + FULL_MS); s.place(1, at(1)); vi.advanceTimersByTime(1000); s.place(1, at(1));
+    s.observe(at(1)); vi.advanceTimersByTime(FULL_MS); s.place(1, at(1)); vi.advanceTimersByTime(1000); s.place(1, at(1));
     s.observe(at(0)); vi.advanceTimersByTime(100); s.place(1, at(0));
-    s.observe(at(1));
-    expect(s.el.dataset.gated).toBe("true");
-    expect(s.el.style.opacity).toBe("0");
+    s.observe(at(1)); s.place(1, at(1)); // its short flick fires on the landing, and the text shows at once
+    expect(s.el.dataset.gated).toBeUndefined();
+    expect(Number(s.el.style.opacity)).toBe(1);
     const states = new Set<string | undefined>();
-    for (let t = 0; t < WAIT_MS + 200; t += 10) { vi.advanceTimersByTime(10); s.place(1, at(1)); states.add(s.el.dataset.gated); }
+    for (let t = 0; t < 200; t += 10) { vi.advanceTimersByTime(10); s.place(1, at(1)); states.add(s.el.dataset.gated); }
     expect(states.has("resolving")).toBe(false);
     expect(s.el.dataset.gated).toBeUndefined();
     expect(Number(s.el.style.opacity)).toBe(1);
@@ -116,7 +115,7 @@ describe("the wheel", () => {
     const s = setup();
     s.observe(at(1));
     expect(s.el.style.pointerEvents).toBe("none"); // held back: nothing to scroll yet
-    vi.advanceTimersByTime(WAIT_MS + 30 + FULL_MS + 2000);
+    vi.advanceTimersByTime(FULL_MS + 2000);
     s.place(1, at(1));
     expect(s.el.style.pointerEvents).toBe("auto");
     s.place(1, at(1));

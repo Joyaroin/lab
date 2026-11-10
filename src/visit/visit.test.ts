@@ -72,9 +72,8 @@ describe("a flight", () => {
     if (mid.kind === "flying") expect(mid.f).toBeCloseTo(0.5);
   });
 
-  it("is about 1.2 s", () => {
-    expect(FLIGHT_MS).toBeGreaterThan(1000);
-    expect(FLIGHT_MS).toBeLessThan(1500);
+  it("is 0.9 s", () => {
+    expect(FLIGHT_MS).toBe(900);
   });
 });
 
@@ -142,18 +141,18 @@ describe("a go mid-flight", () => {
     const t0 = 1000;
     at(t0);
     visit.go(1);
-    at(t0 + 360); // 0.3 of the way, eased
+    at(t0 + 0.3 * FLIGHT_MS); // 0.3 of the way, eased
     visit.go(2);
     const first = { kind: "flying", from: { kind: "at", stop: 0 }, to: 1, f: ease(0.3) };
-    expect(visit.launch(t0 + 360)).toEqual(first);
-    at(t0 + 600); // 0.2 of the second flight
+    expect(visit.launch(t0 + 0.3 * FLIGHT_MS)).toEqual(first);
+    at(t0 + 0.5 * FLIGHT_MS); // 0.2 of the second flight
     visit.go(3);
     const second = { kind: "flying", from: first, to: 2, f: ease(0.2) };
-    expect(visit.launch(t0 + 600)).toEqual(second);
-    at(t0 + 900); // 0.25 of the third flight
+    expect(visit.launch(t0 + 0.5 * FLIGHT_MS)).toEqual(second);
+    at(t0 + 0.75 * FLIGHT_MS); // 0.25 of the third flight
     visit.go(4);
-    expect(visit.launch(t0 + 900)).toEqual({ kind: "flying", from: second, to: 3, f: ease(0.25) });
-    expect(visit.where(t0 + 900)).toMatchObject({ kind: "flying", to: 4, f: 0 });
+    expect(visit.launch(t0 + 0.75 * FLIGHT_MS)).toEqual({ kind: "flying", from: second, to: 3, f: ease(0.25) });
+    expect(visit.where(t0 + 0.75 * FLIGHT_MS)).toMatchObject({ kind: "flying", to: 4, f: 0 });
   });
 });
 

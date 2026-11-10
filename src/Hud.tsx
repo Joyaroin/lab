@@ -1,18 +1,13 @@
 import { useEffect, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { identity, links, stations, ui } from "./content";
+import { BUTTON_PX, PHONE_COLS, PHONE_GAP_PX, PHONE_MENU_H, PHONE_PAD_PX } from "./pin";
 import type { Visit } from "./visit";
 import type { Where } from "./where";
 
 /** Where the meter bar's wrapper stands above the window's bottom. The HUD owns it. */
 const METER_BOTTOM = "1rem";
-/** The phone's bottom buttons: each at least this tall, in rows of PHONE_COLS. */
-export const BUTTON_PX = 44;
-const PHONE_COLS = 4;
-const PHONE_GAP = "0.3rem";
-const PHONE_PAD = "0.4rem";
-const PHONE_ROWS = Math.ceil((stations.length + 1) / PHONE_COLS);
-/** The meter bar clears the buttons: their rows, gaps and padding, and the usual 1rem above. */
-const PHONE_METER_BOTTOM = `calc(${PHONE_ROWS * BUTTON_PX}px + ${PHONE_ROWS - 1} * ${PHONE_GAP} + 2 * ${PHONE_PAD} + 1rem)`;
+/** The meter bar clears the phone menu (its height is `PHONE_MENU_H`, from src/pin.ts) and the usual 1rem above. */
+const PHONE_METER_BOTTOM = `calc(${PHONE_MENU_H}px + 1rem)`;
 
 /** True on a portrait window, the same test the framing makes (width under height). */
 function usePortrait() {
@@ -67,8 +62,8 @@ export function Hud({ where, visited, visit }: { where: Where; visited: boolean;
 }
 const hudPhone: CSSProperties = { left: 0, maxWidth: "100vw" };
 const menuBar: CSSProperties = {
-  position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 20, padding: PHONE_PAD, background: "rgba(5,8,10,0.7)",
-  display: "grid", gridTemplateColumns: `repeat(${PHONE_COLS}, 1fr)`, gridAutoRows: `${BUTTON_PX}px`, gap: PHONE_GAP,
+  position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 20, padding: PHONE_PAD_PX, background: "rgba(5,8,10,0.7)",
+  display: "grid", gridTemplateColumns: `repeat(${PHONE_COLS}, 1fr)`, gridAutoRows: `${BUTTON_PX}px`, gap: PHONE_GAP_PX,
 };
 const button: CSSProperties = {
   color: "#7dffb0", border: "1px solid #7dffb0", borderRadius: 4, display: "flex", alignItems: "center",

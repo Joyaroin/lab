@@ -1,8 +1,11 @@
 # CI runs these.
-.PHONY: room setup frontend backend integration browser browser-light facts
+.PHONY: room meter setup frontend backend integration browser browser-light facts
 room:
 	blender -b -P tools/room/build.py -- --out src/assets/room.glb
 	blender -b -P tools/room/resize.py -- src/assets/room.glb --size 2048
+# Renders the meter bar's images with a local browser that has WebGL. Run on purpose, through heavy, on the Mac. CI doesn't run it.
+meter:
+	node tools/meter/render.mjs
 setup:
 	git config core.hooksPath .githooks
 frontend:

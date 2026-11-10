@@ -32,8 +32,6 @@ export type Frame = {
   nowMs: number;
   shift: Shift;
   scratch: Scratch;
-  /** The phone menu's height (px), 0 when there is none; the panel stays clear of it (the meter bar stands above it). */
-  menuHeight?: number;
 };
 
 /** What each panel was last drawn as: held ("true"), resolving, or neither. Kept here, so the text never
@@ -52,7 +50,7 @@ export function placeText(el: PanelEl, crt: Crt, k: number, f: Frame) {
   const { camera, size, where, shift } = f;
   // Full for the whole hold. Held back (but still in the page, for readers and selection)
   // from arrival until the shift ends, then (first visit) it resolves out of the effect. A return's
-  // text shows when the wait ends and the flick plays over it.
+  // text shows on the landing and the flick plays over it.
   const strength = panelStrength(where, k + 1);
   const state = shift.textState(k + 1, f.nowMs);
   const out = state !== "held";
@@ -96,13 +94,12 @@ export function placeText(el: PanelEl, crt: Crt, k: number, f: Frame) {
   const crtWidth = Math.hypot((e.x - c.x) * size.width, (e.y - c.y) * size.height);
   // Set the width first, then measure the natural height at that width and fit, so the
   // panel settles in this one frame: frames are only drawn on demand.
-  const menu = f.menuHeight ?? 0;
-  el.style.width = `${fitPanel(size, px, py, crtWidth, 0, menu).width}px`;
+  el.style.width = `${fitPanel(size, px, py, crtWidth, 0).width}px`;
   // With no height limit nothing overflows, so the browser resets scrollTop to 0: keep it and
   // put it back once the limit is restored (it is clamped to the new range if the panel shrank).
   const kept = el.scrollTop;
   el.style.maxHeight = "none";
-  const fit = fitPanel(size, px, py, crtWidth, el.scrollHeight, menu);
+  const fit = fitPanel(size, px, py, crtWidth, el.scrollHeight);
   el.style.maxHeight = `${fit.maxHeight}px`;
   el.scrollTop = kept;
   el.style.transform = `translate(${fit.left}px, ${fit.top}px)`;
