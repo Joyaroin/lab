@@ -1,3 +1,5 @@
+import type { Preview } from "./bar";
+
 // The meter's power-on: straight after the boot screen goes, the tubes warm up from dark,
 // flicker through other digits, and settle left to right on the real reading. Time in, what
 // the tubes show out, so the room can draw it and stop asking for frames once it is done.
@@ -46,12 +48,14 @@ export function shiftDigits(t: number, digits: string, kind: ShiftKind, rand: ()
 export const digitsToShow = (reading: string, scrambled: string | null, shifting: boolean) =>
   shifting && scrambled !== null ? scrambled : reading;
 
-/** What the app and tour tell the room about the meter: the digits to show, what a click does,
- *  and whether the boot screen has gone (`on`), which starts the power-on. `redraw` and `onAt`
- *  are the room's (`onAt` on its clock). `onMs` is the page's clock (`performance.now()`) when the boot screen began
- *  to go: the meter bar's device times its own power-on from it. */
+/** What the app, the tour and the room tell each other about the meter. The tour gives the gap (deploys behind) and the
+ *  hover preview (#228) that the desk meter works its digits out from (`meterDigits`, src/bar.ts), and what a
+ *  click does. The room gives the tour the TV the pointer is on (`tvHover`: a station's number, or null). `on` is whether the
+ *  boot screen has gone, which starts the power-on. `redraw` and `onAt` are the room's (`onAt` on its clock). `onMs` is the page's
+ *  clock (`performance.now()`) when the boot screen began to go: the meter bar's device times its own power-on from it. */
 export type MeterLink = {
-  digits: string; next: () => void; on: boolean; onAt: number | null; onMs: number | null; redraw?: () => void;
+  deploys: number; preview: Preview | null; next: () => void; tvHover: (stop: number | null) => void;
+  on: boolean; onAt: number | null; onMs: number | null; redraw?: () => void;
 };
 
-export const meterLink = (): MeterLink => ({ digits: "0.000000", next: () => {}, on: false, onAt: null, onMs: null });
+export const meterLink = (): MeterLink => ({ deploys: 0, preview: null, next: () => {}, tvHover: () => {}, on: false, onAt: null, onMs: null });

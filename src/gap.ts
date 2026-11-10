@@ -50,8 +50,11 @@ export async function readGap(fetchFn: typeof fetch, saved: SavedGap, timeoutMs 
 
 export const formatReading = (n: number) => (n / 1e6).toFixed(6);
 
-export function gapLabel(g: Gap): string {
+/** The gap's sentence. `short` is the short form, for a short landscape window (the compact HUD, `hudTier` in src/pin.ts),
+ *  so the line under the meter device stays one line there. The saved wrapper is the same in both. */
+export function gapLabel(g: Gap, short = false): string {
   const noun = g.deploys === 1 ? ui.deploy : ui.deploys;
-  const base = fill(g.complete ? ui.gapBehind : ui.gapBehindAtLeast, { n: g.deploys, noun });
+  const template = short ? (g.complete ? ui.gapBehindShort : ui.gapBehindAtLeastShort) : g.complete ? ui.gapBehind : ui.gapBehindAtLeast;
+  const base = fill(template, { n: g.deploys, noun });
   return g.live ? base : fill(ui.gapSaved, { gap: base });
 }

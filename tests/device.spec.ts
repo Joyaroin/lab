@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { ui } from "../src/content";
+import { fill, ui } from "../src/content";
 import { readFileSync } from "node:fs";
 import { HUD_MARGIN } from "../src/pin";
 import { barKey, goTo, landedAt, openTour, panelOf, stationIds, waitForPanel } from "./lib/page";
@@ -43,35 +43,47 @@ for (const [name, size, width] of [
   });
 }
 
-// A short landscape window (a phone held sideways, 740 x 360) has the compact HUD. The line under the device runs wider than the
-// device, up to the HUD's side margins, in 12.8 px type, so it stays one line, and the text panel above it ends above the meter bar.
-test("at 740 x 360 the line under the device is one line, wider than the device, and the text panel ends above the meter bar", async ({ page }) => {
-  test.setTimeout(90_000);
-  const win = { width: 740, height: 360 };
-  await page.setViewportSize(win);
-  await openTour(page);
-  await expect(device(page)).toBeVisible();
-  const oneLine = () => page.locator("[data-meter-bar] [data-live]").evaluate((el) => {
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    return { tops: new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size, font: parseFloat(getComputedStyle(el).fontSize) };
+// A short landscape window (a phone held sideways, 740 x 360; and 680 x 360 and 560 x 400, which used to wrap) has the compact HUD. The
+// line under the device shows the short form of the gap's sentence, runs up to the HUD's side margins in 12.8 px type, so it is always
+// one line, and the text panel above it is at least 120 px tall and ends above the meter bar.
+const commits = (...subjects: string[]) => subjects.map((message) => ({ commit: { message } }));
+for (const win of [{ width: 740, height: 360 }, { width: 680, height: 360 }, { width: 660, height: 365 }, { width: 560, height: 400 }]) {
+  test(`at ${win.width} x ${win.height} the line under the device is one line, with the short gap sentence, and the text panel is 120 px or more and ends above the meter bar`, async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.route("https://api.github.com/**", (r) => r.fulfill({ json: commits(...Array.from({ length: 9 }, (_, i) => `Deploy MediaSafe ${i} to staging`), "Promote MediaSafe abc to prod") }));
+    await page.setViewportSize(win);
+    await openTour(page);
+    await expect(device(page)).toBeVisible();
+    const oneLine = () => page.locator("[data-meter-bar] [data-live]").evaluate((el) => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      return { tops: new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size, font: parseFloat(getComputedStyle(el).fontSize) };
+    });
+    const check = async (where: string) => {
+      const line = (await page.locator("[data-meter-bar] [data-live]").boundingBox())!;
+      expect(await oneLine(), `${where}: one row of text, in 12.8 px type`).toEqual({ tops: 1, font: 12.8 });
+      expect(line.height, `${where}: one line is 24 px tall`).toBeLessThanOrEqual(25);
+      expect(line.x, `${where}: inside the HUD's left margin`).toBeGreaterThanOrEqual(HUD_MARGIN - 1);
+      expect(line.x + line.width, `${where}: inside the HUD's right margin`).toBeLessThanOrEqual(win.width - HUD_MARGIN + 1);
+    };
+    await check("overview");
+    await expect(page.locator("[data-meter-bar] [data-live]"), "the short form, not the long one").toHaveText(fill(ui.gapBehindShort, { n: 9, noun: ui.deploys }));
+    await goTo(page, 1);
+    await expect(panelOf(page, "work")).toBeVisible();
+    await check("station");
+    const panel = await waitForPanel(page, "work");
+    const bar = (await page.locator("[data-meter-bar]").boundingBox())!;
+    expect(panel.height, "a readable panel").toBeGreaterThanOrEqual(120 - 1);
+    expect(panel.top + panel.height, "the text panel ends above the meter bar").toBeLessThanOrEqual(bar.y);
   });
-  const check = async (where: string) => {
-    const line = (await page.locator("[data-meter-bar] [data-live]").boundingBox())!, dev = (await device(page).boundingBox())!;
-    expect(await oneLine(), `${where}: one row of text, in 12.8 px type`).toEqual({ tops: 1, font: 12.8 });
-    expect(line.height, `${where}: one line is 24 px tall`).toBeLessThanOrEqual(25);
-    if (where === "overview") expect(line.width, "the gap's sentence is wider than the device").toBeGreaterThan(dev.width + 100); // a stop's line is short
-    expect(line.x, `${where}: inside the HUD's left margin`).toBeGreaterThanOrEqual(HUD_MARGIN - 1);
-    expect(line.x + line.width, `${where}: inside the HUD's right margin`).toBeLessThanOrEqual(win.width - HUD_MARGIN + 1);
-  };
-  await check("overview");
-  await goTo(page, 1);
-  await expect(panelOf(page, "work")).toBeVisible();
-  await check("station");
-  const panel = await waitForPanel(page, "work");
-  const bar = (await page.locator("[data-meter-bar]").boundingBox())!;
-  expect(panel.height, "a readable panel").toBeGreaterThanOrEqual(120 - 1);
-  expect(panel.top + panel.height, "the text panel ends above the meter bar").toBeLessThanOrEqual(bar.y);
+}
+
+// On a window that is not short the long sentence stays.
+test("at 1440 x 900 the overview's line is the long gap sentence", async ({ page }) => {
+  await page.route("https://api.github.com/**", (r) => r.fulfill({ json: commits(...Array.from({ length: 9 }, (_, i) => `Deploy MediaSafe ${i} to staging`), "Promote MediaSafe abc to prod") }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openTour(page);
+  await expect(page.locator("[data-meter-bar] [data-live]")).toHaveText(fill(ui.gapBehind, { n: 9, noun: ui.deploys }));
 });
 
 test("on a portrait window a station shows PREV and NEXT, and the middle key's place on the device is empty", async ({ page }) => {

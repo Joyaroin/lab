@@ -1,4 +1,5 @@
 import { fill, stations, ui } from "./content";
+import { gapLabel } from "./gap";
 
 // How much room the HUD takes at the top and the meter bar at the bottom: one pure rule of the window's
 // size (`clearances`), never measured from the page. The camera's stop (src/stop.ts) and the text panel
@@ -71,18 +72,21 @@ export function deviceSize(win: Win): { width: number; height: number } {
 // The line under the device (the stop's line, or the gap's sentence at the overview): a line is 18 px of 14.4 px type
 // (16 px of 12.8 px type on a portrait window and on a compact-HUD window, which are short of room), with 4 px of padding
 // above and below and 10 px each side. How many lines it wraps to is worked out from its texts, a monospace character
-// taken as 0.602 of the type's size, wrapped at spaces. The longest is the saved gap's sentence with a two-digit count,
-// 81 characters (a saved gap is always complete, so it never carries "at least"; the live "at least" sentence is shorter).
-// The box is never wider than the window less 1 rem, or, in a compact-HUD window, less the HUD's side margins: there
-// the line may run wider than the device so it stays one line. At 12.8 px the 81 characters need 81 x 0.602 x 12.8 + 20
-// = 644 px of box, so a compact window is one line from 644 + 2 x HUD_MARGIN = 680 px wide; narrower it wraps to two
-// lines, and the text panel may be shorter than MIN_PANEL_H there (Adham's decision on #246).
-const LINE_PAD = 8, LINE_SIDE = 20, LINE_MARGIN = 16, CHAR_EM = 0.602;
-const LINE_TEXTS = [
-  fill(ui.gapSaved, { gap: fill(ui.gapBehind, { n: 99, noun: ui.deploys }) }),
-  fill(ui.gapBehindAtLeast, { n: 100, noun: ui.deploys }),
-  ...stations.map((s, i) => fill(ui.stopLine, { label: `${s.worldLine}: ${s.name}`, n: i + 1, total: stations.length })),
-];
+// taken as 0.602 of the type's size, wrapped at spaces. The texts are the real ones, built by `gapLabel` and `ui.stopLine`,
+// with a count of 100, the most `countGap` returns and the most the save script stores: the longest is the saved gap's
+// sentence (82 characters; a saved gap is always complete, so it never carries "at least"). A compact-HUD window (a short
+// landscape one) shows the short form of the gap's sentence (`ui.gapBehindShort`), 60 characters when saved, which with the
+// station line is one line there from 560 px wide up, so the panel's floor (MIN_PANEL_H) holds on every short landscape window
+// (Adham's decision on #246). The box is never wider than the window less 1 rem, or, in a compact-HUD window, less the HUD's
+// side margins: there the line may run wider than the device.
+const LINE_PAD = 8, LINE_SIDE = 20, LINE_MARGIN = 16, CHAR_EM = 0.602, MOST_DEPLOYS = 100;
+const stopLines = stations.map((s, i) => fill(ui.stopLine, { label: `${s.worldLine}: ${s.name}`, n: i + 1, total: stations.length }));
+/** The gap's sentences a window can show (live, live but incomplete, saved), at the largest count. */
+const gapLines = (short: boolean) => [
+  { live: true, complete: true }, { live: true, complete: false }, { live: false, complete: true },
+].map((g) => gapLabel({ deploys: MOST_DEPLOYS, ...g }, short));
+/** Every text the line under the device can show at a window of this HUD kind. */
+export const lineTexts = (compact: boolean) => [ui.readingPending, ...gapLines(compact), ...stopLines];
 /** The lines a text wraps to when `chars` characters fit on a line (words are not split unless one is longer than a line). */
 function wrapLines(text: string, chars: number): number {
   let lines = 1, used = 0;
@@ -99,11 +103,12 @@ function lineMetrics(win: Win, compact: boolean) {
   const type = isPortrait(win) || compact ? SMALL_LINE : BIG_LINE;
   const maxWidth = compact ? win.width - 2 * HUD_MARGIN : win.width - LINE_MARGIN;
   const chars = Math.floor((maxWidth - LINE_SIDE) / (CHAR_EM * type.font));
-  const lines = Math.max(...LINE_TEXTS.map((t) => wrapLines(t, chars)));
+  const lines = Math.max(...lineTexts(compact).map((t) => wrapLines(t, chars)));
   return { ...type, maxWidth, height: lines * type.lineHeight + LINE_PAD };
 }
 
-const isCompact = (win: Win) => hudTier(win).startsWith("compact");
+/** Whether the window gets the compact HUD (a short landscape window): the line under the device shows the short gap sentence there. */
+export const isCompact = (win: Win) => hudTier(win).startsWith("compact");
 /** The type of the line under the device (px): its size and line height. */
 export const lineType = (win: Win) => { const { font, lineHeight } = lineMetrics(win, isCompact(win)); return { font, lineHeight }; };
 /** The widest the line under the device's box may be (px). */
@@ -113,8 +118,8 @@ export const lineHeight = (win: Win) => lineMetrics(win, isCompact(win)).height;
 
 /** Which HUD a window gets: a pure rule of its size. On landscape the tier by width (one row, two lines, three), unless that tier
  *  would leave the panel under MIN_PANEL_H (a short window, such as a phone held sideways): then the compact HUD, two lines from
- *  COMPACT_MIN_W wide, three under it. The test uses the line under the device as the full HUD would have it; the compact HUD's
- *  own line is shorter or the same. */
+ *  COMPACT_MIN_W wide, three under it. The test uses the line under the device as the full HUD would have it (its longer gap sentence); the compact HUD's
+ *  own line is one line. */
 export function hudTier(win: Win): HudTier {
   if (isPortrait(win)) return "phone";
   const [tier, h] = win.width >= ONE_ROW_MIN_W ? ["oneRow", ONE_ROW_H] as const : win.width >= TWO_LINE_MIN_W ? ["twoLine", TWO_LINE_H] as const : ["threeLine", THREE_LINE_H] as const;

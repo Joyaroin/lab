@@ -61,6 +61,9 @@ export const ui = {
   /** the gap's sentence: {n} deploys, {noun} one of the two nouns */
   gapBehind: "MediaSafe: {n} staging {noun} since the last prod release",
   gapBehindAtLeast: "MediaSafe: at least {n} staging {noun} since the last prod release",
+  /** the same two sentences, short, for a short landscape window (the compact HUD), where the line under the device must stay one line */
+  gapBehindShort: "MediaSafe: {n} {noun} ahead of prod",
+  gapBehindAtLeastShort: "MediaSafe: {n}+ {noun} ahead of prod",
   gapSaved: "{gap} (saved value, not live)",
   deploy: "deploy",
   deploys: "deploys",
@@ -90,6 +93,7 @@ export const ui = {
 /** The placeholders each template must keep. */
 const PLACEHOLDERS: Record<string, string[]> = {
   meterReading: ["digits"], gapBehind: ["n", "noun"], gapBehindAtLeast: ["n", "noun"],
+  gapBehindShort: ["n", "noun"], gapBehindAtLeastShort: ["n", "noun"],
   gapSaved: ["gap"], stopLine: ["label", "n", "total"], logDone: ["step"], logPending: ["step"], signalLostReason: ["reason"],
 };
 export const fill = (template: string, values: Record<string, string | number>) =>

@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { stations } from "./content";
+import { fill, stations, ui } from "./content";
+import { gapLabel } from "./gap";
 import {
   BUTTON_PX, clearances, COMPACT_GAP, COMPACT_LINE_H, COMPACT_MIN_W, COMPACT_SLACK, COMPACT_TOP_W, deviceSize, fitPanel, glassFontSize, HUD_GAP, HUD_MARGIN,
-  hudTier, lineHeight, lineMaxWidth, lineType, LINK_ROW_H, LINK_ROW_W, MIN_PANEL_H, NAME_BLOCK_H, NAME_BLOCK_W, ONE_ROW_MIN_W, PHONE_MENU_H, TWO_LINE_MIN_W,
+  hudTier, lineHeight, lineMaxWidth, lineTexts, lineType, LINK_ROW_H, LINK_ROW_W, MIN_PANEL_H, NAME_BLOCK_H, NAME_BLOCK_W, ONE_ROW_MIN_W, PHONE_MENU_H, TWO_LINE_MIN_W,
 } from "./pin";
 
 // fitPanel only places text pinned beside the CRT, which only a portrait window does (src/framing).
@@ -97,19 +98,74 @@ describe("clearances", () => {
     expect(lineHeight({ width: 1024, height: 768 })).toBe(26);
     expect(lineHeight({ width: 700, height: 500 }), "the longest sentence wraps to two lines at 700 px").toBe(44);
     expect(lineHeight({ width: 390, height: 844 }), "and on a phone, in smaller type, to two").toBe(40);
-    expect(lineHeight({ width: 360, height: 740 }), "also at 360 on a phone, where the real longest text (81 characters) wraps to two").toBe(40);
+    expect(lineHeight({ width: 360, height: 740 }), "also at 360 on a phone, where the real longest text (82 characters) wraps to two").toBe(40);
   });
-  it("on a short landscape window (the compact HUD) the line is 12.8 px type up to the HUD's side margins: one line from 681 px wide, two under that", () => {
-    for (const [width, height] of [[740, 360], [820, 360], [681, 360], [900, 400]]) {
+  it("the line under the device wraps by its real longest text with a count of 100: 82 characters saved, so one line from 747 px wide on a full HUD", () => {
+    const saved = gapLabel({ deploys: 100, live: false, complete: true });
+    expect(saved).toBe("MediaSafe: 100 staging deploys since the last prod release (saved value, not live)");
+    expect(saved.length).toBe(82);
+    // 14.4 px type, the box the window less 1 rem: floor((width - 16 - 20) / (0.602 x 14.4)) characters to a line
+    expect(lineHeight({ width: 746, height: 700 }), "81 characters fit: the saved sentence wraps").toBe(44);
+    expect(lineHeight({ width: 747, height: 700 }), "82 fit").toBe(26);
+  });
+  it("on a short landscape window (the compact HUD) the line is 12.8 px type up to the HUD's side margins, with the short gap sentence", () => {
+    for (const [width, height] of [[740, 360], [820, 360], [681, 360], [900, 400], [680, 360], [660, 365], [560, 400]]) {
       const win = { width, height };
       expect(hudTier(win), `${width}x${height}`).toMatch(/compact/);
       expect(lineType(win), `${width}x${height}`).toEqual({ font: 12.8, lineHeight: 16 });
       expect(lineMaxWidth(win), `${width}x${height}`).toBe(width - 2 * HUD_MARGIN);
       expect(lineHeight(win), `${width}x${height} is one line`).toBe(24);
     }
-    for (const [width, height] of [[680, 360], [667, 375], [560, 400]]) expect(lineHeight({ width, height }), `${width}x${height} wraps to two`).toBe(40);
     expect(lineMaxWidth({ width: 1440, height: 900 }), "a full HUD's line stays within the window less 1 rem").toBe(1440 - 16);
     expect(lineType({ width: 1440, height: 900 })).toEqual({ font: 14.4, lineHeight: 18 });
+  });
+  it("the compact HUD's texts are the short forms: the longest, a saved 100, is 60 characters, and the station lines are the rest", () => {
+    const compact = lineTexts(true), full = lineTexts(false);
+    expect(compact).toContain(gapLabel({ deploys: 100, live: false, complete: true }, true));
+    expect(compact).toContain("MediaSafe: 100 deploys ahead of prod (saved value, not live)");
+    expect(compact).toContain("MediaSafe: 100+ deploys ahead of prod");
+    expect(compact).not.toContain(gapLabel({ deploys: 100, live: false, complete: true }));
+    expect(full).toContain(gapLabel({ deploys: 100, live: false, complete: true }));
+    expect(Math.max(...compact.map((t) => t.length))).toBe(60);
+    for (const t of stations.map((s, i) => fill(ui.stopLine, { label: `${s.worldLine}: ${s.name}`, n: i + 1, total: stations.length }))) expect(compact).toContain(t);
+  });
+  it("every short landscape window has the line under the device on one line and the panel at least MIN_PANEL_H, down to the height the compact HUD can give", () => {
+    // 560 to 960 wide, 320 to 480 tall. The compact HUD's top (76 px two lines from COMPACT_MIN_W, 107 px three) plus the panel's floor
+    // plus the device (118.8 px under 966 wide), 16 px and one line (24 px) need 355 px and 386 px; shorter than that no HUD can leave
+    // the floor, and the panel is held at it (`fitPanel`).
+    const bad: string[] = [];
+    let compactWindows = 0;
+    for (let width = 560; width <= 960; width += 20) {
+      for (let height = 320; height <= 480; height += 10) {
+        const win = { width, height };
+        if (!hudTier(win).startsWith("compact")) continue;
+        compactWindows++;
+        const c = clearances(win), room = height - c.top - c.bottom;
+        if (lineHeight(win) !== 24) bad.push(`${width}x${height}: line is ${lineHeight(win)} px`);
+        if (height >= (width >= COMPACT_MIN_W ? 355 : 386) && room < MIN_PANEL_H) bad.push(`${width}x${height}: panel ${room.toFixed(1)} px`);
+      }
+    }
+    expect(compactWindows, "the grid holds compact windows").toBeGreaterThan(100);
+    expect(bad).toEqual([]);
+  });
+  it("and 1 px at a time across 560 to 700 wide, where the line used to wrap, and 355 to 480 tall", () => {
+    let dips = 0, checked = 0;
+    for (let width = 560; width <= 700; width++) {
+      for (let height = 355; height <= 480; height++) {
+        const win = { width, height };
+        if (!hudTier(win).startsWith("compact")) continue;
+        if (height < (width >= COMPACT_MIN_W ? 355 : 386)) continue;
+        checked++;
+        const c = clearances(win);
+        if (height - c.top - c.bottom < MIN_PANEL_H) dips++;
+      }
+    }
+    expect(checked).toBeGreaterThan(10000);
+    expect(dips).toBe(0);
+    for (const [width, height] of [[680, 360], [660, 365]]) {
+      const c = clearances({ width, height });
+      expect(height - c.top - c.bottom, `${width}x${height}`).toBeGreaterThanOrEqual(MIN_PANEL_H);
+    }
   });
   it("on portrait the bottom is the menu, 16, the device and the line", () => {
     const win = { width: 390, height: 844 };
@@ -177,11 +233,6 @@ describe("clearances", () => {
       const win = { width, height }, c = clearances(win);
       expect(height - c.top - c.bottom, `${width}x${height}`).toBeGreaterThanOrEqual(MIN_PANEL_H);
     }
-  });
-  it("the narrow, short window 560x400, where the line under the device wraps to two lines, leaves the panel under its floor by under 2 px", () => {
-    const c = clearances({ width: 560, height: 400 }), room = 400 - c.top - c.bottom;
-    expect(room).toBeLessThan(MIN_PANEL_H);
-    expect(room).toBeGreaterThan(MIN_PANEL_H - 2);
   });
   it("COMPACT_MIN_W is the width of the compact first line, its slack for wider fonts and both margins", () => {
     expect(COMPACT_MIN_W).toBe(COMPACT_TOP_W + COMPACT_SLACK + 2 * HUD_MARGIN);
