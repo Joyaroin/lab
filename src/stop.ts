@@ -1,5 +1,5 @@
 import { CAMERA_FOV, CRT_GLASS, type Crt } from "./crts";
-import { BOTTOM_CLEAR, SIDE, TOP_CLEAR } from "./pin";
+import { clearances, SIDE } from "./pin";
 
 type V3 = [number, number, number];
 type Win = { width: number; height: number };
@@ -8,12 +8,13 @@ const TAN = Math.tan((CAMERA_FOV * Math.PI) / 360);
 
 /** The band of the window the glass fills: below the HUD, above the meter, inside the sides. */
 function band(win: Win) {
-  const free = Math.max(120, win.height - TOP_CLEAR - BOTTOM_CLEAR);
-  return { free, wide: Math.max(120, win.width - 2 * SIDE), centreY: TOP_CLEAR + free / 2 };
+  const { top, bottom } = clearances(win);
+  const free = Math.max(120, win.height - top - bottom);
+  return { free, wide: Math.max(120, win.width - 2 * SIDE), centreY: top + free * 0.5 };
 }
 
 /** How far the camera stands from the glass so it fills the band, whichever of height and width
- *  runs out first. One rule for every station: 0.53 m at 1280x800. */
+ *  runs out first. One rule for every station: 0.54 m at 1280x800. */
 function stopDistance(win: Win): number {
   const { free, wide } = band(win);
   const px = win.height / (2 * TAN); // pixels per metre at one metre

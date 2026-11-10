@@ -1,0 +1,138 @@
+{
+  "width": 840,
+  "height": 356,
+  "layers": {
+    "base.png": {
+      "x": 0,
+      "y": 0,
+      "width": 840,
+      "height": 356
+    },
+    "dot.png": {
+      "x": 206,
+      "y": 193,
+      "width": 31,
+      "height": 31
+    },
+    "key-next.png": {
+      "x": 589,
+      "y": 241,
+      "width": 216,
+      "height": 115
+    },
+    "key-prev.png": {
+      "x": 35,
+      "y": 241,
+      "width": 216,
+      "height": 115
+    },
+    "key-room.png": {
+      "x": 313,
+      "y": 241,
+      "width": 214,
+      "height": 115
+    },
+    "key-start.png": {
+      "x": 313,
+      "y": 241,
+      "width": 214,
+      "height": 115
+    },
+    "light.png": {
+      "x": 0,
+      "y": 0,
+      "width": 840,
+      "height": 356
+    },
+    "numeral-0.png": {
+      "x": 386,
+      "y": 101,
+      "width": 68,
+      "height": 100
+    },
+    "numeral-1.png": {
+      "x": 386,
+      "y": 101,
+      "width": 68,
+      "height": 100
+    },
+    "numeral-2.png": {
+      "x": 386,
+      "y": 101,
+      "width": 68,
+      "height": 100
+    },
+    "numeral-3.png": {
+      "x": 386,
+      "y": 101,
+      "width": 68,
+      "height": 100
+    },
+    "numeral-4.png": {
+      "x": 386,
+      "y": 101,
+      "width": 68,
+      "height": 100
+    },
+    "numeral-5.png": {
+      "x": 386,
+      "y": 101,
+      "width": 68,
+      "height": 100
+    },
+    "numeral-6.png": {
+      "x": 386,
+      "y": 101,
+      "width": 68,
+      "height": 100
+    },
+    "numeral-7.png": {
+      "x": 386,
+      "y": 101,
+      "width": 68,
+      "height": 100
+    },
+    "numeral-8.png": {
+      "x": 386,
+      "y": 101,
+      "width": 68,
+      "height": 100
+    },
+    "numeral-9.png": {
+      "x": 386,
+      "y": 101,
+      "width": 68,
+      "height": 100
+    }
+  },
+  "tubes": [
+    {
+      "x": 154,
+      "y": 101
+    },
+    {
+      "x": 231,
+      "y": 101
+    },
+    {
+      "x": 309,
+      "y": 101
+    },
+    {
+      "x": 386,
+      "y": 101
+    },
+    {
+      "x": 463,
+      "y": 101
+    },
+    {
+      "x": 541,
+      "y": 101
+    },
+    {
+      "x": 618,
+      "y": 101
+    }
+  ]
+}

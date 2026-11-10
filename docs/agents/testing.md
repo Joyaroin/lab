@@ -15,6 +15,7 @@ Checked against the code on 2026-11-09, at c891bbb.
 - `make integration`: `make frontend`, then the integration test
 - `make browser`: the full Playwright suite. Installs browsers and system packages only in CI
 - `make browser-light`: the `browser` recipe without `@timing` and `@render`. Passes `PW_ARGS` through
+- `make meter`: renders the meter bar's images with a local browser that has WebGL. Run on purpose, on the Mac, like `make room`. CI does not run it. Run it through `heavy`; running it again at the same commit leaves `git status --short src/assets/meter` empty. `src/meter-layers.test.ts` checks the committed images against the layer list
 - `make facts`: every path, command and tag the docs name exists
 - A flash limit spec counts the tear's visible snap back (the displacement map's scale reaching 0, `tests/lib/snap.ts`), never the filter coming off
 - `tests/shift.spec.ts` records the snap back's measured time as a `snap-back-ms` test annotation and a log line, for CI's browser job report
