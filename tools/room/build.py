@@ -182,6 +182,9 @@ M = {
     "scope": material("scope", (0.0, 0.02, 0.02), emit=(0.2, 0.9, 1.0), strength=1.2),
     "nixie": material("nixie", (0.0, 0.0, 0.0), emit=(1.0, 0.45, 0.1), strength=6.0),
     "tube": material("tube", (0.012, 0.01, 0.009), emit=(1.0, 0.38, 0.06), strength=0.015),
+    # the switched-off bench TV's own glass and LED: dark, and they give no light (#253)
+    "screen_off": material("screen_off", (0.0, 0.0, 0.0)),
+    "led_off": material("led_off", (0.01, 0.01, 0.01)),
     "led_g": material("led_g", (0, 0, 0), emit=(0.2, 1.0, 0.3), strength=12.0),
     "led_a": material("led_a", (0, 0, 0), emit=(1.0, 0.5, 0.1), strength=12.0),
     "led_b": material("led_b", (0, 0, 0), emit=(0.3, 0.55, 1.0), strength=12.0),
@@ -384,17 +387,22 @@ box("blue", cf(0.05, 1.12, 0.28), (0.4, 0.08, 0.16), yaw=90, tilt=(10, 0), group
 box("rug", (-0.35, 0.005, 0.05), (1.3, 0.01, 1.6), yaw=8, group="furniture", bevel=0)
 
 # ---------------------------------------------------------------- props
+def is_off(spec):
+    """The bench TV is switched off: dark glass, dark LED, and no light (see the lights below)."""
+    return spec is LAYOUT["bench"]
+
 def crt(spec):
     """A beige CRT monitor whose glass centre is at `screen`, facing `yaw`."""
     f = frame(spec["screen"], spec["yaw"])
+    off = is_off(spec)
     y = spec["yaw"]
     box("beige", f(0, 0, -0.04), (0.58, 0.48, 0.08), yaw=y, bevel=0.015)          # bezel
-    box("screen", f(0, 0, 0.0), (0.46, 0.36, 0.01), yaw=y, bevel=0.01)          # glass
+    box("screen_off" if off else "screen", f(0, 0, 0.0), (0.46, 0.36, 0.01), yaw=y, bevel=0.01)          # glass
     box("beige", f(0, -0.01, -0.24), (0.5, 0.42, 0.34), yaw=y, bevel=0.03)        # body
     box("beige", f(0, -0.03, -0.43), (0.3, 0.26, 0.1), yaw=y, bevel=0.02)         # neck
     box("beige", f(0, -0.255, -0.22), (0.3, 0.03, 0.26), yaw=y, bevel=0.01)       # stand
     box("black", f(0.2, -0.205, 0.0), (0.04, 0.015, 0.012), yaw=y, bevel=0.002)   # power button
-    box("led_g", f(0.24, -0.205, 0.004), (0.01, 0.01, 0.006), yaw=y, bevel=0)
+    box("led_off" if off else "led_g", f(0.24, -0.205, 0.004), (0.01, 0.01, 0.006), yaw=y, bevel=0)
     for i in range(4):  # vents on top
         box("grey", f(0, 0.2, -0.12 - i * 0.05), (0.36, 0.006, 0.012), yaw=y, bevel=0)
     # sticky note on the bezel corner
@@ -661,6 +669,8 @@ def point(p, energy, color, radius=0.02):
 
 GREEN = (0.35, 1.0, 0.5)
 for spec in BENCH_AND_STATION_TVS:
+    if is_off(spec):
+        continue  # switched off: no green light on the bench or pegboard
     f = frame(spec["screen"], spec["yaw"])
     area(f(0, 0, 0.012), spec["yaw"], (0.44, 0.34), 0.55, GREEN)
 point(nf(0, 0.12, 0.16), 0.22, (1.0, 0.42, 0.1), radius=0.06)

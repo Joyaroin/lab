@@ -58,7 +58,7 @@ export function drawPhosphor(c: HTMLCanvasElement, card?: Pick<Station, "worldLi
 }
 
 /** A switched-off tube: dark grey glass with a faint curve at the corners and a pale reflection, and
- *  no glow, no scanlines and no card. Drawn over a TV's baked (lit) glass: the bench TV's. */
+ *  no glow, no scanlines and no card. Drawn over the bench TV's baked glass, which is dark too (the bake has it switched off), so it reads as glass and not a black hole. */
 export function drawSwitchedOff(c: HTMLCanvasElement) {
   const g = c.getContext("2d")!, w = c.width, h = c.height;
   g.fillStyle = "#0b0d0c"; g.fillRect(0, 0, w, h);

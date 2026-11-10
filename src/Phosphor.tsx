@@ -15,7 +15,7 @@ import { SCREEN_LAYER, canvas, texture } from "./draw";
 // wide view. Both lines come from the content module (worldLine and name); no copy is held here.
 // Nothing on the card moves or reads as live. The station's own text is the HTML panel pinned on
 // top (Room.tsx), and the card is swapped for the clear glass while that text is showing.
-// The bench TV, which has no station, gets a glass too: dark, switched off, over the baked lit glass.
+// The bench TV, which has no station, gets a glass too: dark, switched off, over its baked glass (also dark: the bake has it off). It gives the glass its sheen and curve.
 // It has no card, no bezel layer, no hover glow and no click of its own, and it never changes.
 
 /** How much smaller than the glass the phosphor plane is, so it stays inside the bezel. */

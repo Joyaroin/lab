@@ -13,9 +13,10 @@ The language of this project: its terms, what each one means, and what it doesn'
   the wheel never moves the camera (ADR 0005, spec #170).
 - **Bench TV**: the switched-off TV on the workbench, once Order Tracker's. It has no station, so it is not in
   `crts` (one entry per station, in tour order); it is `bench` in `src/crts.ts`, from the `bench` key of
-  `src/room-layout.json`, and `tools/room/build.py` still places it. `Phosphor.tsx` draws its glass dark over the
-  baked lit glass. It has no title card, bezel layer, hover glow or click of its own: a click on it is a click on the
-  room. The overview shows it dark, and it is not counted among the five stations.
+  `src/room-layout.json`, and `tools/room/build.py` still places it, switched off (dark glass, dark LED, no light on
+  its surroundings). `Phosphor.tsx` still draws a dark glass over the baked glass, for its sheen and curve. It has no
+  title card, bezel layer, hover glow or click of its own: a click on it is a click on the room. The overview shows it
+  dark, and it is not counted among the five stations.
 - **TV click**: at the overview only, a TV takes a click and flies the visitor to its station, and a hover glow shows which
   one (`clickable` in `src/clickable.ts`, `easeGlow` in `src/glow.ts`). At a station or in flight no TV is clickable and no
   glow shows. At a station, a click on the room goes back to the overview: any press on the room that is not on that
