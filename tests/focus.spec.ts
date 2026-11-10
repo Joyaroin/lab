@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { hudLink, landedAt, openTour, panelOf, stationIds } from "./lib/page";
+import { barKey, hudLink, landedAt, openTour, panelOf, stationIds } from "./lib/page";
 
 // The site's focus ring (#219): a 2 px solid amber outline on every link and button under keyboard
 // focus, and the boot screen's progress bar in the site's green.
@@ -45,13 +45,12 @@ test("a link in a station's panel reached with Tab has the ring", async ({ page 
   expect(await outline(link)).toBe(RING);
 });
 
-test("the meter bar's button reached with Tab has the ring", async ({ page }) => {
-  // Its inline style starts with `all: unset`, which would beat a plain stylesheet rule.
+test("a meter bar key reached with Tab has the ring", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await openTour(page);
-  const bar = page.locator("[data-meter-bar]");
-  await tabTo(page, bar);
-  expect(await outline(bar)).toBe(RING);
+  const key = barKey(page, "start");
+  await tabTo(page, key);
+  expect(await outline(key)).toBe(RING);
 });
 
 test("a station's panel has no outline after a click on its HUD link, and the ring after Enter on it", async ({ page }) => {

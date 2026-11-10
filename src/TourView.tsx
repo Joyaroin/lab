@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { MeterLink } from "./nixie";
 import { Tear, type PageTurn } from "./TearView";
-import { stations, ui } from "./content";
-import { Hud } from "./Hud";
+import { fill, stations, ui } from "./content";
+import { Hud, usePortrait } from "./Hud";
+import { barFor, type BarKey } from "./bar";
 import { ScreenPanels } from "./text/ScreenPanels";
 import { Meter } from "./Meter";
 import { formatReading, gapLabel, type Gap } from "./gap";
@@ -78,16 +79,30 @@ export function Tour({ gap, visit, meter, shift: shifts }: { gap: Gap | null; vi
       if (e.type === "land" && e.stop >= 1) setVisited(true);
       report();
     });
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && visit.target() >= 1) visit.back(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && visit.target() >= 1) visit.back();
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      if (e.key === "ArrowLeft") visit.prev();
+      else if (e.key === "ArrowRight") visit.next();
+    };
     window.addEventListener("keydown", onKey);
     return () => { off(); window.removeEventListener("keydown", onKey); };
   }, [visit]);
 
   const deploys = gap ? gap.deploys : pendingDeploys;
-  const nearestStop = here.kind === "at" ? here.stop : Math.round(here.from + here.f);
-  const t = { nearestStop, reading: readingAt(here, deploys) };
-  const label = gap ? gapLabel(gap) : ui.readingPending;
-  const digits = formatReading(Math.round(t.reading));
+  const gapLine = gap ? gapLabel(gap) : ui.readingPending;
+  const digits = formatReading(Math.round(readingAt(here, deploys)));
+  // The bar shows the stop being flown to, not the camera's place on the way: its keys, its line and its digits.
+  const portrait = usePortrait();
+  const bar = barFor(here, portrait ? "portrait" : "square");
+  const barReading = Math.round(readingAt({ kind: "at", stop: bar.stop }, deploys));
+  const barLine = bar.stop === 0 ? gapLine : fill(ui.stopLine, { label: stationLabel(bar.stop), n: bar.stop, total: stations.length });
+  const press = (key: BarKey) => {
+    if (key === "prev") visit.prev();
+    else if (key === "room") visit.back();
+    else if (key === "next") visit.next();
+    else visit.go(1);
+  };
   useEffect(() => { meter.next = () => visit.next(); }, [meter, visit]);
   useEffect(() => { meter.digits = digits; meter.redraw?.(); }, [meter, digits]);
 
@@ -98,8 +113,8 @@ export function Tour({ gap, visit, meter, shift: shifts }: { gap: Gap | null; vi
       <Hud where={here} visited={visited} visit={visit} />
       <div style={{ position: "fixed", left: 0, right: 0, bottom: "var(--meter-bottom, 1rem)", zIndex: 10, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto" }}>
-          <Meter reading={Math.round(t.reading)} label={t.nearestStop === 0 ? label : stationLabel(t.nearestStop)}
-            live={gap ? gap.live : true} pending={!gap} shift={barShift} onClick={() => visit.next()} />
+          <Meter reading={barReading} label={barLine} keys={bar.keys}
+            live={gap ? gap.live : true} pending={!gap} shift={barShift} onKey={press} />
         </div>
       </div>
     </>

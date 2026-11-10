@@ -1,7 +1,6 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
-import { AdditiveBlending, CylinderGeometry, Vector3, type Camera, type MeshBasicMaterial } from "three";
-import { textCovers } from "./text/place";
+import { AdditiveBlending, CylinderGeometry, type MeshBasicMaterial } from "three";
 import { DESK_METER } from "./crts";
 import { powerOn, shiftDigits, type MeterLink } from "./nixie";
 import type { Shift } from "./shift";
@@ -52,24 +51,6 @@ function glowTexture(inner: string) {
 }
 
 
-/** Is the meter's row of tubes fully in the window, big enough to read, and not under a panel? */
-function meterInView(camera: Camera, size: { width: number; height: number }, ends: Vector3[]): boolean {
-  const pts = ends.map((v) => {
-    const p = v.clone().project(camera);
-    return { x: (p.x * 0.5 + 0.5) * size.width, y: (-p.y * 0.5 + 0.5) * size.height, z: p.z };
-  });
-  if (pts.some((p) => p.z > 1 || p.x < 4 || p.x > size.width - 4 || p.y < 4 || p.y > size.height - 4)) return false;
-  if (Math.abs(pts[0].y - pts[1].y) < 14) return false; // a tube under 14 px tall isn't readable
-  const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
-  const box = { l: Math.min(...xs), r: Math.max(...xs), t: Math.min(...ys), b: Math.max(...ys) };
-  for (const el of document.querySelectorAll<HTMLElement>("[data-screen], [data-meter-bar]")) {
-    if (el.dataset.meterBar === undefined ? !textCovers(el) : el.style.visibility === "hidden") continue;
-    const r = el.getBoundingClientRect();
-    if (box.l < r.right && box.r > r.left && box.t < r.bottom && box.b > r.top) return false;
-  }
-  return true;
-}
-
 export function DeskMeter({ link, shift, reduced }: { link: MeterLink; shift: Shift; reduced: boolean }) {
   const invalidate = useThree((s) => s.invalidate);
   const tubes = useMemo(() => Array.from({ length: 7 }, () => {
@@ -81,7 +62,6 @@ export function DeskMeter({ link, shift, reduced }: { link: MeterLink; shift: Sh
   const halo = useMemo(() => glowTexture("rgba(255,120,30,0.9)"), []);
   const pool = useMemo(() => glowTexture("rgba(255,110,25,0.8)"), []);
   const dotGlow = useMemo(() => pointGlowTexture("rgba(255,150,50,1)", "rgba(255,120,30,0.5)"), []);
-  const ends = useMemo(() => DESK_METER.tubeEnds().map((v) => new Vector3(...v)), []); // the meter never moves
   const haloMat = useRef<MeshBasicMaterial>(null);
   const poolMat = useRef<MeshBasicMaterial>(null);
   const dotMat = useRef<MeshBasicMaterial>(null);
@@ -90,7 +70,7 @@ export function DeskMeter({ link, shift, reduced }: { link: MeterLink; shift: Sh
   useEffect(() => shift.setWake(invalidate), [shift, invalidate]); // the shift wakes the room through this
   const played = useRef<{ id: number; at: number; done: boolean } | null>(null); // this meter's clock for the shift it is playing
 
-  useFrame(({ camera, size, clock }) => {
+  useFrame(({ clock }) => {
     if (link.on && link.onAt === null) { link.onAt = clock.elapsedTime; shift.powerOnBegan(performance.now()); } // the boot screen just went
     const since = link.onAt === null ? 0 : clock.elapsedTime - link.onAt;
     const s = reduced && link.on ? powerOn(Infinity, link.digits) : powerOn(since, link.digits);
@@ -117,9 +97,6 @@ export function DeskMeter({ link, shift, reduced }: { link: MeterLink; shift: Sh
     if (dotMat.current) dotMat.current.opacity = s.glow;
     if (dotGlowMat.current) dotGlowMat.current.opacity = s.glow;
     if (link.on && (!s.done || shifting)) invalidate(); // keep drawing until the power-on or shift has settled
-
-    const bar = document.querySelector<HTMLElement>("[data-meter-bar]");
-    if (bar) bar.dataset.deskMeter = meterInView(camera, size, ends) ? "in-view" : "out-of-view";
   });
 
   return (

@@ -37,18 +37,21 @@ test("at the overview a click where the bench TV is leaves the URL alone", async
   await openTour(page);
   await waitForCamera(page);
   const at = glassCentre(bench);
-  expect(at.x, "the bench TV's glass is in the window").toBeGreaterThan(0);
-  expect(at.x).toBeLessThan(size.width);
-  expect(at.y).toBeGreaterThan(0);
-  expect(at.y).toBeLessThan(size.height);
+  const inFrame = at.x > 0 && at.x < size.width && at.y > 0 && at.y < size.height;
   const before = page.url();
-  // the same click on a station's TV flies there, so a click at this spot would show if the bench TV took one
-  const work = glassCentre(crts[0]);
-  expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.tagName.toLowerCase(), [at.x, at.y])).toBe("canvas");
-  await page.mouse.click(at.x, at.y);
-  await page.waitForTimeout(1200); // longer than a flight (0.9 s): nothing should be moving
+  if (inFrame) {
+    // the same click on a station's TV flies there, so a click at this spot would show if the bench TV took one
+    expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.tagName.toLowerCase(), [at.x, at.y])).toBe("canvas");
+    await page.mouse.click(at.x, at.y);
+    await page.waitForTimeout(1200); // longer than a flight (0.9 s): nothing should be moving
+  } else {
+    // #226 may leave the bench TV out of frame at the overview: then there is nothing to click, and the HUD still
+    // has its five station links (and none for the bench TV).
+    expect(await hudLinks(page).evaluateAll((as) => as.filter((a) => a.getAttribute("href")?.startsWith("#")).length)).toBe(5);
+  }
   expect(page.url()).toBe(before);
   await landedAt(page, 0);
+  const work = glassCentre(crts[0]);
   await page.mouse.click(work.x, work.y);
   await expect.poll(() => page.url()).toContain(`#${crts[0].id}`);
 });

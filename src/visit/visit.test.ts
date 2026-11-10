@@ -114,6 +114,59 @@ describe("next", () => {
   });
 });
 
+describe("prev", () => {
+  it("goes from a station to the one before", () => {
+    const { visit, advance, now } = setup();
+    visit.land(3);
+    visit.prev();
+    advance(FLIGHT_MS);
+    expect(visit.where(now())).toEqual({ kind: "at", stop: 2 });
+  });
+
+  it("goes from the first station to the overview", () => {
+    const { visit, advance, now } = setup();
+    visit.land(1);
+    visit.prev();
+    advance(FLIGHT_MS);
+    expect(visit.where(now())).toEqual({ kind: "at", stop: 0 });
+  });
+
+  it("does nothing at the overview", () => {
+    const { visit, events, advance, now } = setup();
+    visit.prev();
+    advance(FLIGHT_MS);
+    expect(visit.where(now())).toEqual({ kind: "at", stop: 0 });
+    expect(events).toEqual([]);
+  });
+
+  it("during a flight means the stop before its destination", () => {
+    const { visit, advance, now } = setup();
+    visit.go(3);
+    advance(300);
+    visit.prev();
+    expect(visit.target()).toBe(2);
+    advance(FLIGHT_MS);
+    expect(visit.where(now())).toEqual({ kind: "at", stop: 2 });
+  });
+
+  it("during a flight to the first station means the overview, and during one to the overview nothing", () => {
+    const { visit, advance } = setup();
+    visit.go(1);
+    advance(300);
+    visit.prev();
+    expect(visit.target()).toBe(0);
+    visit.prev();
+    expect(visit.target()).toBe(0);
+  });
+
+  it("during a fade means the stop before its destination", () => {
+    const { visit } = setup(true);
+    visit.go(3);
+    visit.prev();
+    expect(visit.target()).toBe(2);
+  });
+});
+
 describe("a go mid-flight", () => {
   it("starts a new flight from where the camera is, with f back at 0", () => {
     const { visit, advance, now } = setup();

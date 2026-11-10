@@ -22,6 +22,12 @@ export async function openTour(page: Page) {
 export const hudLink = (page: Page, stop: number) =>
   page.getByRole("navigation", { name: ui.hud }).getByRole("link", { name: stop === 0 ? ui.room : stations[stop - 1].name, exact: true });
 
+/** The meter bar's keys, by the word that names them in the content module. */
+const KEY_NAMES = { prev: ui.prevStation, room: ui.backToRoom, next: ui.nextStation, start: ui.startTour };
+/** A key on the meter bar, found as a visitor finds it: a button by its accessible name. */
+export const barKey = (page: Page, key: keyof typeof KEY_NAMES) =>
+  page.locator("[data-meter-bar]").getByRole("button", { name: KEY_NAMES[key], exact: true });
+
 /** Resolves once the visitor has landed at `stop`: the HUD sets aria-current on its link then (not during a flight). */
 export const landedAt = (page: Page, stop: number) => expect(hudLink(page, stop)).toHaveAttribute("aria-current", "location");
 

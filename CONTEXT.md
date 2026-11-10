@@ -6,9 +6,11 @@ The language of this project: its terms, what each one means, and what it doesn'
   Not a page with a 3D header: the room is the site.
 - **Room**: the 3D scene itself, its models and baked lighting.
 - **Station**: a stop on the tour, with its own place in the room, world line and reading.
-- **Tour**: visiting the stations by clicking. The site opens on the overview; the HUD's links, the meter and
-  Esc move the visitor, as does clicking a TV (see **TV click**), and the camera follows the visit. Nothing scrolls: the wheel never moves the camera
-  (ADR 0005, spec #170).
+- **Tour**: visiting the stations by clicking and stepping. The site opens on the overview; the HUD's links, the
+  **keys** on the meter bar, the arrow keys and Esc move the visitor, as does clicking a TV (see **TV click**), and
+  the camera follows the visit. Right is `next()` and Left is `prev()` (at the overview Right goes to Work and Left
+  does nothing; in a flight they act on the stop being flown to; a key with a modifier is ignored). Nothing scrolls:
+  the wheel never moves the camera (ADR 0005, spec #170).
 - **Bench TV**: the switched-off TV on the workbench, once Order Tracker's. It has no station, so it is not in
   `crts` (one entry per station, in tour order); it is `bench` in `src/crts.ts`, from the `bench` key of
   `src/room-layout.json`, and `tools/room/build.py` still places it. `Phosphor.tsx` draws its glass dark over the
@@ -22,9 +24,12 @@ The language of this project: its terms, what each one means, and what it doesn'
   next, and the HUD, the menu, the meter bar and the station's text are controls, not the room. At the overview and in
   flight it never applies, and not through a reduced-motion fade either (the fade's second half already reads as the new
   station, so the rule is given `visit.moving()`).
-- **Overview**: stop 0. A camera pose that shows every TV on a landscape window, with its own wider field of
+- **Overview**: stop 0. A camera pose that shows the glass of all five station TVs and the whole desk meter on a
+  landscape window at 16:9 and 16:10, with none of them under the HUD's name block, link row or the meter device
+  (the boxes in `src/pin.ts`). The bench TV may be out of frame. It has its own wider field of
   view (`OVERVIEW` in `src/crts.ts`, 75 degrees at most; stations use `CAMERA_FOV`), and a separate pose for a
-  portrait window. It is where the site opens and where Back (the HUD's Room link, Esc) goes. The meter shows
+  portrait window. `src/visit/flight.test.ts` projects the TVs and the meter through the real camera to check this; if the
+  HUD's boxes in `src/pin.ts` change, the pose may need to change with them. It is where the site opens and where Back (the HUD's Room link, Esc, the ROOM key) goes. The meter shows
   the gap there. It is not a station.
 - **Visit**: where the visitor is and is going: at a stop, or flying to one. `src/visit/` owns it.
 - **Cover**: the dark layer over the room that hides the cut of a reduced-motion fade. It rises at once but falls no faster
@@ -71,10 +76,18 @@ The language of this project: its terms, what each one means, and what it doesn'
 - **Meter**: the nixie tube display at the centre of the site. It is our own design, and it is both
   navigation and a live readout.
 - **Reading**: the number the meter shows. Each station has a fixed reading; the overview shows the gap.
-- **Desk meter**: the meter as built in the room: seven nixie tubes on the desk, drawn live. It is the
-  meter's main display wherever it is in frame.
-- **Meter bar**: the plain label under the room that explains the reading. It also shows a small
-  copy of the digits when the desk meter is out of frame, too small, or under a panel.
+- **Desk meter**: the meter as built in the room: seven nixie tubes on the desk, drawn live. Clicking it means
+  next. It is a display in the room only: the meter bar's digits do not depend on whether it is in frame.
+- **Meter bar**: the bar under the room: the reading's digits, always shown, a line under them, and the keys. The
+  line is the gap's sentence at the overview and, at a station, `ui.stopLine` filled in ("World line 02: MediaSafe · 2 of
+  5"; the total is the number of stations in the content module). The bar itself takes no click: only the keys do. In a
+  flight it shows the stop being flown to (keys, line and digits). What it shows is one pure rule, `barFor(where,
+  framing)` in `src/bar.ts`, drawn by `src/Meter.tsx`.
+- **Keys**: the buttons on the meter bar, with their words in `ui` (`keyPrev`, `keyRoom`, `keyNext`, `keyStart`) and
+  their accessible names (`prevStation`, `backToRoom`, `nextStation`, `startTour`), each at least 44 x 44 px. At a
+  station on a landscape window they are PREV, ROOM, NEXT; on a portrait window PREV and NEXT (the phone menu has the
+  way back to the room); at the overview START alone. PREV is `visit.prev()` (the first station goes to the overview),
+  NEXT is `visit.next()` (the last station goes to the overview), ROOM is `back()`, START goes to Work.
 - **Meter layers**: the rendered images the meter bar's device is built from (ADR-0006): the case and tubes unlit, the
   tubes' light on the case, ten lit numerals all seven tubes share, the decimal point and the four keys (PREV, ROOM,
   NEXT, START), each with a clear background. `make meter` renders them from `tools/meter/` into `src/assets/meter/`, and
@@ -169,7 +182,7 @@ get a folder; the rest are still flat files in `src/`.
   word turns up quoted in other `src` code. `validateContent` covers every key. Only the name, title and page
   title are also in `index.html`, so they show before the script runs; a test checks they match. Failure
   codes such as `no-webgl` and the other identifiers stay in code: they are ids, not copy.
-- The tour view (`TourView.tsx`) reports the visit to the shift and the HUD, and renders. The HUD (`Hud.tsx`) has the links: stations fly, Room goes back. The room (`Room.tsx`, and the overlays `DeskMeter.tsx`, `Phosphor.tsx`, `Bezels.tsx`, `Rain.tsx`, `TvTargets.tsx`, `RoomClick.tsx`, with `draw.ts` for what they share) draws the
+- The tour view (`TourView.tsx`) reports the visit to the shift and the HUD, and renders. The HUD (`Hud.tsx`) has the links: stations fly, Room goes back. The meter bar (`Meter.tsx`) has the keys, and the arrow keys are heard in `TourView.tsx`. The room (`Room.tsx`, and the overlays `DeskMeter.tsx`, `Phosphor.tsx`, `Bezels.tsx`, `Rain.tsx`, `TvTargets.tsx`, `RoomClick.tsx`, with `draw.ts` for what they share) draws the
   scene and the desk meter. `card.ts` draws the phosphor screen and title card on each glass, and `glass.ts` projects a glass to window pixels. `theme.css`, imported by `src/main.tsx`, is the focus ring and the boot progress bar's colours. The nixie module (`nixie.ts`) is the meter's digits and power-on.
 - **`src/frames.ts`**: the frame loop. `runFrames(step, opts)` runs `step` with the seconds since the loop started,
   the first time at once with 0 s and then on each requested frame, until `step` returns true; it returns a function

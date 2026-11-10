@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { identity, links, stations, ui } from "./content";
 import {
   BUTTON_PX, clearances, HUD_GAP, HUD_MARGIN, LINK_ROW_H, LINK_ROW_W, NAME_BLOCK_W, ONE_ROW_MIN_W, PHONE_COLS, PHONE_GAP_PX, PHONE_MENU_H, PHONE_PAD_PX,
@@ -20,6 +20,14 @@ function useWin() {
     return () => window.removeEventListener("resize", read);
   }, []);
   return win;
+}
+
+/** True on a portrait window, the same test the framing makes (width under height). */
+export function usePortrait() {
+  return useSyncExternalStore(
+    (cb) => { window.addEventListener("resize", cb); return () => window.removeEventListener("resize", cb); },
+    () => window.innerWidth < window.innerHeight,
+  );
 }
 
 // The always-on overlay (#222). On a landscape window: a name block at the top left (name, title, availability)
