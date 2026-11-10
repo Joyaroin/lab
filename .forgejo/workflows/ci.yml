@@ -1,4 +1,4 @@
-# Runs on every branch except staging and production, including main after each merge. A PR needs every job green before it merges. On main there is no open PR, so the steps that post to a PR log "nothing to post" and pass.
+# Runs on every branch except staging and production, including main after each merge. A PR needs every job green before it merges. On main there is no open PR, so the steps that post to a PR log "nothing to post" and pass, except the failure reports: those are added to the standing "CI failures on main" issue.
 name: ci
 on:
   push:

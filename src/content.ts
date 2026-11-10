@@ -79,7 +79,7 @@ export const ui = {
   /** the signal lost screen; {reason} is the failure's code, which is not copy */
   signalLost: "SIGNAL LOST",
   signalLostReason: "The 3D room could not start in this browser ({reason}).",
-  /** the stop controls (not shown yet): the keys' caps, the buttons' aria labels, and the line naming the stop */
+  /** the stop controls: the keys' caps, the buttons' aria labels, and the line naming the stop */
   keyPrev: "PREV",
   keyRoom: "ROOM",
   keyNext: "NEXT",

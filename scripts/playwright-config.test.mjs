@@ -8,7 +8,7 @@ async function workers() {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("playwright.config workers", () => {
-  it("runs one worker where TEST_PORT is set (the VM)", async () => {
+  it("runs one worker where TEST_PORT is set (an agent session on the Mac)", async () => {
     vi.stubEnv("TEST_PORT", "4293");
     expect(await workers()).toBe(1);
   });

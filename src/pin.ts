@@ -43,7 +43,7 @@ const PHONE_TOP = 96;
 // Chromium as 604.66, rounded up: name 132.03 + 8 + title 235.25 + 8 + the outside links 221.38 (Résumé 66.86, LinkedIn 83.66,
 // GitHub 66.86, each with ↗ right after the word, no space, 4 px padding each side, 2 px between them).
 // `COMPACT_SLACK` is room left at COMPACT_MIN_W for a wider fallback font (CI's Linux font is about 1 px wider here, other
-// devices more): 619 - 604.66 = 14.34 px on the Mac. A space before each ↗ would add 12 px.
+// devices more): 619 - 604.66 = 14.34 px on the Mac. A 4 px margin before each ↗ (as the wider tiers have) would add 12 px.
 // Narrower than COMPACT_MIN_W the outside links take a line of their own, so three short lines.
 export const COMPACT_LINE_H = 27, COMPACT_GAP = 4;
 export const COMPACT_TOP_W = 605, COMPACT_SLACK = 14;

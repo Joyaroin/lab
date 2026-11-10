@@ -1,12 +1,9 @@
 import { CanvasTexture, SRGBColorSpace } from "three";
 
-// The late-night look, drawn over the baked room (Room.tsx) without making it redraw nonstop.
-// Everything is a few small textured planes drawn once. The only things that move are the
-// meter's power-on, about a second and a half, then it stops. At rest the scene draws nothing.
-// It is off when the visitor prefers reduced motion.
-//
-// This file holds what more than one of the overlay components shares (DeskMeter, Phosphor,
-// Bezels, Rain and TvTargets, one file each in src/).
+// What more than one of the late-night overlay components shares (DeskMeter, Phosphor, Bezels, Rain
+// and TvTargets, one file each in src/): the canvas and texture helpers, the glow texture and the
+// layer and bezel sizes. The overlays are drawn over the baked room (Room.tsx); what each one does is in
+// its own file.
 export const canvas = (w: number, h: number) => {
   const c = document.createElement("canvas");
   c.width = w; c.height = h;

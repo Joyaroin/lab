@@ -17,7 +17,7 @@ export type PanelEl = MoreEl & {
  *  at least this strong. */
 const COVERS_AT = 0.3;
 
-/** Is this station's text up enough to cover the meter? The meter's check asks this and reads no styles. */
+/** Is this station's text up enough to cover the meter? Only its unit test calls it now; nothing else reads a panel's styles. */
 export function textCovers(el: { style: { visibility: string; opacity: string } }): boolean {
   return el.style.visibility !== "hidden" && Number(el.style.opacity) >= COVERS_AT;
 }

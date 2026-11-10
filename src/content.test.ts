@@ -377,7 +377,7 @@ describe("interface words", () => {
     c.ui.gapBehind = "{n} deploys behind";
     expect(validateContent(c).join("\n")).toContain("ui.gapBehind: must contain {noun}");
   });
-  it("has the words the stop controls will use", () => {
+  it("has the words the stop controls use", () => {
     expect([ui.keyPrev, ui.keyRoom, ui.keyNext, ui.keyStart]).toEqual(["PREV", "ROOM", "NEXT", "START"]);
     expect([ui.prevStation, ui.backToRoom, ui.nextStation, ui.startTour]).toEqual(
       ["Previous station", "Back to the room", "Next station", "Start the tour"]);

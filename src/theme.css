@@ -1,4 +1,4 @@
-/* The site's look for the browser's own controls. It is linked from index.html, so it is in the first screen. */
+/* The site's look for the browser's own controls. src/main.tsx imports it, and Vite's build links the bundled CSS from the page, so it is in the first screen. */
 
 /* The focus ring: the one the Work timeline's segments have, for every link and button under keyboard focus
    and for a station's panel, which the tour focuses on landing (tabIndex -1). The browser shows :focus-visible

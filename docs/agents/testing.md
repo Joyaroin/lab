@@ -1,13 +1,13 @@
 # Testing facts
 
-Checked against the code on 2026-11-09, at 5de46d9.
+Checked against the code on 2026-11-10, at b4903b6: each line confirmed against the code there, and `make facts` run.
 
 ## Kinds of test
 | Kind | How to select it | Where it runs |
 |---|---|---|
 | Unit | `npm test` | Builder and CI |
 | Light browser | `make browser-light PW_ARGS=<spec>` for the specs it touched. `make browser-light` alone only for a change to shared code, through `heavy` | Builder and CI |
-| Timing | `@timing` | CI only. In the session only to measure or break-check, through `heavy`, 1 worker. Exact durations are unit tests with a fake clock (`src/frames.test.ts`, `src/tear.test.ts`, `src/nixie.test.ts`, `src/meter-power.test.ts`, `src/shift/shift.test.ts`); browser timing specs check that a play happened, its order, and the safe side of a limit |
+| Timing | `@timing` | CI only. In the session only to measure or break-check, through `heavy`, 1 worker. Exact durations are unit tests that pass the time in or fake the clock (`src/frames.test.ts`, `src/tear.test.ts`, `src/nixie.test.ts`, `src/meter-power.test.ts`, `src/shift/shift.test.ts`); browser timing specs check that a play happened, its order, and the safe side of a limit |
 | Heavy rendering | `@render` | CI only |
 
 ## Commands

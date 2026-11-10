@@ -209,8 +209,8 @@ get a folder; the rest are still flat files in `src/`.
   specs: the resolve starts once when held text comes out, and a return just appears. The text *state* is
   never read back from the element; `placeText` still reads the panel's `maxHeight`, `scrollTop` and
   `scrollHeight` for layout. Whether the text is held, resolving or showing is the shift's to say
-  (`textState`); the text module does not repeat that rule. The meter's check for text covering it asks
-  `textCovers`, and nothing outside the module reads the panels' inline styles (the tear view only sets
+  (`textState`); the text module does not repeat that rule. `textCovers` (`src/text/place.ts`) says whether a panel's text is up enough to cover the meter; only
+  its unit test calls it now, and nothing outside the module reads the panels' inline styles (the tear view only sets
   its filter).
 - **`src/framing/`**: the framing. `framingFor({ width, height })` picks Square or Portrait, and is called with
   the current window each time. The framing answers `cameraAt(where, launch)` (camera, look and field of view; a flying Where is `flightPose` from the launch pose to the stop),
