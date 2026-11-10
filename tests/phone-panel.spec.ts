@@ -23,3 +23,22 @@ test("on a 390x844 phone the Work panel is at least 460 px tall and fills the fr
   await expect(panelOf(page, "work")).toHaveAttribute("data-more", "true");
   await expect(panelOf(page, "work").locator(".crt-more")).toBeVisible();
 });
+
+// #222: on a phone held sideways the compact HUD (src/pin.ts, `hudTier`) leaves the glass and the panel room above the
+// device, so the panel, with its more cue, ends above the meter bar (the digits and the keys).
+test("on a 667x375 phone held sideways the Work panel and its more cue end above the meter bar", async ({ page }) => {
+  test.setTimeout(90_000);
+  const land = { width: 667, height: 375 };
+  await page.setViewportSize(land);
+  await openTour(page);
+  await goTo(page, 1);
+  await expect(panelOf(page, "work")).toBeVisible();
+  await overflowPanel(page, "work"); // the real copy may fit; make it run past the edge so the cue shows
+  const box = await waitForPanel(page, "work");
+  await expect(panelOf(page, "work").locator(".crt-more")).toBeVisible();
+  const bar = (await page.locator("[data-meter-bar]").boundingBox())!;
+  expect(box.height, "a readable panel, not a sliver").toBeGreaterThanOrEqual(120 - 1);
+  expect(box.top + box.height, "the panel ends above the meter bar").toBeLessThanOrEqual(bar.y);
+  const more = (await panelOf(page, "work").locator(".crt-more").boundingBox())!;
+  expect(more.y + more.height, "the more cue ends above the meter bar").toBeLessThanOrEqual(bar.y);
+});

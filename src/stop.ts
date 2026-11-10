@@ -1,5 +1,5 @@
 import { CAMERA_FOV, CRT_GLASS, type Crt } from "./crts";
-import { clearances, SIDE } from "./pin";
+import { clearances, MIN_PANEL_H, SIDE } from "./pin";
 
 type V3 = [number, number, number];
 type Win = { width: number; height: number };
@@ -9,7 +9,7 @@ const TAN = Math.tan((CAMERA_FOV * Math.PI) / 360);
 /** The band of the window the glass fills: below the HUD, above the meter, inside the sides. */
 function band(win: Win) {
   const { top, bottom } = clearances(win);
-  const free = Math.max(120, win.height - top - bottom);
+  const free = Math.max(MIN_PANEL_H, win.height - top - bottom);
   return { free, wide: Math.max(120, win.width - 2 * SIDE), centreY: top + free * 0.5 };
 }
 

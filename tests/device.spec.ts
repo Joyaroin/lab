@@ -1,7 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import { ui } from "../src/content";
 import { readFileSync } from "node:fs";
-import { barKey, goTo, landedAt, openTour, stationIds } from "./lib/page";
+import { HUD_MARGIN } from "../src/pin";
+import { barKey, goTo, landedAt, openTour, panelOf, stationIds, waitForPanel } from "./lib/page";
 
 // The meter bar's device (#227): the rendered images put together. The keys' size, name and focus ring are
 // checked in stepping.spec.ts and focus.spec.ts; this spec holds the device's size, the middle key's place on a
@@ -41,6 +42,37 @@ for (const [name, size, width] of [
     await check("station");
   });
 }
+
+// A short landscape window (a phone held sideways, 740 x 360) has the compact HUD. The line under the device runs wider than the
+// device, up to the HUD's side margins, in 12.8 px type, so it stays one line, and the text panel above it ends above the meter bar.
+test("at 740 x 360 the line under the device is one line, wider than the device, and the text panel ends above the meter bar", async ({ page }) => {
+  test.setTimeout(90_000);
+  const win = { width: 740, height: 360 };
+  await page.setViewportSize(win);
+  await openTour(page);
+  await expect(device(page)).toBeVisible();
+  const oneLine = () => page.locator("[data-meter-bar] [data-live]").evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    return { tops: new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size, font: parseFloat(getComputedStyle(el).fontSize) };
+  });
+  const check = async (where: string) => {
+    const line = (await page.locator("[data-meter-bar] [data-live]").boundingBox())!, dev = (await device(page).boundingBox())!;
+    expect(await oneLine(), `${where}: one row of text, in 12.8 px type`).toEqual({ tops: 1, font: 12.8 });
+    expect(line.height, `${where}: one line is 24 px tall`).toBeLessThanOrEqual(25);
+    if (where === "overview") expect(line.width, "the gap's sentence is wider than the device").toBeGreaterThan(dev.width + 100); // a stop's line is short
+    expect(line.x, `${where}: inside the HUD's left margin`).toBeGreaterThanOrEqual(HUD_MARGIN - 1);
+    expect(line.x + line.width, `${where}: inside the HUD's right margin`).toBeLessThanOrEqual(win.width - HUD_MARGIN + 1);
+  };
+  await check("overview");
+  await goTo(page, 1);
+  await expect(panelOf(page, "work")).toBeVisible();
+  await check("station");
+  const panel = await waitForPanel(page, "work");
+  const bar = (await page.locator("[data-meter-bar]").boundingBox())!;
+  expect(panel.height, "a readable panel").toBeGreaterThanOrEqual(120 - 1);
+  expect(panel.top + panel.height, "the text panel ends above the meter bar").toBeLessThanOrEqual(bar.y);
+});
 
 test("on a portrait window a station shows PREV and NEXT, and the middle key's place on the device is empty", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });

@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { identity, links, stations, ui } from "../src/content";
-import { clearances, LINK_ROW_H, LINK_ROW_W, NAME_BLOCK_W, ONE_ROW_MIN_W, TWO_LINE_MIN_W } from "../src/pin";
+import { clearances, COMPACT_MIN_W, COMPACT_SLACK, HUD_MARGIN, hudTier, LINK_ROW_H, LINK_ROW_W, NAME_BLOCK_W, ONE_ROW_MIN_W, TWO_LINE_MIN_W } from "../src/pin";
 import { clickLink, goTo, hudLink, landedAt, openTour } from "./lib/page";
 
 // The HUD (#222): a name block, one row of links, the current stop marked, all inside the boxes and clearances
@@ -23,7 +23,7 @@ async function open(page: Page, width: number, height: number) {
 
 // Landscape windows: the one-row HUD where the window is at least ONE_ROW_MIN_W wide, the row on its own line below,
 // and under TWO_LINE_MIN_W the row wrapped as two whole groups (a third line, the third clearance tier).
-for (const [width, height] of [[1440, 900], [1280, 800], [1024, 768], [800, 600], [700, 500], [560, 400]]) {
+for (const [width, height] of [[1440, 900], [1280, 800], [1024, 768], [800, 600], [700, 500]]) {
   const oneRow = width >= ONE_ROW_MIN_W;
   test(`${width}x${height}: name block and link row, ${oneRow ? "on one line" : "the row under the name block"}, inside the boxes and clearances`, async ({ page }) => {
     await open(page, width, height);
@@ -61,6 +61,66 @@ for (const [width, height] of [[1440, 900], [1280, 800], [1024, 768], [800, 600]
   });
 }
 
+// Short landscape windows (a phone held sideways, 560x400): the compact HUD (#222). Two lines from COMPACT_MIN_W wide: the name,
+// the title and the outside links, then the stops. Narrower, three: the name and title, the outside links, the stops. No
+// availability line. It is no taller than the top clearance for its tier, so the glass and the panel stay above the meter.
+for (const [width, height, tier] of [[667, 375, "compactTwo"], [740, 360, "compactTwo"], [560, 400, "compactThree"]] as const) {
+  test(`${width}x${height}: the compact HUD, ${tier === "compactTwo" ? "two lines" : "three short lines"}, no taller than the top clearance`, async ({ page }) => {
+    expect(hudTier({ width, height })).toBe(tier);
+    expect(width >= COMPACT_MIN_W).toBe(tier === "compactTwo");
+    await open(page, width, height);
+    const clear = clearances({ width, height });
+    for (const stop of [0, 2]) {
+      if (stop) await goTo(page, stop);
+      await expect(nameBlock(page)).toContainText(identity.name);
+      await expect(nameBlock(page)).toContainText(identity.title);
+      await expect(hud(page)).not.toContainText(identity.availability);
+      const name = await box(nameBlock(page)), row = await box(linkRow(page));
+      // The lines of the HUD from top to bottom: each box is one line tall and none overlaps another.
+      const lines = [name, ...(tier === "compactThree" ? [await box(page.locator("[data-outside]"))] : []), row];
+      expect(lines.length, "lines").toBe(tier === "compactTwo" ? 2 : 3);
+      for (let i = 1; i < lines.length; i++) expect(lines[i].y, `line ${i + 1} is under line ${i}`).toBeGreaterThanOrEqual(lines[i - 1].y + lines[i - 1].height);
+      // The name and the title are one line each (they do not wrap to fit), and nothing in the line runs past its box.
+      const [nameH, titleH] = await nameBlock(page).locator("> div").evaluateAll((ds) => ds.slice(0, 2).map((d) => d.getBoundingClientRect().height));
+      expect(nameH, "the name is one line").toBeLessThanOrEqual(1.25 * 16 * 1.2 + 1);
+      expect(titleH, "the title is one line").toBeLessThanOrEqual(14 * 1.3 + 1);
+      expect(await nameBlock(page).evaluate((e) => e.scrollWidth <= e.clientWidth + 1), "the first line fits its box").toBe(true);
+      // Every link sits on one of those lines, and every line that has links has more than one: no row with a single link.
+      const ys = await hud(page).locator("a").evaluateAll((as) => as.map((a) => Math.round(a.getBoundingClientRect().y)));
+      const perLine = [...new Set(ys)].map((y) => ys.filter((v) => v === y).length);
+      expect(perLine, `links per line ${perLine}`).toEqual([links.length, 1 + stations.length]);
+      expect(await nameBlock(page).locator("a").count(), "the outside links are beside the name and title when there is room").toBe(tier === "compactTwo" ? links.length : 0);
+      // Nothing runs past the window's sides.
+      const right = await hud(page).locator("a").evaluateAll((as) => Math.max(...as.map((a) => a.getBoundingClientRect().right)));
+      expect(right, "the links end inside the window").toBeLessThanOrEqual(width - 8);
+      const bottom = Math.max(...lines.map((l) => l.y + l.height));
+      expect(bottom, "the HUD is no taller than the top clearance").toBeLessThanOrEqual(clear.top);
+      expect((await box(hud(page))).height, "the nav is no taller than the top clearance").toBeLessThanOrEqual(clear.top);
+    }
+  });
+}
+
+// COMPACT_MIN_W is the narrowest two-line width, so the first line has no slack there: every link must still sit inside the
+// name block's backdrop and the window (the first build overflowed from 655 to 666 px, a 4 px space before each mark), and it keeps COMPACT_SLACK of room for fonts wider than the Mac's.
+test(`${COMPACT_MIN_W}x375: every link sits inside the HUD's backdrop and inside the window`, async ({ page }) => {
+  const width = COMPACT_MIN_W;
+  expect(hudTier({ width, height: 375 })).toBe("compactTwo");
+  await open(page, width, 375);
+  const name = await box(nameBlock(page));
+  const rights = await hud(page).locator("a").evaluateAll((as) => as.map((a) => ({ text: a.textContent, left: a.getBoundingClientRect().left, right: a.getBoundingClientRect().right })));
+  expect(rights.length, "every link is there").toBe(links.length + 1 + stations.length);
+  for (const a of rights) {
+    expect(a.left, `${a.text} starts inside the window`).toBeGreaterThanOrEqual(0);
+    expect(a.right, `${a.text} ends inside the window, with its margin`).toBeLessThanOrEqual(width - 8);
+  }
+  for (const l of links) {
+    const a = await box(nameBlock(page).getByRole("link", { name: l.label }));
+    expect(a.x + a.width, `${l.label} ends inside the name block's backdrop`).toBeLessThanOrEqual(name.x + name.width + 0.5);
+  }
+  expect(name.width, "the first line leaves its slack for a wider font").toBeLessThanOrEqual(width - 2 * HUD_MARGIN - COMPACT_SLACK + 2);
+  expect(await nameBlock(page).evaluate((e) => e.scrollWidth <= e.clientWidth), "the first line fits its box with no overflow").toBe(true);
+});
+
 test("1024x768: the row holds Room, the stations and the outside links as whole groups", async ({ page }) => {
   await open(page, 1024, 768);
   expect(await linkRow(page).locator("a").count()).toBe(1 + stations.length + links.length);
@@ -83,7 +143,7 @@ test("390x844: the name block has the name, the title and the three outside link
 
 // The hint line stands 8 px above the bottom clearance, so it clears the meter device, and it clears the meter bar
 // (the digits, the line and the keys) too, which is the room the clearance leaves.
-for (const [width, height] of [[1440, 900], [1280, 800], [1024, 768], [800, 600], [700, 500], [390, 844]]) {
+for (const [width, height] of [[1440, 900], [1280, 800], [1024, 768], [800, 600], [700, 500], [667, 375], [740, 360], [560, 400], [390, 844]]) {
   test(`${width}x${height}: the hint line's bottom edge is above the bottom clearance and the meter bar`, async ({ page }) => {
     await open(page, width, height);
     await expect(hint(page)).toBeVisible();
@@ -94,7 +154,7 @@ for (const [width, height] of [[1440, 900], [1280, 800], [1024, 768], [800, 600]
 }
 
 // Every piece of HUD text is at least 14 px: the name block, the links, the phone menu and the hint.
-for (const [width, height] of [[1280, 800], [1024, 768], [390, 844]]) {
+for (const [width, height] of [[1280, 800], [1024, 768], [667, 375], [560, 400], [390, 844]]) {
   test(`${width}x${height}: every piece of HUD text is at least 14 px`, async ({ page }) => {
     await open(page, width, height);
     const sizes = await page.evaluate(() => {

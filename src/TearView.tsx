@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Play, Shift } from "./shift";
-import { runFrames } from "./frames";
-import { tearAt, TEAR_SEEDS } from "./tear";
+import { playTear } from "./tear-draw";
 
 const FILTER = "shift-tear", TURN_FILTER = "shift-tear-page"; // the whole view's, and a Work page turn's
 // The map is noise that varies only down the screen, stepped into flat bands, so each band slips
@@ -49,18 +48,8 @@ function useTear(filter: string, target: () => HTMLElement | null, shift: Play |
     const el = target();
     if (!shift || reducedNow.current || !el) return;
     // The effect runs a frame or more after the shift fired; the loop times from here.
-    const stop = runFrames((seconds) => {
-      const t = tearAt(seconds, shift.kind);
-      if (t.done || reducedNow.current) { el.style.filter = ""; return true; }
-      const w = window.innerWidth;
-      refs.turb.current?.setAttribute("seed", String(TEAR_SEEDS[shift.kind][t.pose]));
-      refs.disp.current?.setAttribute("scale", String(t.slip * w * 2)); // the map spans ±half the scale
-      refs.red.current?.setAttribute("dx", String(t.edge * w));
-      refs.cyan.current?.setAttribute("dx", String(-t.edge * w));
-      el.style.filter = `url(#${filter})`;
-      return false;
-    }, { onStart: (startMs) => onStart?.(shift.kind, startMs) });
-    return () => { stop(); el.style.filter = ""; };
+    return playTear(filter, shift.kind, { el, ...refs }, () => window.innerWidth, () => reducedNow.current,
+      { onStart: (startMs) => onStart?.(shift.kind, startMs) });
   }, [shift?.id, shift?.kind]); // eslint-disable-line react-hooks/exhaustive-deps
   return refs;
 }

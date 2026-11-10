@@ -3,7 +3,7 @@ import { PerspectiveCamera } from "three";
 import { CAMERA_FOV, crts } from "./crts";
 import { glassBox, glassOnScreen } from "./glass";
 import { framingFor } from "./framing";
-import { clearances, SIDE } from "./pin";
+import { clearances, deviceSize, hudTier, MIN_PANEL_H, SIDE } from "./pin";
 import { squareStop } from "./stop";
 
 /** The glass on screen at station `i`, through the code the app runs: the tour's camera
@@ -20,7 +20,14 @@ function glassAtHold(i: number, w: number, h: number) {
   return { left: box.left, right: box.left + box.width, top: box.top, bottom: box.top + box.height, pts, box };
 }
 
-const windows = [[1280, 800], [1920, 1080], [1440, 900], [1024, 768], [1366, 640], [2560, 1440]];
+// Short landscape windows too: a phone held sideways (667x375, 740x360), 560x400, and the sizes either side of the tiers' limits.
+const windows = [[1280, 800], [1920, 1080], [1440, 900], [1024, 768], [1366, 640], [2560, 1440],
+  [800, 600], [700, 500], [835, 470], [667, 375], [740, 360], [560, 400]];
+const shortWindows = [[667, 375, "compactTwo"], [740, 360, "compactTwo"], [560, 400, "compactThree"]] as const;
+/** How far the glass may stand below the bottom clearance (px). The glass is kept MIN_PANEL_H tall, and on a narrow, short window
+ *  (here 560x400, under 680 px wide) the line under the device wraps to two lines, so the band is a little shorter than that
+ *  (Adham's decision on #246). Every other window has none. */
+const dip = (w: number, h: number) => { const { top, bottom } = clearances({ width: w, height: h }); return Math.max(0, MIN_PANEL_H - (h - top - bottom)); };
 
 describe("square stops", () => {
   it("stand about 0.54 m from the glass at 1280x800", () => {
@@ -34,7 +41,7 @@ describe("square stops", () => {
       for (let i = 0; i < crts.length; i++) {
         const g = glassAtHold(i, w, h), { top, bottom } = clearances({ width: w, height: h });
         expect(g.top, crts[i].id).toBeGreaterThanOrEqual(top - 1);
-        expect(g.bottom, crts[i].id).toBeLessThanOrEqual(h - bottom + 1);
+        expect(g.bottom, crts[i].id).toBeLessThanOrEqual(h - bottom + 1 + dip(w, h));
         expect(g.left, crts[i].id).toBeGreaterThanOrEqual(SIDE - 1);
         expect(g.right, crts[i].id).toBeLessThanOrEqual(w - SIDE + 1);
         // and fills it: height of the band, unless the window is too narrow for that
@@ -58,16 +65,34 @@ describe("square stops", () => {
         const bandH = h - top - bottom, bandW = w - 2 * SIDE;
         // inside the band on every side...
         expect(box.top, crts[i].id).toBeGreaterThanOrEqual(top - 1);
-        expect(box.top + box.height, crts[i].id).toBeLessThanOrEqual(h - bottom + 1);
+        expect(box.top + box.height, crts[i].id).toBeLessThanOrEqual(h - bottom + 1 + dip(w, h));
         expect(box.left, crts[i].id).toBeGreaterThanOrEqual(SIDE - 1);
         expect(box.left + box.width, crts[i].id).toBeLessThanOrEqual(w - SIDE + 1);
         // ...and as big as the band allows, in the middle of it
         expect(box.height >= bandH - 2 || box.width >= bandW - 2, crts[i].id).toBe(true);
         expect(box.left + box.width / 2, crts[i].id).toBeCloseTo(w / 2, 0);
-        expect(box.top + box.height / 2, crts[i].id).toBeCloseTo(top + bandH / 2, 0);
+        expect(box.top + box.height / 2, crts[i].id).toBeCloseTo(top + (bandH + dip(w, h)) / 2, 0); // the band is kept MIN_PANEL_H tall
       }
     });
   }
+  for (const [w, h, tier] of shortWindows) {
+    it(`on a short landscape window the HUD is the compact one and the glass ends above the device, ${w}x${h}`, () => {
+      expect(hudTier({ width: w, height: h })).toBe(tier);
+      const deviceTop = h - 16 - deviceSize({ width: w, height: h }).height; // the device stands 1rem above the window's bottom
+      for (let i = 0; i < crts.length; i++) {
+        const g = glassAtHold(i, w, h);
+        expect(g.bottom, crts[i].id).toBeLessThanOrEqual(deviceTop);
+        expect(g.bottom - g.top, `${crts[i].id}: the glass is not squeezed to a sliver`).toBeGreaterThanOrEqual(120 - 1);
+      }
+    });
+  }
+  it("only 560x400, the narrow, short window, dips under the panel's floor, and by under 2 px", () => {
+    for (const [w, h] of windows) {
+      if (w === 560) expect(dip(w, h), `${w}x${h}`).toBeGreaterThan(0);
+      else expect(dip(w, h), `${w}x${h}`).toBe(0);
+      expect(dip(w, h), `${w}x${h}`).toBeLessThan(2);
+    }
+  });
   it("use the same height for camera and look point, so the view is level", () => {
     for (const c of crts) {
       const s = squareStop(c, { width: 1280, height: 800 });

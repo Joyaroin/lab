@@ -17,7 +17,7 @@ Checked against the code on 2026-11-09, at 5de46d9.
 - `make browser-light`: the `browser` recipe without `@timing` and `@render`. Passes `PW_ARGS` through
 - `make meter`: renders the meter bar's images with a local browser that has WebGL. Run on purpose, on the Mac, like `make room`. CI does not run it. Run it through `heavy`; running it again at the same commit leaves `git status --short src/assets/meter` empty. `src/meter-layers.test.ts` checks the committed images against the layer list, and `src/meter-device.test.ts` the mapping from a reading to the layers shown
 - `make facts`: every path, command and tag the docs name exists
-- A flash limit spec counts the tear's visible snap back (the displacement map's scale reaching 0, `tests/lib/snap.ts`), never the filter coming off
+- A flash limit spec counts the tear's visible snap back (the displacement map's scale reaching 0, `tests/lib/snap.ts`), never the filter coming off. `src/tear-draw.test.ts` checks the view leaves scale 0 on its last frame, whatever the frame rate
 - `tests/shift.spec.ts` records the snap back's measured time as a `snap-back-ms` test annotation and a log line, for CI's browser job report
 - A browser spec can't import `src/meter-layers.ts` (Playwright's loader refuses JSON modules); `tests/device.spec.ts` reads `src/assets/meter/layers.json` itself
 - One spec in the session: `heavy npx playwright test tests/<spec> --workers=1`
