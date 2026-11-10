@@ -1,17 +1,16 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import type { MeterLink } from "./nixie";
 import { Tear, type PageTurn } from "./TearView";
 import { fill, stations, ui } from "./content";
 import { Hud, usePortrait } from "./Hud";
-import { barFor, type BarKey } from "./bar";
+import { barFor, createHover, meterDigits, PREVIEW_REST_MS, previewStop, type BarKey } from "./bar";
 import { ScreenPanels } from "./text/ScreenPanels";
 import { Meter } from "./Meter";
-import { formatReading, gapLabel, type Gap } from "./gap";
+import { gapLabel, type Gap } from "./gap";
 import { isCompact } from "./pin";
 import { useWin } from "./useWin";
 import { pendingDeploys } from "./useGap";
 import type { Shift } from "./shift";
-import { readingAt } from "./tour";
 import type { Visit } from "./visit";
 import type { Where } from "./where";
 
@@ -91,15 +90,43 @@ export function Tour({ gap, visit, meter, shift: shifts }: { gap: Gap | null; vi
     return () => { off(); window.removeEventListener("keydown", onKey); };
   }, [visit]);
 
+  // The hover preview (#228): where the pointer rests at the overview. The TV reports through the meter link (the room's
+  // canvas), a HUD link through `onPoint`. The pointer's rest is the rule in src/bar.ts; this only hears of it and asks for the
+  // render when the rest is over (the digits follow the line 150 ms later).
+  const [hover] = useState(() => createHover(() => performance.now()));
+  const [rested, restedNow] = useReducer((n: number) => n + 1, 0);
+  const pointed = useSyncExternalStore(hover.subscribe, hover.preview);
+  const preview = visit.target() === 0 ? pointed : null; // a visit under way (or a fade's second half) is not the overview
+  useEffect(() => {
+    meter.tvHover = (stop) => hover.point("tv", stop);
+    return () => { meter.tvHover = () => {}; };
+  }, [meter, hover]);
+  const onPoint = useCallback((stop: number | null) => hover.point("link", stop), [hover]);
+  // A visit ends the pointer's claim on a HUD link: it has not moved since, so back at the overview it shows no preview until
+  // it enters a link again (the shift's rule: leaving ends on the true reading). The TV's report already follows the same rule
+  // (TvTargets reports it only at the overview), so a pointer left on a TV starts its rest again on the landing.
+  useEffect(() => visit.subscribe((e) => {
+    if (e.type === "move") hover.point("link", null);
+    else if (e.stop === 0) hover.rest();
+  }), [visit, hover]);
+  useEffect(() => {
+    if (!preview || previewStop(here, preview) === null) return;
+    const left = preview.since + PREVIEW_REST_MS - performance.now();
+    if (left <= 0) return;
+    const id = setTimeout(restedNow, left + 2);
+    return () => clearTimeout(id);
+  }, [preview, here, rested]);
+
   const deploys = gap ? gap.deploys : pendingDeploys;
   const win = useWin();
   const gapLine = gap ? gapLabel(gap, isCompact(win)) : ui.readingPending;
-  const digits = formatReading(Math.round(readingAt(here, deploys)));
-  // The bar shows the stop being flown to, not the camera's place on the way: its keys, its line and its digits.
+  // The bar shows the stop being flown to, not the camera's place on the way: its keys, its line and its digits. Through a preview
+  // the line is the station's world line and name at once (no count), and the digits follow once the pointer has rested.
   const portrait = usePortrait();
   const bar = barFor(here, portrait ? "portrait" : "square");
-  const barReading = Math.round(readingAt({ kind: "at", stop: bar.stop }, deploys));
-  const barLine = bar.stop === 0 ? gapLine : fill(ui.stopLine, { label: stationLabel(bar.stop), n: bar.stop, total: stations.length });
+  const previewed = previewStop(here, preview);
+  const shown = meterDigits({ who: "bar", where: here, preview, deploys, now: performance.now(), playing: barShift, reduced });
+  const barLine = previewed !== null ? stationLabel(previewed) : bar.stop === 0 ? gapLine : fill(ui.stopLine, { label: stationLabel(bar.stop), n: bar.stop, total: stations.length });
   const press = (key: BarKey) => {
     if (key === "prev") visit.prev();
     else if (key === "room") visit.back();
@@ -107,17 +134,18 @@ export function Tour({ gap, visit, meter, shift: shifts }: { gap: Gap | null; vi
     else visit.go(1);
   };
   useEffect(() => { meter.next = () => visit.next(); }, [meter, visit]);
-  useEffect(() => { meter.digits = digits; meter.redraw?.(); }, [meter, digits]);
+  // The desk meter works its digits out from these, by the same rule as the bar (src/bar.ts).
+  useEffect(() => { meter.deploys = deploys; meter.preview = preview; meter.redraw?.(); }, [meter, deploys, preview]);
 
   return (
     <>
       <Tear shift={shifts} turn={turn} reduced={reduced} />
       <ScreenPanels onTurn={pageTurned} />
-      <Hud where={here} visited={visited} visit={visit} />
+      <Hud where={here} visited={visited} visit={visit} onPoint={onPoint} />
       <div style={{ position: "fixed", left: 0, right: 0, bottom: "var(--meter-bottom, 1rem)", zIndex: 10, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto" }}>
-          <Meter reading={barReading} label={barLine} keys={bar.keys}
-            live={gap ? gap.live : true} pending={!gap} shift={barShift} onKey={press} />
+          <Meter reading={shown.reading} label={barLine} keys={bar.keys}
+            live={gap ? gap.live : true} pending={!gap} shift={shown.scramble} onKey={press} />
         </div>
       </div>
     </>

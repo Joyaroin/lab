@@ -1,8 +1,10 @@
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { AdditiveBlending, CylinderGeometry, type MeshBasicMaterial } from "three";
 import { DESK_METER } from "./crts";
 import { powerOn, shiftDigits, type MeterLink } from "./nixie";
+import { meterDigits, PREVIEW_REST_MS, previewStop } from "./bar";
+import type { Where } from "./where";
 import type { Shift } from "./shift";
 import type { PressTarget } from "./RoomClick";
 import { canvas, pointGlowTexture, texture } from "./draw";
@@ -51,7 +53,7 @@ function glowTexture(inner: string) {
 }
 
 
-export function DeskMeter({ link, shift, reduced }: { link: MeterLink; shift: Shift; reduced: boolean }) {
+export function DeskMeter({ link, shift, reduced, where }: { link: MeterLink; shift: Shift; reduced: boolean; where: MutableRefObject<Where> }) {
   const invalidate = useThree((s) => s.invalidate);
   const tubes = useMemo(() => Array.from({ length: 7 }, () => {
     const c = canvas(96, 108);
@@ -73,14 +75,17 @@ export function DeskMeter({ link, shift, reduced }: { link: MeterLink; shift: Sh
   useFrame(({ clock }) => {
     if (link.on && link.onAt === null) { link.onAt = clock.elapsedTime; shift.powerOnBegan(performance.now()); } // the boot screen just went
     const since = link.onAt === null ? 0 : clock.elapsedTime - link.onAt;
-    const s = reduced && link.on ? powerOn(Infinity, link.digits) : powerOn(since, link.digits);
+    // The digits and the scramble come from the one rule the meter bar reads too (src/bar.ts): the reading at the visitor's place, or
+    // the hover preview's station. The shift module decides whether a shift plays (power-on hold, reduced motion, leaving).
+    const now = performance.now();
+    const { digits: reading, scramble: play } = meterDigits({ who: "desk", where: where.current, preview: link.preview, deploys: link.deploys, now, playing: shift.playing, reduced });
+    const s = reduced && link.on ? powerOn(Infinity, reading) : powerOn(since, reading);
     let shifting = false;
-    // The shift module decides whether a shift plays (power-on hold, reduced motion, leaving); this only draws it.
-    const play = reduced ? null : shift.playing;
+    const waiting = link.preview !== null && previewStop(where.current, link.preview) !== null && now - link.preview.since < PREVIEW_REST_MS;
     if (play && played.current?.id !== play.id) played.current = { id: play.id, at: clock.elapsedTime, done: false };
     if (!play) played.current = null;
     if (play && played.current && !played.current.done) {
-      const step = shiftDigits(clock.elapsedTime - played.current.at, link.digits, play.kind);
+      const step = shiftDigits(clock.elapsedTime - played.current.at, reading, play.kind);
       if (step.done) played.current.done = true; else { s.digits = step.digits; shifting = true; }
     }
     const digits = s.digits.replace(".", "");
@@ -96,7 +101,7 @@ export function DeskMeter({ link, shift, reduced }: { link: MeterLink; shift: Sh
     if (poolMat.current) poolMat.current.opacity = 0.4 * s.glow;
     if (dotMat.current) dotMat.current.opacity = s.glow;
     if (dotGlowMat.current) dotGlowMat.current.opacity = s.glow;
-    if (link.on && (!s.done || shifting)) invalidate(); // keep drawing until the power-on or shift has settled
+    if (link.on && (!s.done || shifting || waiting)) invalidate(); // keep drawing until the power-on or shift has settled, and through a preview's rest
   });
 
   return (
