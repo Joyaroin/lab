@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { stations } from "./content";
 import {
   BUTTON_PX, clearances, deviceSize, fitPanel, glassFontSize, HUD_GAP, HUD_MARGIN, LINK_ROW_H, LINK_ROW_W, NAME_BLOCK_H, NAME_BLOCK_W,
-  ONE_ROW_MIN_W, PHONE_MENU_H,
+  ONE_ROW_MIN_W, PHONE_MENU_H, TWO_LINE_MIN_W,
 } from "./pin";
 
 // fitPanel only places text pinned beside the CRT, which only a portrait window does (src/framing).
@@ -102,21 +102,30 @@ describe("clearances", () => {
     expect(clearances(win).bottom).toBeCloseTo(menu + 16 + 118.8 + 32, 1);
     expect(clearances(win).top).toBe(96);
   });
-  it("the top is the one-row HUD's height from ONE_ROW_MIN_W wide, the two-line HUD's under it, and 96 on portrait", () => {
-    const oneRow = HUD_MARGIN + NAME_BLOCK_H, twoLine = oneRow + LINK_ROW_H;
+  it("the top is the one-row HUD's height from ONE_ROW_MIN_W wide, the two-line HUD's from TWO_LINE_MIN_W, the three-line HUD's under that, and 96 on portrait", () => {
+    const oneRow = HUD_MARGIN + NAME_BLOCK_H, twoLine = oneRow + LINK_ROW_H, threeLine = twoLine + LINK_ROW_H;
     expect(oneRow).toBe(90);
     expect(twoLine).toBe(126);
+    expect(threeLine).toBe(162);
     expect(clearances({ width: ONE_ROW_MIN_W, height: 900 }).top).toBe(oneRow);
     expect(clearances({ width: 1920, height: 1080 }).top).toBe(oneRow);
     expect(clearances({ width: ONE_ROW_MIN_W - 1, height: 900 }).top).toBe(twoLine);
     expect(clearances({ width: 1280, height: 800 }).top).toBe(oneRow); // 1280 x 800 keeps the one-row HUD
     expect(clearances({ width: 1279, height: 800 }).top).toBe(twoLine);
     expect(clearances({ width: 1024, height: 768 }).top).toBe(twoLine);
+    expect(clearances({ width: TWO_LINE_MIN_W, height: 600 }).top).toBe(twoLine);
+    expect(clearances({ width: TWO_LINE_MIN_W - 1, height: 600 }).top).toBe(threeLine);
+    expect(clearances({ width: 800, height: 600 }).top).toBe(threeLine);
+    expect(clearances({ width: 700, height: 500 }).top).toBe(threeLine);
     expect(clearances({ width: 390, height: 844 }).top).toBe(96);
   });
   it("ONE_ROW_MIN_W is worked out from the HUD's boxes: name block, link row, the gap and both margins", () => {
     expect(ONE_ROW_MIN_W).toBe(NAME_BLOCK_W + HUD_GAP + LINK_ROW_W + 2 * HUD_MARGIN);
     expect(ONE_ROW_MIN_W).toBeLessThanOrEqual(1280); // so a 1280 x 800 window gets the one-row HUD
+  });
+  it("TWO_LINE_MIN_W is worked out from the link row's box and both margins: under it the row wraps as two whole groups", () => {
+    expect(TWO_LINE_MIN_W).toBe(LINK_ROW_W + 2 * HUD_MARGIN);
+    expect(TWO_LINE_MIN_W).toBeLessThan(1024); // so 1024 x 768 keeps the two-line HUD
   });
   it("the phone menu's height comes from the button, gap, padding and rows", () => {
     expect(BUTTON_PX).toBe(44);

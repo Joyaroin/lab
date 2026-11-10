@@ -32,8 +32,8 @@ export function usePortrait() {
 
 // The always-on overlay (#222). On a landscape window: a name block at the top left (name, title, availability)
 // and a row of links: Room and the stations, a divider, then the outside links. From ONE_ROW_MIN_W (src/pin.ts)
-// the two share a line; narrower, the row has its own line under the name block, and if even that is too long it
-// wraps as two whole groups. On a portrait window the name block spans the top with the outside links (no
+// the two share a line; narrower, the row has its own line under the name block, and from under TWO_LINE_MIN_W (the row's box plus both margins)
+// it wraps as two whole groups, so the HUD has three lines. On a portrait window the name block spans the top with the outside links (no
 // availability line) and Room and the stations are a bottom menu, three to a row. Fixed, so it is reachable at every
 // point. The station links are real #id links that fly to that station; Room flies back to the overview.
 // It owns what #177 changes: the parts that depend on where the visitor is and on whether they have
@@ -91,9 +91,9 @@ export function Hud({ where, visited, visit }: { where: Where; visited: boolean;
             <div style={{ ...lineStyle, color: "#ffb347" }}>{identity.availability}</div>
           </div>
           <div data-link-row style={oneRow ? linkRowOne : linkRowOwnLine}>
-            <div style={groupStyle}>{stopLinks}</div>
+            <div style={groupWhole}>{stopLinks}</div>
             <span aria-hidden="true" style={divider} />
-            <div style={groupStyle}>{outside}</div>
+            <div style={groupWhole}>{outside}</div>
           </div>
         </>
       )}
@@ -130,6 +130,9 @@ const linkRowBase: CSSProperties = {
 const linkRowOne: CSSProperties = { ...linkRowBase, flexWrap: "nowrap", maxWidth: LINK_ROW_W, height: LINK_ROW_H, flex: "none" };
 const linkRowOwnLine: CSSProperties = { ...linkRowBase, maxWidth: "100%" };
 const groupStyle: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 8, rowGap: 4 };
+// A landscape group never wraps inside itself: when the row is too narrow for both it wraps between the groups, so
+// no line holds a single link. Narrower than the stations group plus both margins (about 540 px) it overflows instead.
+const groupWhole: CSSProperties = { ...groupStyle, flexWrap: "nowrap", flex: "none" };
 const divider: CSSProperties = { width: 1, height: "1.1em", background: "#2f7a4d", margin: "0 6px" };
 const menuBar: CSSProperties = {
   position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 20, padding: PHONE_PAD_PX, background: "rgba(5,8,10,0.7)", pointerEvents: "auto",

@@ -28,8 +28,12 @@ export const HUD_MARGIN = 18; // round the boxes: the window's top and sides
 export const HUD_GAP = 24; // between the name block and the link row when they share a line
 /** From this width (landscape) the name block and the link row share the top of the window. */
 export const ONE_ROW_MIN_W = NAME_BLOCK_W + HUD_GAP + LINK_ROW_W + 2 * HUD_MARGIN;
+/** From this width (landscape) the link row fits on its own line under the name block. Narrower, it wraps as two
+ *  whole groups (the stations, then the outside links), so the HUD has three lines. */
+export const TWO_LINE_MIN_W = LINK_ROW_W + 2 * HUD_MARGIN;
 const ONE_ROW_H = HUD_MARGIN + NAME_BLOCK_H; // about 90
 const TWO_LINE_H = ONE_ROW_H + LINK_ROW_H; // about 126
+const THREE_LINE_H = TWO_LINE_H + LINK_ROW_H; // about 162
 const PHONE_TOP = 96;
 
 type Win = { width: number; height: number };
@@ -48,7 +52,7 @@ export function clearances(win: Win): { top: number; bottom: number } {
   const device = deviceSize(win);
   if (isPortrait(win)) return { top: PHONE_TOP, bottom: PHONE_MENU_H + 16 + device.height + 32 };
   // 26 px of text, 8 px under it and 8 px over the device
-  return { top: win.width >= ONE_ROW_MIN_W ? ONE_ROW_H : TWO_LINE_H, bottom: device.height + 42 };
+  return { top: win.width >= ONE_ROW_MIN_W ? ONE_ROW_H : win.width >= TWO_LINE_MIN_W ? TWO_LINE_H : THREE_LINE_H, bottom: device.height + 42 };
 }
 
 export type Fit = { left: number; top: number; width: number; maxHeight: number };

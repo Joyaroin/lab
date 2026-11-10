@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { identity, links, stations, ui } from "../src/content";
-import { clearances, LINK_ROW_H, LINK_ROW_W, NAME_BLOCK_W, ONE_ROW_MIN_W } from "../src/pin";
+import { clearances, LINK_ROW_H, LINK_ROW_W, NAME_BLOCK_W, ONE_ROW_MIN_W, TWO_LINE_MIN_W } from "../src/pin";
 import { clickLink, goTo, hudLink, landedAt, openTour } from "./lib/page";
 
 // The HUD (#222): a name block, one row of links, the current stop marked, all inside the boxes and clearances
@@ -21,8 +21,9 @@ async function open(page: Page, width: number, height: number) {
   await expect(nameBlock(page)).toBeVisible();
 }
 
-// Landscape windows: the one-row HUD where the window is at least ONE_ROW_MIN_W wide, the row on its own line below.
-for (const [width, height] of [[1440, 900], [1280, 800], [1024, 768]]) {
+// Landscape windows: the one-row HUD where the window is at least ONE_ROW_MIN_W wide, the row on its own line below,
+// and under TWO_LINE_MIN_W the row wrapped as two whole groups (a third line, the third clearance tier).
+for (const [width, height] of [[1440, 900], [1280, 800], [1024, 768], [800, 600], [700, 500], [560, 400]]) {
   const oneRow = width >= ONE_ROW_MIN_W;
   test(`${width}x${height}: name block and link row, ${oneRow ? "on one line" : "the row under the name block"}, inside the boxes and clearances`, async ({ page }) => {
     await open(page, width, height);
@@ -45,10 +46,13 @@ for (const [width, height] of [[1440, 900], [1280, 800], [1024, 768]]) {
         expect(inside, "every link is inside the link row's box").toBe(true);
       } else {
         expect(row.y, "the row is under the name block").toBeGreaterThanOrEqual(name.y + name.height);
-        // One line of links, or two whole groups: no row of the link row holds a single link.
+        // One line of links, or two whole groups: no row of the link row holds a single link. Under TWO_LINE_MIN_W it is two rows.
+        const wrapped = width < TWO_LINE_MIN_W;
         const ys = await linkRow(page).locator("a").evaluateAll((as) => as.map((a) => Math.round(a.getBoundingClientRect().y)));
         const perLine = [...new Set(ys)].map((y) => ys.filter((v) => v === y).length);
         expect(Math.min(...perLine), `links per line ${perLine}`).toBeGreaterThan(1);
+        expect(perLine.length, `lines of links ${perLine}`).toBe(wrapped ? 2 : 1);
+        if (wrapped) expect(perLine, "the stations, then the outside links").toEqual([1 + stations.length, links.length]);
       }
       const bottom = Math.max(name.y + name.height, row.y + row.height);
       expect(bottom, "the HUD is no taller than the top clearance").toBeLessThanOrEqual(clear.top);
@@ -77,13 +81,15 @@ test("390x844: the name block has the name, the title and the three outside link
   expect(await page.locator("[data-menu]").count()).toBe(1);
 });
 
-// The hint line stands 8 px above the bottom clearance, so it clears the meter device.
-for (const [width, height] of [[1440, 900], [1280, 800], [1024, 768], [390, 844]]) {
-  test(`${width}x${height}: the hint line's bottom edge is above the bottom clearance`, async ({ page }) => {
+// The hint line stands 8 px above the bottom clearance, so it clears the meter device, and it clears the meter bar
+// (the digits, the line and the keys) too, which is the room the clearance leaves.
+for (const [width, height] of [[1440, 900], [1280, 800], [1024, 768], [800, 600], [700, 500], [390, 844]]) {
+  test(`${width}x${height}: the hint line's bottom edge is above the bottom clearance and the meter bar`, async ({ page }) => {
     await open(page, width, height);
     await expect(hint(page)).toBeVisible();
-    const h = await box(hint(page));
+    const h = await box(hint(page)), bar = await box(page.locator("[data-meter-bar]"));
     expect(h.y + h.height).toBeLessThanOrEqual(height - clearances({ width, height }).bottom);
+    expect(h.y + h.height, "the hint is above the meter bar's keys").toBeLessThanOrEqual(bar.y);
   });
 }
 

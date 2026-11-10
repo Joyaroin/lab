@@ -101,13 +101,16 @@ The language of this project: its terms, what each one means, and what it doesn'
 - **HUD**: the always-on overlay: a name block (name, title, availability), the Room link that goes back to the overview, the
   station links and the outside links (Résumé, LinkedIn, GitHub, which open a new tab and carry a ↗). On a landscape window
   at least `ONE_ROW_MIN_W` wide (1280 px) the name block is at the top left and one row of links at the top right: Room and the
-  stations, a divider, the outside links. Narrower, the row moves to its own line under the name block, and if that is still
-  too long it wraps as two whole groups (stations, then outside links); no row holds a single link. On a portrait window the
+  stations, a divider, the outside links. Narrower, the row moves to its own line under the name block, and under
+  `TWO_LINE_MIN_W` (the link row's box plus both margins, 836 px) it wraps as two whole groups (stations, then outside
+  links), a third line; no row holds a single link, which holds down to about 540 px wide, the stations group and both
+  margins (narrower, the groups overflow rather than split). On a portrait window the
   name block spans the top with the name, title and outside links (no availability line), and Room and the stations are a
   bottom menu, three to a row, in buttons at least 44 px tall; the meter bar rises above it. All HUD text is at least 14 px.
   The current stop's link differs in weight and background as well as in `aria-current`; during a flight none is marked. The
   name block fits `NAME_BLOCK_W`, the link row `LINK_ROW_W` x `LINK_ROW_H`, and the HUD is no taller than the top
-  clearance (`clearances(win).top`, all in `src/pin.ts`). A hint line 8 px above the bottom clearance tells the visitor what to
+  clearance (`clearances(win).top`, all in `src/pin.ts`): three tiers on landscape, the one-row HUD's height (90 px), the
+  two-line HUD's (126 px) from `TWO_LINE_MIN_W`, and the three-line HUD's (162 px) under it, each worked out from the boxes. A hint line 8 px above the bottom clearance tells the visitor what to
   click; it fades after the first landing at a station and stays gone.
 - **Phone stop**: a station's own camera stop, look point and text pin used on a portrait window instead of
   the pulled-back view, where that view would be mostly dark. Only MediaSafe and Software factory have one.
@@ -175,7 +178,7 @@ get a folder; the rest are still flat files in `src/`.
 - **`src/framing/`**: the framing. `framingFor({ width, height })` picks Square or Portrait, and is called with
   the current window each time. The framing answers `cameraAt(where, launch)` (camera, look and field of view; a flying Where is `flightPose` from the launch pose to the stop),
   `textOnGlass(where, station)`, `parallaxStrength(where)` and `panelPoint(crt)`, each taking a **Where**; nothing else decides
-  the portrait split. The tour module (`src/tour.ts`) keeps `readingAt(where, gap)` and the mouse `parallax`; `panelStrength(where, station)` in `src/hold.ts` takes a Where. The room the HUD and the meter bar take is one pure rule of the window in `src/pin.ts` (`clearances`, with `deviceSize`); the camera's stop and the text panel both read it, and on a portrait window the panel takes all the free height.
+  the portrait split. The tour module (`src/tour.ts`) keeps `readingAt(where, gap)` and the mouse `parallax`; `panelStrength(where, station)` in `src/hold.ts` takes a Where. The room the HUD and the meter bar take is one pure rule of the window in `src/pin.ts` (`clearances`, with `deviceSize`); the camera's stop and the text panel both read it, and on a portrait window the panel takes all the free height. On a landscape window its top is one of three tiers by width (one row, two lines, and under `TWO_LINE_MIN_W` three lines, as the HUD entry says), so the stop and the panel clear the HUD at 800 px wide as at 1440.
 - **`src/content.ts`**: all copy in the app: station text, links, the bezel and timeline words, and `ui`, the
   rest of what visitors see or hear (HUD, meter aria labels, boot log, signal lost, the gap's sentence).
   Templates take `{name}` placeholders through `fill`. Components hold none of it; a test fails if a `ui`
