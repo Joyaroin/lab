@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { createVisit, FADE_MS, FLIGHT_MS } from "./visit";
 import { linkHistory, type HistoryHost } from "./history";
+import { STATION_COUNT } from "../hold";
 import { hashForStop, stopForHash } from "./route";
 
 /** The visit and history modules over a fake clock and a fake history stack, driven by presses. */
 type Op =
-  | ["go", number] | ["next"] | ["back"] // the visitor's presses: a TV or HUD link, the meter, Esc / Room
+  | ["go", number] | ["next"] | ["prev"] | ["back"] // the visitor's presses: a TV or HUD link, the keys, Esc / Room
   | ["Back"] | ["Fwd"]; // the browser's buttons
 type Step = [dtMs: number, op: Op];
 
@@ -36,6 +37,7 @@ function rig(reduced: boolean, startHash = "") {
     press(op: Op) {
       if (op[0] === "go") visit.go(op[1]);
       else if (op[0] === "next") visit.next();
+      else if (op[0] === "prev") visit.prev();
       else if (op[0] === "back") visit.back();
       else if (op[0] === "Back") { if (i > 0) { i--; pop(); } }
       else if (i < stack.length - 1) { i++; pop(); }
@@ -68,7 +70,7 @@ function check(steps: Step[], reduced: boolean, startHash = ""): string | null {
 function parse(text: string): Step[] {
   return text.split(",").map((s) => {
     const [a, d] = s.trim().split("@+");
-    const op: Op = a === "Back" ? ["Back"] : a === "Fwd" ? ["Fwd"] : a === "back" ? ["back"] : a === "next" ? ["next"]
+    const op: Op = a === "Back" ? ["Back"] : a === "Fwd" ? ["Fwd"] : a === "back" ? ["back"] : a === "next" ? ["next"] : a === "prev" ? ["prev"]
       : ["go", Number(a.slice(3, -1))];
     return [Number(d), op] as Step;
   });
@@ -89,7 +91,7 @@ function randomSteps(rand: () => number): Step[] {
   return Array.from({ length: n }, (): Step => {
     const dt = gaps[Math.floor(rand() * gaps.length)];
     const k = rand();
-    const op: Op = k < 0.3 ? ["go", 1 + Math.floor(rand() * 5)] : k < 0.45 ? ["next"] : k < 0.6 ? ["back"]
+    const op: Op = k < 0.25 ? ["go", 1 + Math.floor(rand() * STATION_COUNT)] : k < 0.4 ? ["next"] : k < 0.5 ? ["prev"] : k < 0.6 ? ["back"]
       : k < 0.7 ? ["go", 0] : k < 0.85 ? ["Back"] : ["Fwd"];
     return [dt, op];
   });
@@ -104,6 +106,7 @@ const FIXED: [string, string][] = [
   ["reviewer 3", "go(4)@+1300, back@+100, go(0)@+1300, Back@+20, back@+20, go(0)@+20"],
   ["reviewer 4", "go(3)@+1300, go(3)@+1300, Back@+0, Fwd@+200, back@+20, back@+20"],
   ["reviewer 5", "Fwd@+0, go(3)@+350, go(2)@+200, Back@+1300, go(2)@+200, go(2)@+0"],
+  ["prev, next and prev mid-move", "go(3)@+1300, prev@+100, next@+20, prev@+20, prev@+500"],
   ["Work, Back mid-fade, Room", "go(1)@+0, Back@+100, go(0)@+20"],
 ];
 
@@ -132,7 +135,7 @@ describe("the URL shows where the visitor is", () => {
     for (let seed = 1; seed <= N; seed++) {
       const rand = rng(seed);
       const reduced = seed % 2 === 0;
-      const hash = rand() < 0.2 ? hashForStop(1 + Math.floor(rand() * 5)) : "";
+      const hash = rand() < 0.2 ? hashForStop(1 + Math.floor(rand() * STATION_COUNT)) : "";
       const steps = randomSteps(rand);
       const bad = check(steps, reduced, hash);
       if (bad) failures.push(`seed ${seed} reduced=${reduced} hash=${hash || "-"}: ${bad}`);

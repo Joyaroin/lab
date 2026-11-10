@@ -10,7 +10,7 @@ const METER_BOTTOM = "1rem";
 const PHONE_METER_BOTTOM = `calc(${PHONE_MENU_H}px + 1rem)`;
 
 /** True on a portrait window, the same test the framing makes (width under height). */
-function usePortrait() {
+export function usePortrait() {
   return useSyncExternalStore(
     (cb) => { window.addEventListener("resize", cb); return () => window.removeEventListener("resize", cb); },
     () => window.innerWidth < window.innerHeight,
@@ -70,7 +70,7 @@ const button: CSSProperties = {
   justifyContent: "center", textAlign: "center", fontSize: "0.8rem", lineHeight: 1.1, minHeight: BUTTON_PX, boxSizing: "border-box",
 };
 const hint: CSSProperties = {
-  position: "fixed", left: 0, right: 0, bottom: "calc(var(--meter-bottom, 1rem) + 5.5rem)", zIndex: 15, textAlign: "center",
+  position: "fixed", left: 0, right: 0, bottom: "calc(var(--meter-bottom, 1rem) + 11rem)", zIndex: 15, textAlign: "center",
   color: "#ffb347", fontSize: "0.9rem", pointerEvents: "none", transition: "opacity 0.5s",
 };
 const hud: CSSProperties = {

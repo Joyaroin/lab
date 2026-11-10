@@ -3,7 +3,7 @@
 /* The focus ring: the one the Work timeline's segments have, for every link and button under keyboard focus
    and for a station's panel, which the tour focuses on landing (tabIndex -1). The browser shows :focus-visible
    for the panel only after a keyboard visit, so a click never draws a ring, and the browser's own ring never shows.
-   The ring is !important because the meter bar's button sets `all: unset` inline, which would beat it. */
+   The ring is !important so an inline `all: unset` on a button can't remove it. */
 a:focus-visible,
 button:focus-visible,
 [tabindex]:focus-visible {

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { fill, stations, ui } from "../src/content";
 import { clearances, SIDE } from "../src/pin";
 import { boxOf, panelOf, meanBrightness, goTo, landedAt, openTour, stationIds, waitForCamera, waitForPanel, waitUntilStill } from "./lib/page";
 
@@ -34,9 +35,13 @@ test("baked room loads and the overview and every station render", { tag: "@rend
 test("on a phone, MediaSafe and Software factory frame lit parts of the room", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openTour(page);
-  for (const [name, label] of [["mediasafe", "World line 02: MediaSafe"], ["software-factory", "World line 04: Software factory"]]) {
-    await goTo(page, stationIds.indexOf(name) + 1);
-    await expect(page.getByText(label, { exact: true })).toBeVisible();
+  for (const name of ["mediasafe", "software-factory"]) {
+    const stop = stationIds.indexOf(name) + 1;
+    await goTo(page, stop);
+    // The station's line is on the meter bar, as the content module builds it (label, n and total).
+    const s = stations[stop - 1];
+    const line = fill(ui.stopLine, { label: `${s.worldLine}: ${s.name}`, n: stop, total: stations.length });
+    await expect(page.locator("[data-meter-bar]").getByText(line, { exact: true })).toBeVisible();
     // The first visit's tear plays after the landing, and the text comes out of it: measure once it is over.
     await expect(panelOf(page, name)).toHaveCSS("opacity", "1");
     await expect.poll(() => page.locator("canvas").evaluate((e) => (e as HTMLElement).style.filter)).toBe("");
