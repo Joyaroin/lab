@@ -46,6 +46,7 @@ export function App({ load = loadRoom }: { load?: typeof loadRoom }) {
   // The visit and the browser's history are one: a direct link lands before the tour mounts (see linkHistory).
   useEffect(() => (capability.ok ? linkHistory(visit, window) : undefined), [capability, visit]);
   const [booted, setBooted] = useState(false); // the boot screen has faded out
+  if (sceneReady) meter.onMs ??= performance.now(); // the page's clock as the boot screen begins to go: the tour mounts in this render, and the bar's power-on runs from it
 
   // Boot screen to meter is one moment: once the room is ready the boot screen fades out over
   // the room as the desk meter starts to power on, then it is removed.

@@ -85,7 +85,14 @@ The language of this project: its terms, what each one means, and what it doesn'
   total is the number of stations in the content module). The bar itself takes no click: only the keys do. In a flight
   it shows the stop being flown to (keys, line and digits). What it shows is one pure rule, `barFor(where, framing)` in
   `src/bar.ts`; `deviceLayers` in `src/meter-device.ts` maps a reading and the keys to the layers shown (a digit change
-  changes one tube's image); `src/Meter.tsx` draws it. The device is always lit for now (its power-on is #229). The images
+  changes one tube's image); `src/Meter.tsx` draws it. The device plays the power-on, as
+  the desk meter does (`powerOn` in `src/nixie.ts`): as the boot screen goes, its tubes come up from dark. One number, the
+  power-on's glow, is the opacity of the tubes' light layer, of the numerals and the dot, and of the drawn keys (the keys
+  carry the tubes' light, so they come up with the tubes, and the device starts dark); the numerals flicker and settle left
+  to right. `src/meter-power.ts` holds the rule and its frame loop, on the page's clock from `MeterLink.onMs`, when the boot
+  screen began to go. Under reduced motion the device is lit at once. A device whose images arrive after the power-on, or
+  while the plain version showed because they failed, appears lit and does not play it again; one that arrives part way joins
+  where the clock is. The shift waits for the power-on as before. The images
   are files of their own, asked for while the boot screen is up (`src/meter-images.ts`); until they arrive, and for good
   if they fail, the bar is plain text digits and plain buttons.
 - **Keys**: the buttons on the meter bar, with their words in `ui` (`keyPrev`, `keyRoom`, `keyNext`, `keyStart`) and
@@ -191,7 +198,7 @@ get a folder; the rest are still flat files in `src/`.
   title are also in `index.html`, so they show before the script runs; a test checks they match. Failure
   codes such as `no-webgl` and the other identifiers stay in code: they are ids, not copy.
 - The tour view (`TourView.tsx`) reports the visit to the shift and the HUD, and renders. The HUD (`Hud.tsx`) has the links: stations fly, Room goes back. The meter bar (`Meter.tsx`) has the keys, and the arrow keys are heard in `TourView.tsx`. The room (`Room.tsx`, and the overlays `DeskMeter.tsx`, `Phosphor.tsx`, `Bezels.tsx`, `Rain.tsx`, `TvTargets.tsx`, `RoomClick.tsx`, with `draw.ts` for what they share) draws the
-  scene and the desk meter. `card.ts` draws the phosphor screen and title card on each glass, and `glass.ts` projects a glass to window pixels. `theme.css`, imported by `src/main.tsx`, is the focus ring and the boot progress bar's colours. The nixie module (`nixie.ts`) is the meter's digits and power-on.
+  scene and the desk meter. `card.ts` draws the phosphor screen and title card on each glass, and `glass.ts` projects a glass to window pixels. `theme.css`, imported by `src/main.tsx`, is the focus ring and the boot progress bar's colours. The nixie module (`nixie.ts`) is the meter's digits and power-on; `meter-power.ts` is how lit the bar's device is through it.
 - **`src/frames.ts`**: the frame loop. `runFrames(step, opts)` runs `step` with the seconds since the loop started,
   the first time at once with 0 s and then on each requested frame, until `step` returns true; it returns a function
   that stops it. Its clock and frame scheduler are `opts.now`, `opts.request` and `opts.cancel`, defaulting to

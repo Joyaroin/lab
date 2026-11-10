@@ -7,7 +7,7 @@ Checked against the code on 2026-11-09, at 5de46d9.
 |---|---|---|
 | Unit | `npm test` | Builder and CI |
 | Light browser | `make browser-light PW_ARGS=<spec>` for the specs it touched. `make browser-light` alone only for a change to shared code, through `heavy` | Builder and CI |
-| Timing | `@timing` | CI only. In the session only to measure or break-check, through `heavy`, 1 worker. Exact durations are unit tests with a fake clock (`src/frames.test.ts`, `src/tear.test.ts`, `src/nixie.test.ts`, `src/shift/shift.test.ts`); browser timing specs check that a play happened, its order, and the safe side of a limit |
+| Timing | `@timing` | CI only. In the session only to measure or break-check, through `heavy`, 1 worker. Exact durations are unit tests with a fake clock (`src/frames.test.ts`, `src/tear.test.ts`, `src/nixie.test.ts`, `src/meter-power.test.ts`, `src/shift/shift.test.ts`); browser timing specs check that a play happened, its order, and the safe side of a limit |
 | Heavy rendering | `@render` | CI only |
 
 ## Commands

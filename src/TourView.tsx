@@ -114,7 +114,7 @@ export function Tour({ gap, visit, meter, shift: shifts }: { gap: Gap | null; vi
       <div style={{ position: "fixed", left: 0, right: 0, bottom: "var(--meter-bottom, 1rem)", zIndex: 10, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto" }}>
           <Meter reading={barReading} label={barLine} keys={bar.keys}
-            live={gap ? gap.live : true} pending={!gap} shift={barShift} onKey={press} />
+            live={gap ? gap.live : true} pending={!gap} shift={barShift} poweredAt={meter.onMs} reduced={reduced} onKey={press} />
         </div>
       </div>
     </>

@@ -48,9 +48,10 @@ export const digitsToShow = (reading: string, scrambled: string | null, shifting
 
 /** What the app and tour tell the room about the meter: the digits to show, what a click does,
  *  and whether the boot screen has gone (`on`), which starts the power-on. `redraw` and `onAt`
- *  are the room's. */
+ *  are the room's (`onAt` on its clock). `onMs` is the page's clock (`performance.now()`) when the boot screen began
+ *  to go: the meter bar's device times its own power-on from it. */
 export type MeterLink = {
-  digits: string; next: () => void; on: boolean; onAt: number | null; redraw?: () => void;
+  digits: string; next: () => void; on: boolean; onAt: number | null; onMs: number | null; redraw?: () => void;
 };
 
-export const meterLink = (): MeterLink => ({ digits: "0.000000", next: () => {}, on: false, onAt: null });
+export const meterLink = (): MeterLink => ({ digits: "0.000000", next: () => {}, on: false, onAt: null, onMs: null });

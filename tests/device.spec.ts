@@ -60,6 +60,61 @@ test("on a portrait window a station shows PREV and NEXT, and the middle key's p
   expect(covering).toContain("base");
 });
 
+// The power-on (#229): the tubes' light, the numerals and the keys come up from dark together. The timing is a unit test
+// (src/meter-power.test.ts); this watches the real device's opacities from its first frame and checks the order.
+const watchLevels = () => {
+  const seen: { light: number; key: number; numeral: number }[] = [];
+  (window as unknown as { __levels: typeof seen }).__levels = seen;
+  const read = (sel: string) => { const e = document.querySelector(`[data-meter-bar] ${sel}`); return e ? Number(getComputedStyle(e).opacity) : null; };
+  const frame = () => {
+    const light = read('img[data-layer="light"]'), key = read('img[data-layer^="key-"]'), numeral = read('[data-testid="tube"] img');
+    if (light !== null && key !== null && numeral !== null) seen.push({ light, key, numeral });
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+};
+const levels = (page: Page) => page.evaluate(() => (window as unknown as { __levels: { light: number; key: number; numeral: number }[] }).__levels);
+
+test("the device comes up from dark: tubes' light, numerals and keys rise together to fully lit", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.addInitScript(watchLevels);
+  await openTour(page);
+  await expect.poll(async () => (await levels(page)).at(-1)?.light).toBe(1);
+  const seen = await levels(page);
+  expect(seen[0].light, "dark when the device first shows").toBeLessThan(0.5);
+  for (const s of seen) {
+    expect(s.key, "the keys carry the tubes' light").toBeCloseTo(s.light, 1);
+    expect(s.numeral).toBeCloseTo(s.light, 1);
+  }
+  expect(seen.at(-1)).toEqual({ light: 1, key: 1, numeral: 1 });
+});
+
+test("under reduced motion the device is lit from its first frame, keys too", async ({ page }) => {
+  await page.addInitScript(watchLevels);
+  await openTour(page);
+  await expect(device(page)).toBeVisible();
+  const seen = await levels(page);
+  expect(seen.length).toBeGreaterThan(0);
+  expect(seen.every((s) => s.light === 1 && s.key === 1 && s.numeral === 1)).toBe(true);
+});
+
+test("a device whose images arrive after the power-on is lit when it appears, with no second power-on", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.addInitScript(watchLevels);
+  let release = () => {};
+  const held = new Promise<void>((r) => { release = r; });
+  await page.route("**/*.png", async (r) => { await held; await r.continue(); });
+  await openTour(page);
+  await expect(device(page)).toHaveCount(0); // plain bar while the images are out
+  await page.waitForTimeout(2000); // past the power-on's 1.4 s
+  release();
+  await expect(device(page)).toBeVisible();
+  await expect(page.locator('[data-meter-bar] img[data-layer="light"]')).toBeVisible();
+  const seen = await levels(page);
+  expect(seen.length).toBeGreaterThan(0);
+  expect(seen.every((s) => s.light === 1 && s.key === 1 && s.numeral === 1), JSON.stringify(seen.slice(0, 3))).toBe(true);
+});
+
 test("the device's pictures are files, asked for while the boot screen is up", async ({ page }) => {
   const asked: number[] = [];
   page.on("request", (r) => { if (/meter|\/assets\/.*\.png/.test(r.url()) && r.resourceType() === "image") asked.push(Date.now()); });

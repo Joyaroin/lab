@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { formatReading } from "./gap";
 import { fill, ui } from "./content";
 import { runFrames } from "./frames";
 import type { BarKey } from "./bar";
-import { digitsToShow, shiftDigits, type ShiftKind } from "./nixie";
+import { digitsToShow, shiftDigits, type PowerOn, type ShiftKind } from "./nixie";
+import { deviceLit, deviceOpacity, watchPowerOn } from "./meter-power";
 import { deviceLayers, type Placed } from "./meter-device";
 import { DEVICE as SIZE, TUBES, LAYERS } from "./meter-layers";
 import { meterUrl, preloadMeterImages, useMeterImages } from "./meter-images";
@@ -29,6 +30,18 @@ function useShifted(digits: string, shift?: { kind: ShiftKind; id: number } | nu
   return digitsToShow(digits, shown, !!shift);
 }
 
+/** How lit the device is (its power-on, src/meter-power.ts). It follows the page's clock from `poweredAt`, so a
+ *  device whose images arrive late is as lit as the clock says and never plays the power-on again. The frames run
+ *  only while the device is drawn (`active`) and not yet lit. */
+function usePoweredOn(poweredAt: number | null, reduced: boolean, digits: string, active: boolean): PowerOn {
+  const [power, setPower] = useState(() => deviceLit(poweredAt, performance.now(), reduced, digits));
+  const reading = useRef(digits);
+  reading.current = digits;
+  // a layout effect: the first step lands before the device is first painted, so it never shows a stale level
+  useLayoutEffect(() => (active ? watchPowerOn(poweredAt, reduced, () => reading.current, setPower) : undefined), [active, poweredAt, reduced]);
+  return power;
+}
+
 /** The words on a key: its cap and its accessible name. */
 const KEY_WORDS: Record<BarKey, { cap: string; name: string }> = {
   prev: { cap: ui.keyPrev, name: ui.prevStation },
@@ -44,10 +57,13 @@ const KEY_WORDS: Record<BarKey, { cap: string; name: string }> = {
 //
 // Once its images have arrived (src/meter-images.ts) the bar is the device: the rendered layers put together (the
 // list is src/meter-layers.ts, the mapping from a reading src/meter-device.ts), the reading's digits as lit numerals
-// over the tubes, and the keys as buttons over their drawn keys. Until then, and for good if they fail, it is the plain
+// over the tubes, and the keys as buttons over their drawn keys. The device comes up from dark through the power-on
+// (src/meter-power.ts); a device whose images arrive late is lit as the clock says. Until then, and for good if they fail, it is the plain
 // text digits and plain buttons.
-export function Meter({ reading, label, keys, live, pending = false, shift, onKey }: {
+export function Meter({ reading, label, keys, live, pending = false, shift, poweredAt = null, reduced = false, onKey }: {
   reading: number; label: string; keys: BarKey[]; live: boolean; pending?: boolean; shift?: { kind: ShiftKind; id: number } | null;
+  /** When the boot screen began to go, on `performance.now()`'s clock (`MeterLink.onMs`): the device's power-on runs from it. */
+  poweredAt?: number | null; reduced?: boolean;
   onKey: (key: BarKey) => void;
 }) {
   const digits = formatReading(reading);
@@ -55,6 +71,8 @@ export function Meter({ reading, label, keys, live, pending = false, shift, onKe
   const win = useWin();
   useEffect(preloadMeterImages, []);
   const images = useMeterImages();
+  const power = usePoweredOn(poweredAt, reduced, digits, images === "ready");
+  const opacity = deviceOpacity(power);
   const name = fill(ui.meterReading, { digits });
   const line = (style: CSSProperties) => (
     <span data-live={live} data-pending={pending} style={{ display: "block", opacity: live ? 1 : 0.75, ...style }}>{label}</span>
@@ -62,18 +80,18 @@ export function Meter({ reading, label, keys, live, pending = false, shift, onKe
 
   if (images === "ready") {
     const size = deviceSize(win), type = lineType(win);
-    const layers = deviceLayers(shown, keys);
+    const layers = deviceLayers(power.done ? shown : power.digits, keys); // the power-on's digits until it is done (the shift waits for it)
     const tubes = layers.filter((l) => l.id.startsWith("tube-") || l.id === "dot");
     return (
       <div style={deviceBar} data-meter-bar>
         <style>{css}</style>
         <div data-device className="meter-device" style={{ width: size.width, height: size.height }}>
-          {layers.filter((l) => l.id === "base" || l.id === "light").map((l) => <Layer key={l.id} l={l} />)}
+          {layers.filter((l) => l.id === "base" || l.id === "light").map((l) => <Layer key={l.id} l={l} opacity={l.id === "light" ? opacity.light : 1} />)}
           <span role="img" aria-label={name} className="meter-digits" style={within(READING, DEVICE)}>
             {tubes.map((l) => l.id === "dot"
-              ? <Layer key={l.id} l={l} rel={READING} />
+              ? <Layer key={l.id} l={l} rel={READING} opacity={opacity.numerals} />
               : <span key={l.id} data-testid="tube" style={{ ...within(l, READING), fontSize: 0, color: "transparent" }}>
-                  {l.digit}<Layer l={l} fill />
+                  {l.digit}<Layer l={l} fill opacity={opacity.numerals} />
                 </span>)}
           </span>
           {layers.filter((l) => l.id.startsWith("key-")).map((l) => {
@@ -83,7 +101,7 @@ export function Meter({ reading, label, keys, live, pending = false, shift, onKe
                 <button type="button" data-key={k} aria-label={KEY_WORDS[k].name} className="meter-key" onClick={() => onKey(k)}>
                   {KEY_WORDS[k].cap}
                 </button>
-                <Layer l={l} fill />
+                <Layer l={l} fill opacity={opacity.keys} />
               </span>
             );
           })}
@@ -127,11 +145,12 @@ const within = (l: Box, of: Box): CSSProperties => ({
   width: `${(l.width / of.width) * 100}%`, height: `${(l.height / of.height) * 100}%`,
 });
 
-/** One image of the device. `fill` fills its parent (a tube or a key's art); otherwise it is placed in `rel`. */
-function Layer({ l, rel = DEVICE, fill: filled = false }: { l: Placed; rel?: Box; fill?: boolean }) {
+/** One image of the device. `fill` fills its parent (a tube or a key's art); otherwise it is placed in `rel`.
+ *  `opacity` is how lit it is (the power-on): set on the image itself, so an additive layer still adds what it has. */
+function Layer({ l, rel = DEVICE, fill: filled = false, opacity = 1 }: { l: Placed; rel?: Box; fill?: boolean; opacity?: number }) {
   return (
     <img src={meterUrl(l.file)} alt="" draggable={false} data-layer={l.id}
-      style={{ ...(filled ? { position: "absolute", inset: 0, width: "100%", height: "100%" } : within(l, rel)), ...(l.mode === "add" ? { mixBlendMode: "plus-lighter" } : null) }} />
+      style={{ ...(filled ? { position: "absolute", inset: 0, width: "100%", height: "100%" } : within(l, rel)), ...(l.mode === "add" ? { mixBlendMode: "plus-lighter" } : null), ...(opacity < 1 ? { opacity } : null) }} />
   );
 }
 
