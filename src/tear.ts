@@ -3,7 +3,7 @@ import { SHIFT_SECONDS, type ShiftKind } from "./shift/lengths";
 // The tear: horizontal bands of the view slip sideways with a red and cyan edge, then snap back.
 // This is only the timing: how far the bands slip and how wide the edge is, `t` seconds in. The
 // view draws it with an SVG filter (TearView.tsx). The full version re-cuts the bands once (two
-// poses in 0.8 s); the short one is a single flick. The flash limit (shift.ts) counts every jump:
+// poses in 0.4 s); the short one is a single flick. The flash limit (shift.ts) counts every jump:
 // the start, the re-cut and the snap back (when the slip reaches 0, TEAR_SNAP_U, not the end of the length).
 /** The noise seed of each pose's cut of the bands, per kind. The number of poses is the number of
  *  seeds, so the two cannot drift apart. */

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { busiestWindow, changeOffsets, createShift, MAX_CHANGES_PER_SECOND, SNAP_BACK_MS, WAIT_MS, type Play } from "./index";
+import { busiestWindow, changeOffsets, createShift, MAX_CHANGES_PER_SECOND, SNAP_BACK_MS, type Play } from "./index";
 import { SHIFT_SECONDS, POWER_ON_SECONDS } from "../nixie";
 import { tearAt } from "../tear";
 import type { Where } from "../where";
@@ -12,7 +12,7 @@ afterEach(() => { vi.useRealTimers(); });
 /** The visitor at station `i` (0 is the overview), and a flight from stop `a` to `b`, `f` of the way. */
 const at = (stop: number): Where => ({ kind: "at", stop });
 const leg = (from: number, to: number, f: number): Where => ({ kind: "flying", from, to, f });
-const FULL_END_MS = 840; // when a first visit's text may show: pinned as a literal, #124 must not move it
+const FULL_END_MS = 440; // when a first visit's text may show, after its tear starts: pinned as a literal, #124 must not move it
 const POWER_ON_MS = POWER_ON_SECONDS * 1000;
 
 /** A shift mounted with spies: `started` collects each new play, `ended` counts the times the views were told
@@ -32,7 +32,7 @@ const setup = ({ reduced = false, startWhere = { kind: "at", stop: 0 } as Where,
 /** The visitor reaches `where` and stays: the module's own timer must fire the shift. */
 const arrive = (s: ReturnType<typeof setup>, where: Where, stay = 1500) => { s.shift.observe(where); vi.advanceTimersByTime(stay); };
 
-describe("the wait", () => {
+describe("an arrival", () => {
   it("fires when the visitor stays at a station", () => {
     for (let i = 1; i <= STATION_COUNT; i++) {
       const s = setup();
@@ -40,22 +40,30 @@ describe("the wait", () => {
       expect(s.started).toEqual([{ kind: "full", id: 1 }]); expect(s.shift.hold).toBe(i);
     }
   });
-  it("fires in full on its own once the visitor has stayed, with no further observation", () => {
+  it("fires in that same check when the camera lands, with no wait, and once per arrival", () => {
     const s = setup();
     s.shift.observe(at(1));
-    vi.advanceTimersByTime(WAIT_MS - 1);
-    expect(s.started).toEqual([]);
-    vi.advanceTimersByTime(60);
     expect(s.started).toEqual([{ kind: "full", id: 1 }]);
     vi.advanceTimersByTime(5000);
-    expect(s.started).toHaveLength(1); // once per arrival
+    expect(s.started).toHaveLength(1);
+  });
+  it("still holds a landing back until the power-on hold ends, then fires it in the same check", () => {
+    const s = setup({ quiet: false });
+    s.shift.observe(at(1));
+    expect(s.started).toEqual([]);
+    vi.advanceTimersByTime(POWER_ON_MS - 1);
+    s.shift.observe(at(1));
+    expect(s.started).toEqual([]); // one ms early
+    vi.advanceTimersByTime(1);
+    s.shift.observe(at(1));
+    expect(s.started).toEqual([{ kind: "full", id: 1 }]);
   });
   it("does not fire when the visitor flies through a station, even after the timers run out", () => {
     const s = setup();
     for (let i = 1; i <= STATION_COUNT; i++) {
-      s.shift.observe(leg(i - 1, i, 1 - 1e-6)); vi.advanceTimersByTime(WAIT_MS / 4);
-      s.shift.observe(leg(i, i + 1, 1e-6)); vi.advanceTimersByTime(WAIT_MS / 4);
-      s.shift.observe(leg(i, i + 1, 0.5)); vi.advanceTimersByTime(WAIT_MS / 4);
+      s.shift.observe(leg(i - 1, i, 1 - 1e-6)); vi.advanceTimersByTime(60);
+      s.shift.observe(leg(i, i + 1, 1e-6)); vi.advanceTimersByTime(60);
+      s.shift.observe(leg(i, i + 1, 0.5)); vi.advanceTimersByTime(60);
     }
     vi.advanceTimersByTime(5000);
     expect(s.started).toEqual([]);
@@ -79,7 +87,7 @@ describe("the wait", () => {
     expect(b.started[0].kind).toBe("full");
   });
   it("stops its timers when unmounted", () => {
-    const s = setup();
+    const s = setup({ quiet: false }); // the power-on timer is the one that would fire the landing
     s.shift.observe(at(1));
     s.unmount();
     vi.advanceTimersByTime(5000);
@@ -144,7 +152,7 @@ describe("a gone panel", () => {
     expect(s.shift.textState(1, performance.now())).toBe("resolving");
     s.shift.tearStarted("full", performance.now()); // the flash limit will now hold the return back
     s.shift.observe(at(0)); // the panel has gone
-    s.shift.observe(at(1)); vi.advanceTimersByTime(WAIT_MS + 30);
+    s.shift.observe(at(1)); vi.advanceTimersByTime(30);
     expect(s.started).toHaveLength(1); // held back by the limit
     expect(s.shift.textState(1, performance.now())).toBe("showing");
   });
@@ -180,7 +188,7 @@ describe("leaving", () => {
   });
   it("ends nothing when no shift is playing", () => {
     const s = setup();
-    s.shift.observe(at(1)); s.shift.observe(at(0));
+    s.shift.observe(leg(0, 1, 0.5)); s.shift.observe(at(0));
     expect(s.ended).not.toHaveBeenCalled();
   });
   it("ends a shift that is held back by nothing on a later hold too: each shift ends once", () => {
@@ -234,9 +242,8 @@ describe("waking the room after a tear", () => {
 describe("the text", () => {
   it("is held back from arrival until the tear has ended, then shows", () => {
     const s = setup();
-    s.shift.observe(at(1));
+    s.shift.observe(at(1)); // the landing fires the shift
     expect(s.shift.textState(1, performance.now())).toBe("held");
-    vi.advanceTimersByTime(WAIT_MS + 30); // the timer fires the shift
     const fired = performance.now();
     expect(s.shift.textState(1, fired + FULL_END_MS + 1)).toBe("resolving");
     expect(s.shift.textState(1, fired + FULL_END_MS - 1)).toBe("held");
@@ -244,49 +251,45 @@ describe("the text", () => {
   });
   it("waits for a tear that began late, such as on a slow device", () => {
     const s = setup();
-    arrive(s, at(1), WAIT_MS + 30);
+    arrive(s, at(1), 30);
     const fired = performance.now();
     expect(s.started).toHaveLength(1);
     s.shift.tearStarted("full", fired + 300); // the view drew it 300 ms after it fired
     expect(s.shift.textState(1, fired + 300 + FULL_END_MS - 1)).toBe("held");
     expect(s.shift.textState(1, fired + 300 + FULL_END_MS + 1)).toBe("resolving");
   });
-  it("is readable about a second after arrival on a first visit", () => {
+  it("shows a first visit's text 440 ms after its tear starts", () => {
     const s = setup();
     const arrival = performance.now();
-    arrive(s, at(1), WAIT_MS + 30);
+    arrive(s, at(1), 30);
+    s.shift.tearStarted("full", arrival); // the view drew the tear on the landing
     let t = arrival;
     while (t - arrival < 5000 && s.shift.textState(1, t) === "held") t++;
-    expect(t - arrival).toBeLessThanOrEqual(1200);
+    expect(t - arrival).toBe(440);
   });
-  it("is readable about 0.3 s after arrival on a return", () => {
+  it("shows a return's text at once, on the landing", () => {
     const s = setup();
     arrive(s, at(1)); arrive(s, at(0), 100);
     const arrival = performance.now();
-    arrive(s, at(1), WAIT_MS + 30);
+    arrive(s, at(1), 30);
     expect(s.started.map((p) => p.kind)).toEqual(["full", "short"]);
-    let t = arrival;
-    while (t - arrival < 5000 && s.shift.textState(1, t) === "held") t++;
-    expect(t - arrival).toBeGreaterThanOrEqual(WAIT_MS);
-    expect(t - arrival).toBeLessThanOrEqual(WAIT_MS + 30);
+    expect(s.shift.textState(1, arrival)).toBe("showing");
   });
   it("is not held back by a short flick the view draws late", () => {
     const s = setup();
     arrive(s, at(1)); arrive(s, at(0), 100);
-    arrive(s, at(1), WAIT_MS + 30);
+    arrive(s, at(1), 30);
     const fired = performance.now();
     s.shift.tearStarted("short", fired + 200);
     expect(s.shift.textState(1, fired)).toBe("showing");
   });
-  it("shows as soon as the wait ends on a return, without resolving", () => {
+  it("shows on the landing on a return, without resolving", () => {
     const s = setup();
     arrive(s, at(1)); arrive(s, at(0), 100);
     s.shift.observe(at(1));
-    expect(s.shift.textState(1, performance.now() + WAIT_MS - 1)).toBe("held");
-    vi.advanceTimersByTime(WAIT_MS + 30);
     expect(s.shift.textState(1, performance.now())).toBe("showing");
   });
-  it("stays through the fade out on leaving, and is held back again on the next arrival", () => {
+  it("stays through the fade out on leaving, and shows at once on the next arrival, a return", () => {
     const s = setup();
     arrive(s, at(1)); vi.advanceTimersByTime(2000);
     expect(s.shift.textState(1, performance.now())).toBe("resolving");
@@ -294,12 +297,12 @@ describe("the text", () => {
     expect(s.shift.textState(1, performance.now())).toBe("resolving");
     s.shift.observe(at(0)); // the visitor has gone, the panel is gone
     expect(s.shift.textState(1, performance.now())).toBe("held");
-    s.shift.observe(at(1));
-    expect(s.shift.textState(1, performance.now())).toBe("held");
+    s.shift.observe(at(1)); // a return: its short flick fires on the landing and the text shows now
+    expect(s.shift.textState(1, performance.now())).toBe("showing");
   });
   it("changes nothing when asked: the same question gets the same answer, whatever was asked before", () => {
     const s = setup();
-    arrive(s, at(1), WAIT_MS + 30);
+    arrive(s, at(1), 30);
     const fired = performance.now();
     const ask = (t: number) => s.shift.textState(1, t);
     expect(ask(fired + FULL_END_MS + 1)).toBe("resolving");
@@ -331,7 +334,7 @@ describe("limiting flashes", () => {
   };
   it("counts the start, the re-cut and the snap back of a tear", () => {
     // the snap back is counted when it is drawn (the slip reaches 0, at 0.85 of the length), not when the tear's own length ends
-    expect(changeOffsets("full")).toEqual([0, 400, 680]);
+    expect(changeOffsets("full")).toEqual([0, 200, 340]);
     expect(changeOffsets("short")).toEqual([0, 212.5]);
   });
   it("counts the snap back where the drawn tear reaches 0, and the text still waits for the tear's full length and SNAP_BACK_MS", () => {
@@ -343,12 +346,12 @@ describe("limiting flashes", () => {
     expect(SNAP_BACK_MS).toBe(40);
     expect(SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS).toBe(FULL_END_MS);
   });
-  it("pins the shift lengths: the full tear 0.8 s, the short flick on a return 0.25 s", () => {
-    expect(SHIFT_SECONDS.full).toBe(0.8);
+  it("pins the shift lengths: the full tear 0.4 s, the short flick on a return 0.25 s", () => {
+    expect(SHIFT_SECONDS.full).toBe(0.4);
     expect(SHIFT_SECONDS.short).toBe(0.25);
   });
   it("never holds more than 3 sudden changes in any second, across back-to-back tears", () => {
-    for (const hop of [WAIT_MS + 60, 400, 600, 777]) {
+    for (const hop of [90, 310, 400, 600, 777]) {
       const { changes } = run(hop, 20);
       expect(changes.length).toBeGreaterThan(10); // it still fires when it can
       // the changes are booked from the arrival; the shift fires a little later, which only spreads them
@@ -357,26 +360,36 @@ describe("limiting flashes", () => {
   });
   it("holds a second tear back until its changes fit, and shows its text at once without counting the visit", () => {
     const s = setup();
-    arrive(s, at(1), WAIT_MS + 50); // fires at 280: changes 280, 680, 960
-    arrive(s, at(2), 300); // would fire at 580 after the hop: 4 changes within a second
+    arrive(s, at(1), 0); // fires on the landing: changes 0, 200, 340
+    arrive(s, at(2), 300); // would fire at 300: 0, 200, 300, 340 are 4 within a window
     expect(s.started).toHaveLength(1);
     expect(s.shift.textState(2, performance.now())).toBe("showing");
-    arrive(s, at(3), 300); // would fire at 880: 280, 680, 880 and 960 are 4 within a window
+    arrive(s, at(3), 300); // would fire at 600: 0, 200, 340, 600 are 4 within a window
     expect(s.started).toHaveLength(1);
     arrive(s, at(0), 3000); arrive(s, at(4), 300); // once the first tear's changes are long past: it fits again
     expect(s.started.map((p) => p.kind)).toEqual(["full", "full"]);
     arrive(s, at(0), 3000); arrive(s, at(2), 3000); // a held-back visit was not counted: still a first visit
     expect(s.started.map((p) => p.kind)).toEqual(["full", "full", "full"]);
   });
+  it("holds a landing 1099 ms after the last full tear began, and tears at 1100 ms", () => {
+    for (const [gap, plays, text] of [[1099, 1, "showing"], [1100, 2, "held"]] as const) {
+      const s = setup();
+      s.shift.observe(at(1)); // tear: changes at 0, 200, 340
+      vi.advanceTimersByTime(gap - 1); s.shift.observe(at(0)); // the visitor leaves for the overview, no change there
+      vi.advanceTimersByTime(1); s.shift.observe(at(2));
+      expect(s.started).toHaveLength(plays);
+      expect(s.shift.textState(2, performance.now())).toBe(text); // held back: its text shows with no tear; else it waits for the tear
+    }
+  });
   it("counts from when the tear really began, if the view drew it late", () => {
-    // The first tear fires at 280 and is booked 280, 680, 960. A second fires at 1500: on the booked
-    // times it fits; if the view drew the first 300 ms late (580, 980, 1260) it does not.
+    // The first tear fires on the landing and is booked 0, 200, 340. A second lands 1150 ms later: on the
+    // booked times it fits; if the view drew the first 300 ms late (300, 500, 640) it does not.
     for (const [late, plays] of [[0, 2], [300, 1]]) {
       const s = setup();
-      arrive(s, at(1), WAIT_MS + 30);
+      arrive(s, at(1), 0);
       s.shift.tearStarted("full", performance.now() + late);
-      vi.advanceTimersByTime(940);
-      arrive(s, at(2), WAIT_MS + 50);
+      vi.advanceTimersByTime(1150);
+      arrive(s, at(2), 0);
       expect(s.started).toHaveLength(plays);
     }
   });
@@ -412,14 +425,14 @@ describe("a Work page turn", () => {
   });
   it("counts against the flash limit with a tear that is already playing", () => {
     const s = setup();
-    arrive(s, at(1), WAIT_MS + 30); // fired: 280, 680, 960
+    arrive(s, at(1), 0); // fired: 0, 200, 340
     vi.advanceTimersByTime(450);
     expect(s.shift.turn()).toBe(false);
   });
   it("holds a tear back when it would land just after a page turn, and its changes don't fit", () => {
     const s = setup();
     expect(s.shift.turn()).toBe(true); // flick: 0, 212.5, snap back
-    arrive(s, at(1), WAIT_MS + 30); // the tear fires about 280 ms after the turn: 3 more changes in a window
+    arrive(s, at(1), 30); // the tear fires 30 ms after the turn: 3 more changes in a window
     expect(s.started).toHaveLength(0);
     expect(s.shift.textState(1, performance.now())).toBe("showing"); // held back, so its text shows at once
   });
@@ -445,13 +458,13 @@ describe("what the views read", () => {
     const s = setup();
     const tear: Play[] = []; // what the tear does: start on each new play, ignore the end
     s.shift.subscribe(() => { if (s.shift.playing) tear.push(s.shift.playing); });
-    s.shift.observe(at(1)); vi.advanceTimersByTime(WAIT_MS + 60);
+    s.shift.observe(at(1)); vi.advanceTimersByTime(60);
     expect(s.shift.playing).toEqual({ kind: "full", id: 1 });
     s.shift.observe(at(0));
     expect(s.shift.playing).toBeNull(); // the bar and the desk meter go straight to the reading
     expect(tear).toEqual([{ kind: "full", id: 1 }]); // the tear got its play and is never told to stop
     s.shift.tearStarted("full", performance.now()); // it still reports when it began, so the limit counts its snap back
-    s.shift.observe(at(2)); vi.advanceTimersByTime(WAIT_MS + 60);
+    s.shift.observe(at(2)); vi.advanceTimersByTime(60);
     expect(s.started.map((p) => p.id)).toEqual([1]); // held back: the snap back of the first tear is inside the window
     expect(s.shift.playing).toBeNull();
   });
@@ -462,10 +475,10 @@ describe("what the views read", () => {
     removeW(); s.shift.observe(at(2)); vi.advanceTimersByTime(5000);
     expect(w).not.toHaveBeenCalled(); // its own remove has run: nothing calls it
   });
-  it("wakes the room when the wait timer fires a shift, with no further observe", () => {
-    const s = setup();
+  it("wakes the room when the power-on timer fires a shift, with no further observe", () => {
+    const s = setup({ quiet: false });
     s.shift.observe(at(1)); s.wake.mockClear();
-    vi.advanceTimersByTime(WAIT_MS + 60); // only the timer runs
+    vi.advanceTimersByTime(POWER_ON_MS + 60); // only the timer runs
     expect(s.started).toHaveLength(1);
     expect(s.wake).toHaveBeenCalled();
   });

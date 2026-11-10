@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createShift, WAIT_MS } from "../shift";
+import { createShift } from "../shift";
 import { createVisit } from "./visit";
 import { linkHistory, type HistoryHost } from "./history";
 
@@ -124,7 +124,7 @@ describe("a direct link and the shift", () => {
     shift.mount({ startWhere: visit.where(performance.now()) });
     shift.powerOnBegan(performance.now());
     shift.observe(visit.where(performance.now()));
-    vi.advanceTimersByTime(WAIT_MS + 5000);
+    vi.advanceTimersByTime(5000);
     shift.observe(visit.where(performance.now()));
     expect(played).not.toHaveBeenCalled();
     expect(shift.textState(1, performance.now())).toBe("showing");

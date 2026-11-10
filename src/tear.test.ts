@@ -13,8 +13,8 @@ describe("the tear", () => {
       expect(tearAt(end * 0.5, kind).done).toBe(false);
     }
   });
-  it("lasts 0.8 s for the full tear, pinned as a literal (the browser spec can't tell 0.8 from 1.0 on a loaded machine)", () => {
-    expect(SHIFT_SECONDS.full).toBe(0.8);
+  it("lasts 0.4 s for the full tear, pinned as a literal (the browser spec can't tell 0.4 from 0.5 on a loaded machine)", () => {
+    expect(SHIFT_SECONDS.full).toBe(0.4);
   });
   it("slips and has a coloured edge in the middle, and snaps back before the end", () => {
     for (const kind of ["full", "short"] as const) {
