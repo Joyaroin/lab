@@ -1,8 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import { POWER_ON_SECONDS, SHIFT_SECONDS } from "../src/nixie";
-import { busiestWindow, MAX_CHANGES_PER_SECOND, WAIT_MS } from "../src/shift";
+import { busiestWindow, changeOffsets, MAX_CHANGES_PER_SECOND, SNAP_BACK_MS } from "../src/shift";
 import { defineSnapWatcher } from "./lib/snap";
-import { clickLink, defineHudDriver, goBack, goTo, hudHref, landedAt, panelOf } from "./lib/page";
+import { clickLink, defineHudDriver, goBack, goTo, hudHref, landedAt, panelOf, stationIds } from "./lib/page";
 
 test.setTimeout(60_000);
 
@@ -74,7 +74,7 @@ test("reduced motion shows the plain reading with no scramble", async ({ browser
   await boot(page);
   await goTo(page, 1);
   await page.waitForTimeout(100);
-  const seen = await sample(page, WAIT_MS + 1500);
+  const seen = await sample(page, SHIFT_SECONDS.full * 1000 + 1500); // longer than a first visit's tear and its text
   expect(new Set(seen).size).toBe(1);
   expect(seen[0]).toBe(await reading(page));
 });
@@ -138,17 +138,18 @@ const watched = (page: Page) => page.evaluate(() => (window as unknown as { __w:
 // the shift has played and the text is out
 const settled = (page: Page) => expect.poll(async () => { const w = await watched(page); return w.shown !== null && w.ends.length > 0; }, { timeout: 8_000 }).toBe(true);
 
-// When the text must be fully out, counted from arrival: the design (250 ms wait + the tear + the
-// snap back, 1090 ms on a first visit; on a return the text shows when the 250 ms wait ends; the
+// When the text must be fully out, counted from arrival: the design (no wait: the tear and the
+// snap back, 440 ms on a first visit; on a return the text shows on the landing; the
 // exact numbers are pinned in shift.test.ts), plus the 220 ms a first visit's text takes to resolve (a
 // return's does not), plus what this machine adds. The
-// machine's share is judged by its own slowest frame, because the wait's timer, React and the tear
+// machine's share is judged by its own slowest frame, because React and the tear
 // each wait behind a frame: up to 4 of them, and 300 ms over. So a slow runner can't fail it, but
 // text that is really late (a second or more past that) does.
 const TEXT_RESOLVE_MS = 220; // the text's own resolve animation (src/text/ScreenPanels.tsx)
+const SNAP_DESIGN_FULL = changeOffsets("full").at(-1); // when the full tear's snap back is visible, in ms after it starts
 const lateBy = (design: number, w: Watched, resolve = TEXT_RESOLVE_MS) => design + resolve + 4 * w.slowestFrame + 300;
 
-test("a first visit tears the view for about 0.8 s, and the text resolves as it ends", { tag: "@timing" }, async ({ page }) => {
+test("a first visit tears the view for about 0.4 s, and the text resolves as it ends", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
   await watch(page, "work");
   await goTo(page, 1);
@@ -161,20 +162,20 @@ test("a first visit tears the view for about 0.8 s, and the text resolves as it 
   const len = w.ends[0] - w.starts[0];
   // The tear's length, the snap back's time and when the text shows are pinned with a fake clock (src/frames.test.ts,
   // src/tear.test.ts, src/shift/shift.test.ts); here only their order is checked. The snap back is visible when the
-  // slip reaches 0, at 0.85 of the length (680 ms by design). Its time is recorded for CI's report.
+  // slip reaches 0, at 0.85 of the length (340 ms by design). Its time is recorded for CI's report.
   const snap = w.snaps[0] - w.starts[0];
-  test.info().annotations.push({ type: "snap-back-ms", description: `full tear: ${snap.toFixed(0)} ms after the filter went on (design 680), filter off at ${len.toFixed(0)} ms, slowest frame ${w.slowestFrame.toFixed(0)} ms` });
-  console.log(`snap-back-ms full ${snap.toFixed(0)} (design 680; filter off ${len.toFixed(0)}; slowest frame ${w.slowestFrame.toFixed(0)})`);
+  test.info().annotations.push({ type: "snap-back-ms", description: `full tear: ${snap.toFixed(0)} ms after the filter went on (design ${SNAP_DESIGN_FULL}), filter off at ${len.toFixed(0)} ms, slowest frame ${w.slowestFrame.toFixed(0)} ms` });
+  console.log(`snap-back-ms full ${snap.toFixed(0)} (design ${SNAP_DESIGN_FULL}; filter off ${len.toFixed(0)}; slowest frame ${w.slowestFrame.toFixed(0)})`);
   expect(w.starts).toHaveLength(1); // the tear started
   expect(w.snaps).toHaveLength(1);
   expect(w.snaps[0], "it snapped back before it came off").toBeLessThan(w.ends[0]);
   expect(len, "it came off within 3 s of starting").toBeLessThan(3_000);
   expect(w.shown!, "the text showed after the snap back").toBeGreaterThan(w.snaps[0]);
-  expect(w.shown!).toBeLessThan(lateBy(1_090, w)); // see lateBy
+  expect(w.shown!).toBeLessThan(lateBy(SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS, w)); // see lateBy
   expect(await filterOn(page)).toBe(false);
 });
 
-test("a return shows its text when the 250 ms wait ends, and the flick plays over it", { tag: "@timing" }, async ({ page }) => {
+test("a return shows its text on the landing, and the flick plays over it", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
   await goTo(page, 1);
   await page.waitForTimeout(2500);
@@ -192,9 +193,8 @@ test("a return shows its text when the 250 ms wait ends, and the flick plays ove
   expect(w.litDuringTear).toBe(true); // the text is out while the flick plays over it...
   expect(w.resolved).toBe(false); // ...with no resolve animation
   expect(w.shown! - w.starts[0]).toBeLessThan(2 * w.slowestFrame + 300); // out as the flick starts, not after it
-  // The design is about 0.3 s from arrival (the wait, 250 ms; the camera's arrival is already done),
-  // against 0.54 s before. lateBy allows for a slow machine.
-  expect(w.shown!).toBeLessThan(lateBy(WAIT_MS, w, 0));
+  // The design is the landing itself (no wait; the camera's arrival is already done). lateBy allows for a slow machine.
+  expect(w.shown!).toBeLessThan(lateBy(0, w, 0));
 });
 
 test("reduced motion gets no tear, and the text is there straight away", { tag: "@timing" }, async ({ browser }) => {
@@ -203,25 +203,29 @@ test("reduced motion gets no tear, and the text is there straight away", { tag: 
   await watch(page, "work");
   await goTo(page, 1);
   await expect.poll(async () => (await watched(page)).shown, { timeout: 5_000 }).not.toBeNull();
-  await page.waitForTimeout(WAIT_MS + 1500);
+  await page.waitForTimeout(SHIFT_SECONDS.full * 1000 + 1500);
   const w = await watched(page);
   expect(w.starts).toEqual([]);
   expect(await filterOn(page)).toBe(false);
   expect(w.shown!).toBeLessThan(700); // no held-back text: only the camera arriving
 });
 
+const HOP_STAY_MS = 40; // under about 100 ms, a second tear would put a fourth change in a second
 test("moving quickly between stations can't make more than the limit of sudden changes in a second, tear after tear", { tag: "@timing" }, async ({ page }) => {
   await boot(page);
   await watch(page, "work");
-  // Hop between the stations through the HUD, spending a little over the wait at each (timed from the landing), for 6 s.
-  await page.evaluate(async ([hrefs, wait]) => {
+  // Hop between the stations through the HUD, for 6 s, with almost no stay at each (timed from the landing). A landing comes
+  // a flight (FLIGHT_MS, 900 ms) after the last one's stay, and a tear's changes fall at 0, 200 and 340 ms, so without the
+  // flash limit the second tear's start and re-cut would be the third and fourth changes of one real second. The limit
+  // holds those landings back, and this checks that it did.
+  await page.evaluate(async ([hrefs, stay]) => {
     const go = (window as unknown as { __hudGo: (href: string) => Promise<number> }).__hudGo;
     const end = performance.now() + 6_000;
     for (let k = 0; performance.now() < end; k++) {
       await go(hrefs[k % hrefs.length]);
-      await new Promise((r) => setTimeout(r, wait + 60));
+      await new Promise((r) => setTimeout(r, stay));
     }
-  }, [[1, 2, 3, 4, 5, 6].map(hudHref), WAIT_MS] as const);
+  }, [stationIds.map((_, i) => hudHref(i + 1)), HOP_STAY_MS] as const);
   await page.waitForTimeout(1500);
   // A sudden change is the tear starting, each re-cut (watched: the noise seed changing) and the visible snap back (the displacement scale reaching 0, #124).
   const { starts, snaps, cuts } = await watched(page);
@@ -234,7 +238,7 @@ test("moving quickly between stations can't make more than the limit of sudden c
 });
 
 // The tear is timed on performance.now() (TearView's useTear): it starts at one reading and comes off
-// at the first frame where 0.8 s have passed. A slow frame can only make it come off later, never
+// at the first frame where the full length (SHIFT_SECONDS.full, 0.4 s) has passed. A slow frame can only make it come off later, never
 // sooner. What we measure can come out a little short, because our observer runs after the end of
 // the task that set the filter (React's effect flush, a slow frame long under 16x throttling). So the exact length is
 // pinned with a fake clock (src/frames.test.ts, src/tear.test.ts) and this checks only that the tear was

@@ -2,6 +2,6 @@
 
 /** How long a shift runs, in seconds: the full one is about the length of the tear, the short one is a
  *  quick flick. */
-export const SHIFT_SECONDS = { full: 0.8, short: 0.25 } as const;
+export const SHIFT_SECONDS = { full: 0.4, short: 0.25 } as const;
 
 export type ShiftKind = keyof typeof SHIFT_SECONDS;

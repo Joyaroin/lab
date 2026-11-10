@@ -10,7 +10,7 @@ import { landedAt, openTour, overflowPanel, panelOf, waitForCamera, waitForPanel
 // what ask for one. On CI's software WebGL a frame takes up to ~100 ms, so each wait is one
 // frame's worth, after which a jump back would have happened. They cannot be "wait for X", because
 // the bug is the absence of a change.
-const FRAME_WAIT_MS = 150;
+const FRAME_PAUSE_MS = 150;
 
 const panelScrollTop = (page: Page, id: string) => panelOf(page, id).evaluate((e) => e.scrollTop);
 const panelRoom = (page: Page, id: string) => panelOf(page, id).evaluate((e) => e.scrollHeight - e.clientHeight);
@@ -31,7 +31,7 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     let prev = 0;
     for (let i = 0; i < 40 && prev < room - 1; i++) {
       await page.mouse.wheel(0, 40);
-      await page.waitForTimeout(FRAME_WAIT_MS);
+      await page.waitForTimeout(FRAME_PAUSE_MS);
       const now = await panelScrollTop(page, "work");
       expect(now, `step ${i}`).toBeGreaterThanOrEqual(prev); // never back toward the top
       prev = now;
@@ -39,11 +39,11 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
     expect(prev).toBeGreaterThanOrEqual(room - 2); // reached the end
     // moving the pointer keeps the position
     await page.mouse.move(box.x + 20, box.y + 20, { steps: 5 });
-    await page.waitForTimeout(FRAME_WAIT_MS);
+    await page.waitForTimeout(FRAME_PAUSE_MS);
     expect(await panelScrollTop(page, "work")).toBe(prev);
     // wheeling on past the end moves nothing: the camera stays on Work
     const camera = await waitForCamera(page);
-    for (let i = 0; i < 8; i++) { await page.mouse.wheel(0, 200); await page.waitForTimeout(FRAME_WAIT_MS); }
+    for (let i = 0; i < 8; i++) { await page.mouse.wheel(0, 200); await page.waitForTimeout(FRAME_PAUSE_MS); }
     expect(await waitForCamera(page), "the camera did not move").toEqual(camera);
     await landedAt(page, 1);
     await expect(panelOf(page, "mediasafe")).toBeHidden();
@@ -106,7 +106,7 @@ test.describe("phone-sized window", () => {
       await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
       for (let m = 1; m <= 6; m++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y - m * 10 }] });
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-      await page.waitForTimeout(FRAME_WAIT_MS);
+      await page.waitForTimeout(FRAME_PAUSE_MS);
     };
     let prev = 0;
     for (let i = 0; i < 16 && prev < room - 2; i++) {
@@ -125,7 +125,7 @@ test.describe("phone-sized window", () => {
     expect(await page.evaluate(() => scrollY), "swiping past the end does not scroll the page").toBe(0);
     await landedAt(page, 2);
     await page.mouse.move(box.x + 20, box.y + 20, { steps: 4 });
-    await page.waitForTimeout(FRAME_WAIT_MS);
+    await page.waitForTimeout(FRAME_PAUSE_MS);
     expect(await panelScrollTop(page, "mediasafe")).toBeGreaterThanOrEqual(prev - 1);
   });
 });
@@ -142,7 +142,7 @@ test("phone-sized window: the real wheel over MediaSafe does not jump back", asy
   let prev = 0;
   for (let i = 0; i < 25; i++) {
     await page.mouse.wheel(0, 20);
-    await page.waitForTimeout(FRAME_WAIT_MS);
+    await page.waitForTimeout(FRAME_PAUSE_MS);
     const now = await panelScrollTop(page, "mediasafe");
     expect(now, `step ${i}`).toBeGreaterThanOrEqual(prev);
     prev = now;
