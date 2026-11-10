@@ -14,6 +14,7 @@ import { DeskMeter } from "./DeskMeter";
 import { Phosphor } from "./Phosphor";
 import { Rain } from "./Rain";
 import { TvTargets } from "./TvTargets";
+import { RoomClick } from "./RoomClick";
 import type { MeterLink } from "./nixie";
 import type { Shift } from "./shift";
 import { TextPins } from "./text/TextPins";
@@ -107,6 +108,7 @@ export default function Room({ onReady, onProgress, visit, where, reduced, meter
       camera={{ position: OVERVIEW.camera, fov: OVERVIEW.fov }}
     >
       <CameraRig visit={visit} where={where} reduced={reduced} cover={cover} />
+      <RoomClick visit={visit} where={where} />
       <TextPins where={where} shift={shift} />
       <Suspense fallback={null}>
         <BakedRoom onLoaded={onReady} onProgress={onProgress} />

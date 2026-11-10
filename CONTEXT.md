@@ -11,7 +11,11 @@ The language of this project: its terms, what each one means, and what it doesn'
   (ADR 0005, spec #170).
 - **TV click**: at the overview only, a TV takes a click and flies the visitor to its station, and a hover glow shows which
   one (`clickable` in `src/clickable.ts`, `easeGlow` in `src/glow.ts`). At a station or in flight no TV is clickable and no
-  glow shows.
+  glow shows. At a station, a click on the room goes back to the overview: any press on the room that is not on that
+  station's own TV (its glass or bezel), and another TV counts as the room from there (`goesBack` in `src/back.ts`, heard by
+  `src/RoomClick.tsx`). A press that moves more than 6 px is a drag and does nothing. The desk meter's click still means
+  next, and the HUD, the menu, the meter bar and the station's text are controls, not the room. At the overview and in
+  flight it never applies.
 - **Overview**: stop 0. A camera pose that shows every TV on a landscape window, with its own wider field of
   view (`OVERVIEW` in `src/crts.ts`, 75 degrees at most; stations use `CAMERA_FOV`), and a separate pose for a
   portrait window. It is where the site opens and where Back (the HUD's Room link, Esc) goes. The meter shows

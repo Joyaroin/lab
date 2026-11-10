@@ -6,6 +6,7 @@ import { clickable } from "./clickable";
 import type { Visit } from "./visit";
 import { easeGlow } from "./glow";
 import { crts } from "./crts";
+import type { PressTarget } from "./RoomClick";
 import { stations } from "./content";
 import { BEZEL, BEZEL_GAP, SCREEN_LAYER, pointGlowTexture } from "./draw";
 
@@ -56,6 +57,7 @@ export function TvTargets({ visit, where }: { visit: Visit; where: MutableRefObj
         return (
           <group key={crt.id} position={at} rotation={[0, a, 0]}>
             <mesh
+              userData={{ press: { on: "tv", stop: stations.findIndex((s) => s.id === crt.id) + 1 } satisfies PressTarget }}
               onPointerOver={(e) => { e.stopPropagation(); hovered.current = crt.id; invalidate(); }}
               onPointerOut={() => { if (hovered.current === crt.id) hovered.current = null; invalidate(); }}
               onClick={(e) => { if (!clickable(where.current) || visit.target() !== 0) return; e.stopPropagation(); visit.go(stations.findIndex((s) => s.id === crt.id) + 1); }}>

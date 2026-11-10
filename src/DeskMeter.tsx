@@ -5,6 +5,7 @@ import { textCovers } from "./text/place";
 import { DESK_METER } from "./crts";
 import { powerOn, shiftDigits, type MeterLink } from "./nixie";
 import type { Shift } from "./shift";
+import type { PressTarget } from "./RoomClick";
 import { canvas, pointGlowTexture, texture } from "./draw";
 
 // ---------------------------------------------------------------- the desk meter
@@ -123,6 +124,7 @@ export function DeskMeter({ link, shift, reduced }: { link: MeterLink; shift: Sh
 
   return (
     <group position={DESK_METER.position} rotation={[0, DESK_METER.yaw, 0]}
+      userData={{ press: { on: "meter" } satisfies PressTarget }}
       onClick={(e) => { e.stopPropagation(); link.next(); }}
       onPointerOver={() => { document.body.style.cursor = "pointer"; }}
       onPointerOut={() => { document.body.style.cursor = ""; }}>
