@@ -24,10 +24,6 @@ function glassAtHold(i: number, w: number, h: number) {
 const windows = [[1280, 800], [1920, 1080], [1440, 900], [1024, 768], [1366, 640], [2560, 1440],
   [800, 600], [700, 500], [835, 470], [667, 375], [740, 360], [560, 400]];
 const shortWindows = [[667, 375, "compactTwo"], [740, 360, "compactTwo"], [560, 400, "compactThree"]] as const;
-/** How far the glass may stand below the bottom clearance (px). The glass is kept MIN_PANEL_H tall, and on a narrow, short window
- *  (here 560x400, under 680 px wide) the line under the device wraps to two lines, so the band is a little shorter than that
- *  (Adham's decision on #246). Every other window has none. */
-const dip = (w: number, h: number) => { const { top, bottom } = clearances({ width: w, height: h }); return Math.max(0, MIN_PANEL_H - (h - top - bottom)); };
 
 describe("square stops", () => {
   it("stand about 0.54 m from the glass at 1280x800", () => {
@@ -41,7 +37,7 @@ describe("square stops", () => {
       for (let i = 0; i < crts.length; i++) {
         const g = glassAtHold(i, w, h), { top, bottom } = clearances({ width: w, height: h });
         expect(g.top, crts[i].id).toBeGreaterThanOrEqual(top - 1);
-        expect(g.bottom, crts[i].id).toBeLessThanOrEqual(h - bottom + 1 + dip(w, h));
+        expect(g.bottom, crts[i].id).toBeLessThanOrEqual(h - bottom + 1);
         expect(g.left, crts[i].id).toBeGreaterThanOrEqual(SIDE - 1);
         expect(g.right, crts[i].id).toBeLessThanOrEqual(w - SIDE + 1);
         // and fills it: height of the band, unless the window is too narrow for that
@@ -65,13 +61,13 @@ describe("square stops", () => {
         const bandH = h - top - bottom, bandW = w - 2 * SIDE;
         // inside the band on every side...
         expect(box.top, crts[i].id).toBeGreaterThanOrEqual(top - 1);
-        expect(box.top + box.height, crts[i].id).toBeLessThanOrEqual(h - bottom + 1 + dip(w, h));
+        expect(box.top + box.height, crts[i].id).toBeLessThanOrEqual(h - bottom + 1);
         expect(box.left, crts[i].id).toBeGreaterThanOrEqual(SIDE - 1);
         expect(box.left + box.width, crts[i].id).toBeLessThanOrEqual(w - SIDE + 1);
         // ...and as big as the band allows, in the middle of it
         expect(box.height >= bandH - 2 || box.width >= bandW - 2, crts[i].id).toBe(true);
         expect(box.left + box.width / 2, crts[i].id).toBeCloseTo(w / 2, 0);
-        expect(box.top + box.height / 2, crts[i].id).toBeCloseTo(top + (bandH + dip(w, h)) / 2, 0); // the band is kept MIN_PANEL_H tall
+        expect(box.top + box.height / 2, crts[i].id).toBeCloseTo(top + bandH / 2, 0);
       }
     });
   }
@@ -86,11 +82,10 @@ describe("square stops", () => {
       }
     });
   }
-  it("only 560x400, the narrow, short window, dips under the panel's floor, and by under 2 px", () => {
+  it("leave the band at least MIN_PANEL_H tall at every window here, the short ones too", () => {
     for (const [w, h] of windows) {
-      if (w === 560) expect(dip(w, h), `${w}x${h}`).toBeGreaterThan(0);
-      else expect(dip(w, h), `${w}x${h}`).toBe(0);
-      expect(dip(w, h), `${w}x${h}`).toBeLessThan(2);
+      const { top, bottom } = clearances({ width: w, height: h });
+      expect(h - top - bottom, `${w}x${h}`).toBeGreaterThanOrEqual(MIN_PANEL_H);
     }
   });
   it("use the same height for camera and look point, so the view is level", () => {

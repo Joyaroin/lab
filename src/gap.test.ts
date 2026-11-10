@@ -73,6 +73,30 @@ describe("display", () => {
   });
 });
 
+describe("the short form, for a short landscape window", () => {
+  it("is one short sentence with the noun and a plus for an incomplete count", () => {
+    expect(gapLabel({ deploys: 9, live: true, complete: true }, true)).toBe("MediaSafe: 9 deploys ahead of prod");
+    expect(gapLabel({ deploys: 1, live: true, complete: true }, true)).toBe("MediaSafe: 1 deploy ahead of prod");
+    expect(gapLabel({ deploys: 100, live: true, complete: false }, true)).toBe("MediaSafe: 100+ deploys ahead of prod");
+  });
+  it("keeps the saved wrapper, so a saved 100 is the longest, at 60 characters", () => {
+    const saved = gapLabel({ deploys: 100, live: false, complete: true }, true);
+    expect(saved).toBe("MediaSafe: 100 deploys ahead of prod (saved value, not live)");
+    expect(saved.length).toBe(60);
+  });
+  it("is shorter than the long form for every count a reading can have", () => {
+    for (const deploys of [0, 1, 9, 10, 99, 100]) {
+      for (const [live, complete] of [[true, true], [true, false], [false, true]] as const) {
+        const g = { deploys, live, complete };
+        expect(gapLabel(g, true).length, JSON.stringify(g)).toBeLessThan(gapLabel(g).length);
+      }
+    }
+  });
+  it("is not the default", () => {
+    expect(gapLabel({ deploys: 9, live: true, complete: true })).toBe(gapLabel({ deploys: 9, live: true, complete: true }, false));
+  });
+});
+
 describe("readGap timeout", () => {
   it("falls back to the saved value when the call hangs", async () => {
     vi.useFakeTimers();

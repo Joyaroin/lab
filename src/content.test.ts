@@ -392,6 +392,17 @@ describe("interface words", () => {
     expect(fill(ui.gapBehind, { n: 9, noun: "deploys" })).toBe("MediaSafe: 9 staging deploys since the last prod release");
     expect(fill(ui.gapBehindAtLeast, { n: 9, noun: "deploys" })).toBe("MediaSafe: at least 9 staging deploys since the last prod release");
   });
+  it("says the gap in the short form for a short window", () => {
+    expect(fill(ui.gapBehindShort, { n: 9, noun: "deploys" })).toBe("MediaSafe: 9 deploys ahead of prod");
+    expect(fill(ui.gapBehindAtLeastShort, { n: 9, noun: "deploys" })).toBe("MediaSafe: 9+ deploys ahead of prod");
+  });
+  it.each(["gapBehindShort", "gapBehindAtLeastShort"] as const)("rejects %s without {n} or {noun}", (k) => {
+    for (const ph of ["n", "noun"]) {
+      const c = good();
+      c.ui[k] = c.ui[k].replace(`{${ph}}`, "x");
+      expect(validateContent(c).join("\n")).toContain(`ui.${k}: must contain {${ph}}`);
+    }
+  });
   it("blocks a phone number in them like other copy", () => {
     const c = good();
     c.ui.room = "Call 613-555-0142";

@@ -75,12 +75,12 @@ The language of this project: its terms, what each one means, and what it doesn'
   hop than steps.
 - **Meter**: the nixie tube display at the centre of the site. It is our own design, and it is both
   navigation and a live readout.
-- **Reading**: the number the meter shows. Each station has a fixed reading; the overview shows the gap.
+- **Reading**: the number the meter shows. Each station has a fixed reading; the overview shows the gap, with its sentence in the long form ("MediaSafe: 9 staging deploys since the last prod release") or, on a short landscape window, the short form (see Meter bar).
 - **Desk meter**: the meter as built in the room: seven nixie tubes on the desk, drawn live. Clicking it means
   next. It is a display in the room only: the meter bar's digits do not depend on whether it is in frame.
 - **Meter bar**: the bar under the room, drawn as the **device**: the meter layers put together (below) at the size
   `deviceSize(win)` in `src/pin.ts` gives (420 px wide at 1920 x 1080, 417.6 at 1440 x 900, 280 on a phone), with the
-  reading's digits as lit numerals over the tubes, the keys over their drawn keys, and the line under it (its height is `lineHeight(win)` in `src/pin.ts`, part of the bottom clearance, and the bottom clearance's `hudTier` test uses it too). The line is 14.4 px type, 12.8 px on a portrait window and on a short landscape window (the compact HUD). On a compact window its box may run wider than the device, up to the HUD's side margins (`HUD_MARGIN`; `lineMaxWidth(win)`), so the longest text (the saved gap's sentence, 81 characters) is one line from 681 px wide; narrower, on a short window (560 x 400), it wraps to two and the text panel may stand under `MIN_PANEL_H` there, by about 2 px (Adham's decision on #246). Elsewhere the box is at most the window less 1 rem. The line is the
+  reading's digits as lit numerals over the tubes, the keys over their drawn keys, and the line under it (its height is `lineHeight(win)` in `src/pin.ts`, part of the bottom clearance, and the bottom clearance's `hudTier` test uses it too). The line is 14.4 px type, 12.8 px on a portrait window and on a short landscape window (the compact HUD). On a compact window its box may run wider than the device, up to the HUD's side margins (`HUD_MARGIN`; `lineMaxWidth(win)`), and it shows the **short form** of the gap sentence (`ui.gapBehindShort`, `ui.gapBehindAtLeastShort`: "MediaSafe: 9 deploys ahead of prod", "MediaSafe: 9+ deploys ahead of prod"; `gapLabel(gap, true)` in `src/gap.ts`, chosen by `isCompact(win)`), so the line is always one line there, from 560 px wide up (the saved form, `ui.gapSaved` around it, is 60 characters at a count of 100). The height is worked out from the real longest text of the form the window shows, at a count of 100 (what `countGap` returns at most and the save script stores; `lineTexts` in `src/pin.ts`). Elsewhere the box is at most the window less 1 rem. The line is the
   gap's sentence at the overview and, at a station, `ui.stopLine` filled in ("World line 02: MediaSafe · 2 of 5"; the
   total is the number of stations in the content module). The bar itself takes no click: only the keys do. In a flight
   it shows the stop being flown to (keys, line and digits). What it shows is one pure rule, `barFor(where, framing)` in
@@ -113,9 +113,9 @@ The language of this project: its terms, what each one means, and what it doesn'
   goes **compact**: no availability line, 14 px text. From `COMPACT_MIN_W` (655 px wide) two lines: the name, the title and the
   outside links, then Room and the stations; narrower, three: the name and title, the outside links, the stops. A window is
   short when its width's tier would leave the panel under `MIN_PANEL_H` (120 px): `height < tier top + 120 + bottom clearance` (the bottom as the full HUD has it)
-  (`hudTier(win)` in `src/pin.ts`, a pure rule of the window): about 461 px under 739 wide (the line under the device wraps to two lines), 443 at 739 to 835, 407 at 836 to 965, about 445 at
+  (`hudTier(win)` in `src/pin.ts`, a pure rule of the window): about 461 px under 747 wide (the full HUD's saved gap sentence, 82 characters, wraps to two lines), 443 at 747 to 835, 407 at 836 to 965, about 445 at
   1279. The compact tops are 76 px (two lines) and 107 px (three), from `COMPACT_LINE_H` and `COMPACT_GAP`; with them the glass and
-  the panel stay above the device down to about 355 px tall (two lines) and 402 px (three, where the line under the device is two lines), under which `MIN_PANEL_H` holds them
+  the panel stay above the device down to about 355 px tall (two lines) and 386 px (three), under which `MIN_PANEL_H` holds them
   at 120 px and they reach the meter. On a portrait window the
   name block spans the top with the name, title and outside links (no availability line), and Room and the stations are a
   bottom menu, three to a row, in buttons at least 44 px tall; the meter bar rises above it. All HUD text is at least 14 px.
@@ -130,7 +130,7 @@ The language of this project: its terms, what each one means, and what it doesn'
   at least as wide as tall): each station's own square stop, worked out from the window; the text is laid
   over the glass; no mouse parallax at a station. **Portrait** (taller than wide): the pull-back, or the phone
   stop where a station has one; the text pinned beside the CRT; full parallax. Chosen from the current
-  window each time, so rotating or resizing switches it. In code: `framingFor(window)` in `src/framing`. On a short landscape window the text panel and glass keep at least `MIN_PANEL_H` between the HUD and the meter bar, which the compact HUD tiers and the one-line text under the device make room for; the exception is a narrow, short window (under about 680 px wide) where that line wraps.
+  window each time, so rotating or resizing switches it. In code: `framingFor(window)` in `src/framing`. On a short landscape window the text panel and glass keep at least `MIN_PANEL_H` between the HUD and the meter bar, which the compact HUD tiers and the one-line (short) text under the device make room for, at every width from 560 px up, with no exception (`src/pin.test.ts` sweeps the short landscape windows). Under 355 px tall (386 px under 655 px wide) no HUD leaves that room and the panel is held at the floor.
 - **Where**: where the visitor is, as a value: at a stop (0 is the overview, 1..n a station), or flying from one stop
   to another with `f`, the share of the flight done. `visit.where(now)` gives it; the framing and the text's
   strength take it.

@@ -7,6 +7,8 @@ import { barFor, type BarKey } from "./bar";
 import { ScreenPanels } from "./text/ScreenPanels";
 import { Meter } from "./Meter";
 import { formatReading, gapLabel, type Gap } from "./gap";
+import { isCompact } from "./pin";
+import { useWin } from "./useWin";
 import { pendingDeploys } from "./useGap";
 import type { Shift } from "./shift";
 import { readingAt } from "./tour";
@@ -90,7 +92,8 @@ export function Tour({ gap, visit, meter, shift: shifts }: { gap: Gap | null; vi
   }, [visit]);
 
   const deploys = gap ? gap.deploys : pendingDeploys;
-  const gapLine = gap ? gapLabel(gap) : ui.readingPending;
+  const win = useWin();
+  const gapLine = gap ? gapLabel(gap, isCompact(win)) : ui.readingPending;
   const digits = formatReading(Math.round(readingAt(here, deploys)));
   // The bar shows the stop being flown to, not the camera's place on the way: its keys, its line and its digits.
   const portrait = usePortrait();
