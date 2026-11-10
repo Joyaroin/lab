@@ -65,6 +65,11 @@ The language of this project: its terms, what each one means, and what it doesn'
   meter's main display wherever it is in frame.
 - **Meter bar**: the plain label under the room that explains the reading. It also shows a small
   copy of the digits when the desk meter is out of frame, too small, or under a panel.
+- **Meter layers**: the rendered images the meter bar's device is built from (ADR-0006): the case and tubes unlit, the
+  tubes' light on the case, ten lit numerals all seven tubes share, the decimal point and the four keys (PREV, ROOM,
+  NEXT, START), each with a clear background. `make meter` renders them from `tools/meter/` into `src/assets/meter/`, and
+  `src/meter-layers.ts` lists each one's place and size on the 840 px wide device and how it is laid over the base.
+  The key words come from `ui` in the content module, so changing one means rendering again.
 - **Gap**: how many MediaSafe staging deploys have landed since the last promotion to prod. Real
   data, not decoration, and the meter says so when it's showing the saved value instead. Not config
   drift, which Argo CD keeps at zero.
