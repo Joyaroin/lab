@@ -63,7 +63,7 @@ export function Hud({ where, visited, visit }: { where: Where; visited: boolean;
   );
   // The outside links open a new tab; the mark is decoration, so it is out of the link's name.
   const outside = links.map((l) => (
-    <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" style={link}>{l.label}<span aria-hidden="true" style={{ marginLeft: 2 }}>↗</span></a>
+    <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" style={link}>{l.label}<span aria-hidden="true" style={{ marginLeft: 4 }}>↗</span></a>
   ));
   return (
     <>
@@ -121,7 +121,7 @@ const linkRowBase: CSSProperties = {
 };
 const linkRowOne: CSSProperties = { ...linkRowBase, flexWrap: "nowrap", maxWidth: LINK_ROW_W, height: LINK_ROW_H, flex: "none" };
 const linkRowOwnLine: CSSProperties = { ...linkRowBase, maxWidth: "100%" };
-const groupStyle: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 3, rowGap: 4 };
+const groupStyle: CSSProperties = { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 8, rowGap: 4 };
 const divider: CSSProperties = { width: 1, height: "1.1em", background: "#2f7a4d", margin: "0 6px" };
 const menuBar: CSSProperties = {
   position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 20, padding: PHONE_PAD_PX, background: "rgba(5,8,10,0.7)", pointerEvents: "auto",
@@ -136,7 +136,7 @@ const button: CSSProperties = {
 const here: CSSProperties = { color: INK, background: GREEN, fontWeight: "bold" };
 const buttonHere = here;
 const linkHere: CSSProperties = { ...here, textDecoration: "none" };
-const link: CSSProperties = { color: GREEN, padding: "5px 2px", fontWeight: "normal", background: "transparent", whiteSpace: "nowrap" };
+const link: CSSProperties = { color: GREEN, padding: "5px 5px", fontWeight: "normal", background: "transparent", whiteSpace: "nowrap" };
 const hint: CSSProperties = {
   position: "fixed", left: 0, right: 0, zIndex: 15, textAlign: "center",
   color: AMBER, fontSize: "0.9rem", pointerEvents: "none", transition: "opacity 0.5s",

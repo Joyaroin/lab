@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { stations } from "./content";
 import {
   BUTTON_PX, clearances, deviceSize, fitPanel, glassFontSize, HUD_GAP, HUD_MARGIN, LINK_ROW_H, LINK_ROW_W, NAME_BLOCK_H, NAME_BLOCK_W,
   ONE_ROW_MIN_W, PHONE_MENU_H,
@@ -26,7 +27,7 @@ describe("fitPanel", () => {
     const { top, bottom } = clearances(phone);
     const f = fitPanel(phone, 195, 400, 200, 2000);
     expect(f.maxHeight).toBeCloseTo(phone.height - top - bottom, 6);
-    expect(f.maxHeight).toBeGreaterThanOrEqual(420); // 460 with a two-row menu; three rows (Room and six stations, three to a row) cost 48.8 px, see #222
+    expect(f.maxHeight).toBeGreaterThanOrEqual(460); // Room and five stations are two rows of three
     expect(f.top).toBe(top);
     expect(f.top + f.maxHeight).toBeCloseTo(phone.height - bottom, 6);
   });
@@ -93,8 +94,12 @@ describe("clearances", () => {
   });
   it("on portrait the bottom is the menu, 16, the device and 32", () => {
     const win = { width: 390, height: 844 };
-    expect(PHONE_MENU_H).toBeCloseTo(154.4, 6); // three rows of 44 px buttons (Room and six stations, three to a row), two gaps and the padding
-    expect(clearances(win).bottom).toBeCloseTo(154.4 + 16 + 118.8 + 32, 1);
+    const rows = Math.ceil((stations.length + 1) / 3); // Room and one button per station, three to a row
+    const menu = rows * 44 + (rows - 1) * 4.8 + 2 * 6.4; // 44 px buttons, the gaps and the padding
+    expect(PHONE_MENU_H).toBeCloseTo(menu, 6);
+    expect(stations.length, "five stations: two rows, 105.6 px").toBe(5);
+    expect(PHONE_MENU_H).toBeCloseTo(105.6, 6);
+    expect(clearances(win).bottom).toBeCloseTo(menu + 16 + 118.8 + 32, 1);
     expect(clearances(win).top).toBe(96);
   });
   it("the top is the one-row HUD's height from ONE_ROW_MIN_W wide, the two-line HUD's under it, and 96 on portrait", () => {

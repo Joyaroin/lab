@@ -6,7 +6,7 @@ import { goTo, openTour, overflowPanel, panelOf, waitForPanel } from "./lib/page
 // meter bar (src/pin.ts, `clearances`), not half of it.
 const win = { width: 390, height: 844 };
 
-test("on a 390x844 phone the Work panel is at least 420 px tall and fills the free height, and the more cue shows when its text does not fit", async ({ page }) => {
+test("on a 390x844 phone the Work panel is at least 460 px tall and fills the free height, and the more cue shows when its text does not fit", async ({ page }) => {
   test.setTimeout(90_000);
   await page.setViewportSize(win);
   await openTour(page);
@@ -14,7 +14,7 @@ test("on a 390x844 phone the Work panel is at least 420 px tall and fills the fr
   await expect(panelOf(page, "work")).toBeVisible();
   const box = await waitForPanel(page, "work");
   const free = win.height - clearances(win).top - clearances(win).bottom;
-  expect(box.height, "the real Work panel").toBeGreaterThanOrEqual(420);
+  expect(box.height, "the real Work panel").toBeGreaterThanOrEqual(460);
   expect(box.height).toBeLessThanOrEqual(free + 1);
   // the real copy may fit in the panel; make it overflow, as panel-scroll.spec does, and the cue must show
   await overflowPanel(page, "work");
