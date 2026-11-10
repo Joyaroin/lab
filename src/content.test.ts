@@ -373,6 +373,21 @@ describe("interface words", () => {
     c.ui.meterButton = "Meter. Click for the next station";
     expect(validateContent(c).join("\n")).toContain("ui.meterButton: must contain {label}");
   });
+  it("has the words the stop controls will use", () => {
+    expect([ui.keyPrev, ui.keyRoom, ui.keyNext, ui.keyStart]).toEqual(["PREV", "ROOM", "NEXT", "START"]);
+    expect([ui.prevStation, ui.backToRoom, ui.nextStation, ui.startTour]).toEqual(
+      ["Previous station", "Back to the room", "Next station", "Start the tour"]);
+    expect(fill(ui.stopLine, { label: "Work", n: 1, total: 5 })).toBe("Work · 1 of 5");
+  });
+  it.each(["label", "n", "total"])("rejects stopLine without {%s}", (ph) => {
+    const c = good();
+    c.ui.stopLine = c.ui.stopLine.replace(`{${ph}}`, "x");
+    expect(validateContent(c).join("\n")).toContain(`ui.stopLine: must contain {${ph}}`);
+  });
+  it("says the gap in the new sentence", () => {
+    expect(fill(ui.gapBehind, { n: 9, noun: "deploys" })).toBe("MediaSafe: 9 staging deploys since the last prod release");
+    expect(fill(ui.gapBehindAtLeast, { n: 9, noun: "deploys" })).toBe("MediaSafe: at least 9 staging deploys since the last prod release");
+  });
   it("blocks a phone number in them like other copy", () => {
     const c = good();
     c.ui.room = "Call 613-555-0142";
@@ -409,6 +424,14 @@ describe("no copy outside the content module", () => {
       for (const q of ['"', "'", "`"]) expect(src, w).not.toContain(`${q}${w}${q}`);
       expect(src, w).not.toContain(`>${w}<`);
     }
+  });
+});
+
+describe("the pull request count", () => {
+  it("says 90+ in Software factory's last bullet, and nothing says 76", () => {
+    const factory = content.stations.find((s) => s.id === "software-factory")!;
+    expect(factory.body.at(-1)).toContain("This site has 90+ merged pull requests since 5 November 2026.");
+    expect(JSON.stringify(content)).not.toMatch(/\b76\b/);
   });
 });
 
