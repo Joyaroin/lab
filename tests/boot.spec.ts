@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { AddressInfo } from "node:net";
 import { stations } from "../src/content";
-import { GAP_TIMEOUT_MS } from "../src/gap";
+import { GAP_TIMEOUT_MS, formatReading } from "../src/gap";
 import { STATION_COUNT } from "../src/hold";
 import { goBack, goTo, landedAt, readCamera, readShot, stationIds, waitForCamera } from "./lib/page";
 
@@ -12,13 +12,16 @@ const signalLost = async (page: Page, reason?: string) => {
   await expect(page.getByRole("alert")).toContainText("SIGNAL LOST");
   if (reason) await expect(page.getByRole("alert")).toContainText(`(${reason})`);
 };
+// The meter's accessible name for a number of deploys behind, and for a station: read from the code, not written here.
+const gapReading = (deploys: number) => `Reading ${formatReading(deploys)}`;
+const stationReading = (id: string) => `Reading ${formatReading(stations.find((s) => s.id === id)!.reading)}`;
 const hud = (page: Page) => page.getByRole("navigation", { name: "HUD" });
 
 test("name and title are in the HTML before the script runs", async ({ page }) => {
   await page.route("**/assets/*.js", (r) => r.abort());
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Adham Sedik" })).toBeVisible();
-  await expect(page.getByText("SWE & Platform")).toBeVisible();
+  await expect(page.getByText("Software & Platform Engineer")).toBeVisible();
 });
 
 test("room starts and boot screen goes away", async ({ page }) => {
@@ -41,6 +44,7 @@ test("signal lost when WebGL is disabled", async ({ page }) => {
   for (const name of ["Résumé", "LinkedIn", "GitHub"])
     await expect(page.getByRole("link", { name })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Adham Sedik" })).toBeVisible();
+  await expect(page.getByText("Software & Platform Engineer")).toBeVisible();
   await page.screenshot({ path: "test-results/signal-lost.png" });
 });
 
@@ -62,8 +66,8 @@ test("meter shows the live gap with a plain label", async ({ page }) => {
     r.fulfill({ json: commits(...deploys(9), "Promote MediaSafe abc to prod") }),
   );
   await page.goto("/");
-  await expect(page.getByText("prod is 9 deploys behind staging", { exact: true })).toBeVisible();
-  await expect(page.getByRole("img", { name: "Reading 0.000009" })).toBeVisible();
+  await expect(page.getByText("MediaSafe: 9 staging deploys since the last prod release", { exact: true })).toBeVisible();
+  await expect(page.getByRole("img", { name: gapReading(9) })).toBeVisible();
   await page.screenshot({ path: "test-results/meter-live.png" });
 });
 
@@ -96,7 +100,7 @@ test("meter does not say 'saved value' while the live call is still pending", as
   await expect(page.getByText("reading prod and staging…")).toBeVisible();
   await expect(page.getByText(/saved value/)).toHaveCount(0);
   answer();
-  await expect(page.getByText("prod is 2 deploys behind staging", { exact: true })).toBeVisible();
+  await expect(page.getByText("MediaSafe: 2 staging deploys since the last prod release", { exact: true })).toBeVisible();
 });
 
 // --- tour ---
@@ -112,11 +116,11 @@ async function startTour(page: Page) {
 test("visiting a station rolls the meter, and Room rolls it back", async ({ page }) => {
   await startTour(page);
   const reading = page.getByRole("img", { name: /^Reading/ });
-  await expect(reading).toHaveAttribute("aria-label", "Reading 0.000009");
+  await expect(reading).toHaveAttribute("aria-label", gapReading(9));
   await goTo(page, STATION_COUNT);
-  await expect(reading).toHaveAttribute("aria-label", "Reading 0.000861");
+  await expect(reading).toHaveAttribute("aria-label", stationReading("contact"));
   await goBack(page);
-  await expect(reading).toHaveAttribute("aria-label", "Reading 0.000009");
+  await expect(reading).toHaveAttribute("aria-label", gapReading(9));
 });
 
 // The wheel never moves the camera. At the overview there is no panel to take it, and the page has nothing to scroll.
@@ -136,20 +140,21 @@ test("HUD links and the meter jump to stations; the HUD stays reachable", async 
   await startTour(page);
   const reading = page.getByRole("img", { name: /^Reading/ });
   await goTo(page, stationIds.indexOf("home-lab") + 1);
-  await expect(reading).toHaveAttribute("aria-label", "Reading 0.000512");
+  await expect(reading).toHaveAttribute("aria-label", stationReading("home-lab"));
   await page.screenshot({ path: "test-results/tour-home-lab.png" });
   await page.getByRole("button", { name: /^Meter/ }).click(); // next station
-  await expect(reading).toHaveAttribute("aria-label", "Reading 0.000640");
-  await page.screenshot({ path: "test-results/tour-order-tracker.png" });
+  const next = stationIds[stationIds.indexOf("home-lab") + 1];
+  await expect(reading).toHaveAttribute("aria-label", stationReading(next));
+  await page.screenshot({ path: `test-results/tour-${next}.png` });
   for (const stop of [0, 1, 3, STATION_COUNT]) {
     await goTo(page, stop);
     for (const name of ["Résumé", "LinkedIn", "GitHub", "Contact"])
       await expect(hud(page).getByRole("link", { name })).toBeInViewport();
   }
-  await expect(reading).toHaveAttribute("aria-label", "Reading 0.000861");
+  await expect(reading).toHaveAttribute("aria-label", stationReading("contact"));
   await page.screenshot({ path: "test-results/tour-contact.png" });
   await page.getByRole("button", { name: /^Meter/ }).click(); // wraps to the overview
-  await expect(reading).toHaveAttribute("aria-label", "Reading 0.000009");
+  await expect(reading).toHaveAttribute("aria-label", gapReading(9));
   await landedAt(page, 0);
 });
 
@@ -263,15 +268,15 @@ for (const [name, size] of Object.entries(sizes)) {
     await startTour(page);
     const bar = page.getByRole("button", { name: /^Meter/ });
     await landedAt(page, 0);
-    await expect(page.getByText("prod is 9 deploys behind staging", { exact: true })).toBeVisible(); // the plain label stays
-    await expect(page.getByRole("img", { name: /^Reading/ })).toHaveAttribute("aria-label", "Reading 0.000009");
+    await expect(page.getByText("MediaSafe: 9 staging deploys since the last prod release", { exact: true })).toBeVisible(); // the plain label stays
+    await expect(page.getByRole("img", { name: /^Reading/ })).toHaveAttribute("aria-label", gapReading(9));
     await page.screenshot({ path: `test-results/overview-${name}.png` });
 
     await goTo(page, 1); // a station: the desk meter is out of frame, so the bar shows the digits
     await expect(bar).toHaveAttribute("data-desk-meter", "out-of-view");
     await expect(bar.getByTestId("tube").first()).toBeVisible();
     await goBack(page);
-    await expect(page.getByRole("img", { name: /^Reading/ })).toHaveAttribute("aria-label", "Reading 0.000009");
+    await expect(page.getByRole("img", { name: /^Reading/ })).toHaveAttribute("aria-label", gapReading(9));
   });
 }
 

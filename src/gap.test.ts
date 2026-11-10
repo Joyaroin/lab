@@ -62,13 +62,13 @@ describe("display", () => {
     expect(formatReading(0)).toBe("0.000000");
   });
   it("labels plainly and says when not live", () => {
-    expect(gapLabel({ deploys: 9, live: true, complete: true })).toBe("prod is 9 deploys behind staging");
-    expect(gapLabel({ deploys: 1, live: true, complete: true })).toBe("prod is 1 deploy behind staging");
+    expect(gapLabel({ deploys: 9, live: true, complete: true })).toBe("MediaSafe: 9 staging deploys since the last prod release");
+    expect(gapLabel({ deploys: 1, live: true, complete: true })).toBe("MediaSafe: 1 staging deploy since the last prod release");
     expect(gapLabel({ deploys: 9, live: false, complete: true })).toBe(
-      "prod is 9 deploys behind staging (saved value, not live)",
+      "MediaSafe: 9 staging deploys since the last prod release (saved value, not live)",
     );
     expect(gapLabel({ deploys: 100, live: true, complete: false })).toBe(
-      "prod is at least 100 deploys behind staging",
+      "MediaSafe: at least 100 staging deploys since the last prod release",
     );
   });
 });
