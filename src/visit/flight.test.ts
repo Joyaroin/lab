@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { CAMERA_FOV, crts, glassCorners, OVERVIEW } from "../crts";
+import { CAMERA_FOV, crts, DESK_METER, glassCorners, OVERVIEW } from "../crts";
+import { clearances, deviceSize, HUD_MARGIN, LINK_ROW_H, LINK_ROW_W, NAME_BLOCK_H, NAME_BLOCK_W, ONE_ROW_MIN_W } from "../pin";
 import { framingFor } from "../framing";
 import { nearestSurface } from "../../tests/lib/room-mesh";
 import { flightFov, flightPose, HUB, type Pose } from "./flight";
@@ -18,6 +19,8 @@ function project(pose: Pose, p: V3, aspect: number): [number, number] | null {
   return z <= 0 ? null : [dot(d, r) / z / (TAN * aspect), dot(d, u) / z / TAN];
 }
 
+type Box = { name: string; left: number; top: number; width: number; height: number };
+
 describe("the overview", () => {
   for (const [name, aspect] of [["16:9", 16 / 9], ["16:10", 16 / 10]] as const)
     it(`has every TV's glass corners inside a ${name} frame`, () => {
@@ -27,6 +30,38 @@ describe("the overview", () => {
         expect(Math.abs(q![0]), `${crt.id} across`).toBeLessThanOrEqual(1);
         expect(Math.abs(q![1]), `${crt.id} up`).toBeLessThanOrEqual(1);
       }
+    });
+  for (const [name, aspect] of [["16:9", 16 / 9], ["16:10", 16 / 10]] as const)
+    it(`has the whole desk meter inside a ${name} frame`, () => {
+      for (const p of DESK_METER.tubeEnds()) {
+        const q = project(OVERVIEW, p, aspect);
+        expect(q, "the desk meter is behind the camera").not.toBeNull();
+        expect(Math.abs(q![0]), "desk meter across").toBeLessThanOrEqual(1);
+        expect(Math.abs(q![1]), "desk meter up").toBeLessThanOrEqual(1);
+      }
+    });
+  // The HUD's boxes, all from src/pin.ts's constants and rules: the name block, the link row, the device with its text.
+  for (const win of [{ width: 1280, height: 720 }, { width: 1440, height: 900 }, { width: 1920, height: 1080 }])
+    it(`has no TV glass corner or desk meter end under the HUD's boxes at ${win.width} x ${win.height}`, () => {
+      const nameBlock: Box = { name: "the name block", left: HUD_MARGIN, top: HUD_MARGIN, width: NAME_BLOCK_W, height: NAME_BLOCK_H };
+      const oneRow = win.width >= ONE_ROW_MIN_W;
+      const linkRow: Box = oneRow
+        ? { name: "the link row", left: win.width - HUD_MARGIN - LINK_ROW_W, top: HUD_MARGIN, width: LINK_ROW_W, height: LINK_ROW_H }
+        : { name: "the link row", left: HUD_MARGIN, top: HUD_MARGIN + NAME_BLOCK_H, width: LINK_ROW_W, height: LINK_ROW_H };
+      const device = deviceSize(win), bottom = clearances(win).bottom;
+      const deviceBox: Box = { name: "the device", left: (win.width - device.width) / 2, top: win.height - bottom, width: device.width, height: bottom };
+      const points: [string, V3][] = [
+        ...crts.flatMap((c) => glassCorners(c).map((p, i): [string, V3] => [`${c.id} corner ${i}`, p])),
+        ...DESK_METER.tubeEnds().map((p, i): [string, V3] => [`desk meter end ${i}`, p]),
+      ];
+      const under: string[] = [];
+      for (const [label, p] of points) {
+        const q = project(OVERVIEW, p, win.width / win.height)!;
+        const x = ((q[0] + 1) / 2) * win.width, y = ((1 - q[1]) / 2) * win.height;
+        for (const b of [nameBlock, linkRow, deviceBox])
+          if (x >= b.left && x <= b.left + b.width && y >= b.top && y <= b.top + b.height) under.push(`${label} (${x.toFixed(0)}, ${y.toFixed(0)}) is under ${b.name}`);
+      }
+      expect(under).toEqual([]);
     });
   it("has its own field of view, wider than the stations' and no more than 75 degrees", () => {
     expect(OVERVIEW.fov).toBeGreaterThan(CAMERA_FOV);
