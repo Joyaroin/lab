@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { stations } from "./content";
 import {
-  BUTTON_PX, clearances, COMPACT_GAP, COMPACT_LINE_H, COMPACT_MIN_W, COMPACT_TOP_W, deviceSize, fitPanel, glassFontSize, HUD_GAP, HUD_MARGIN,
+  BUTTON_PX, clearances, COMPACT_GAP, COMPACT_LINE_H, COMPACT_MIN_W, COMPACT_SLACK, COMPACT_TOP_W, deviceSize, fitPanel, glassFontSize, HUD_GAP, HUD_MARGIN,
   hudTier, LINK_ROW_H, LINK_ROW_W, MIN_PANEL_H, NAME_BLOCK_H, NAME_BLOCK_W, ONE_ROW_MIN_W, PHONE_MENU_H, TWO_LINE_MIN_W,
 } from "./pin";
 
@@ -158,8 +158,10 @@ describe("clearances", () => {
       expect(height - c.top - c.bottom, `${width}x${height}`).toBeGreaterThanOrEqual(MIN_PANEL_H);
     }
   });
-  it("COMPACT_MIN_W is the width of the compact first line and both margins", () => {
-    expect(COMPACT_MIN_W).toBe(COMPACT_TOP_W + 2 * HUD_MARGIN);
+  it("COMPACT_MIN_W is the width of the compact first line, its slack for wider fonts and both margins", () => {
+    expect(COMPACT_MIN_W).toBe(COMPACT_TOP_W + COMPACT_SLACK + 2 * HUD_MARGIN);
+    expect(COMPACT_MIN_W).toBe(655);
+    expect(COMPACT_SLACK).toBeGreaterThanOrEqual(12);
     expect(COMPACT_MIN_W).toBeLessThanOrEqual(667); // a phone held sideways is two lines
     expect(COMPACT_MIN_W).toBeGreaterThan(560);
   });

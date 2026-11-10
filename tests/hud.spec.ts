@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { identity, links, stations, ui } from "../src/content";
-import { clearances, COMPACT_MIN_W, hudTier, LINK_ROW_H, LINK_ROW_W, NAME_BLOCK_W, ONE_ROW_MIN_W, TWO_LINE_MIN_W } from "../src/pin";
+import { clearances, COMPACT_MIN_W, COMPACT_SLACK, HUD_MARGIN, hudTier, LINK_ROW_H, LINK_ROW_W, NAME_BLOCK_W, ONE_ROW_MIN_W, TWO_LINE_MIN_W } from "../src/pin";
 import { clickLink, goTo, hudLink, landedAt, openTour } from "./lib/page";
 
 // The HUD (#222): a name block, one row of links, the current stop marked, all inside the boxes and clearances
@@ -101,7 +101,7 @@ for (const [width, height, tier] of [[667, 375, "compactTwo"], [740, 360, "compa
 }
 
 // COMPACT_MIN_W is the narrowest two-line width, so the first line has no slack there: every link must still sit inside the
-// name block's backdrop and the window (the first build overflowed from 655 to 666 px, a 4 px space before each mark).
+// name block's backdrop and the window (the first build overflowed from 655 to 666 px, a 4 px space before each mark), and it keeps COMPACT_SLACK of room for fonts wider than the Mac's.
 test(`${COMPACT_MIN_W}x375: every link sits inside the HUD's backdrop and inside the window`, async ({ page }) => {
   const width = COMPACT_MIN_W;
   expect(hudTier({ width, height: 375 })).toBe("compactTwo");
@@ -117,6 +117,7 @@ test(`${COMPACT_MIN_W}x375: every link sits inside the HUD's backdrop and inside
     const a = await box(nameBlock(page).getByRole("link", { name: l.label }));
     expect(a.x + a.width, `${l.label} ends inside the name block's backdrop`).toBeLessThanOrEqual(name.x + name.width + 0.5);
   }
+  expect(name.width, "the first line leaves its slack for a wider font").toBeLessThanOrEqual(width - 2 * HUD_MARGIN - COMPACT_SLACK + 2);
   expect(await nameBlock(page).evaluate((e) => e.scrollWidth <= e.clientWidth), "the first line fits its box with no overflow").toBe(true);
 });
 

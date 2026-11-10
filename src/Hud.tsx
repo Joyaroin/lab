@@ -87,7 +87,7 @@ export function Hud({ where, visited, visit }: { where: Where; visited: boolean;
           <div data-name-block style={{ ...nameBlock, ...compactLine }}>
             <div style={{ ...nameStyle, whiteSpace: "nowrap" }}>{identity.name}</div>
             <div style={{ ...lineStyle, whiteSpace: "nowrap" }}>{identity.title}</div>
-            {tier === "compactTwo" && <div style={{ ...groupWhole, columnGap: 4, marginLeft: "auto", paddingLeft: 6 }}>{outside}</div>}
+            {tier === "compactTwo" && <div style={{ ...groupWhole, columnGap: 2, marginLeft: "auto" }}>{outside}</div>}
           </div>
           {tier === "compactThree" && <div data-outside style={{ ...nameBlock, ...compactLine, columnGap: 4 }}>{outside}</div>}
           <div data-link-row style={{ ...compactLine, ...linkRowBase, flexWrap: "nowrap" }}>
@@ -133,7 +133,7 @@ const hudBase: CSSProperties = {
 const hudOneRow: CSSProperties = { ...hudBase, padding: `${HUD_MARGIN}px`, paddingBottom: 0, justifyContent: "space-between", alignItems: "flex-start", gap: HUD_GAP };
 const hudTwoLines: CSSProperties = { ...hudBase, padding: `${HUD_MARGIN}px`, paddingBottom: 0, flexDirection: "column", alignItems: "flex-start", gap: 8 };
 const hudCompact: CSSProperties = { ...hudBase, padding: `${HUD_MARGIN}px`, paddingBottom: 0, flexDirection: "column", alignItems: "flex-start", gap: COMPACT_GAP };
-const compactLine: CSSProperties = { display: "flex", alignItems: "center", columnGap: 10, height: COMPACT_LINE_H, maxWidth: "100%", boxSizing: "border-box" };
+const compactLine: CSSProperties = { display: "flex", alignItems: "center", columnGap: 8, height: COMPACT_LINE_H, maxWidth: "100%", boxSizing: "border-box" };
 const hudPhone: CSSProperties = { ...hudBase, flexDirection: "column" };
 const nameBlock: CSSProperties = {
   boxSizing: "border-box", maxWidth: NAME_BLOCK_W, background: "rgba(5,8,10,0.7)", boxShadow: backdrop, pointerEvents: "auto", flex: "none",
@@ -167,7 +167,8 @@ const here: CSSProperties = { color: INK, background: GREEN, fontWeight: "bold" 
 const buttonHere = here;
 const linkHere: CSSProperties = { ...here, textDecoration: "none" };
 const linkCompact: CSSProperties = { color: GREEN, padding: "4px 5px", fontWeight: "normal", background: "transparent", whiteSpace: "nowrap" };
-// The outside links beside the title: 4 px of padding each side, so name, title and links fit COMPACT_MIN_W (src/pin.ts).
+// The outside links beside the title: 4 px of padding each side, 2 px between them and 8 px of gap before the first, so name, title and
+// links leave COMPACT_SLACK of room at COMPACT_MIN_W (src/pin.ts).
 const linkTight: CSSProperties = { ...linkCompact, padding: "4px" };
 const link: CSSProperties = { color: GREEN, padding: "5px 5px", fontWeight: "normal", background: "transparent", whiteSpace: "nowrap" };
 const hint: CSSProperties = {
