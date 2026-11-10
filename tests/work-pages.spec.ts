@@ -132,11 +132,28 @@ const watchFilters = async (page: Page) => { await page.evaluate(defineSnapWatch
 }); };
 const filters = (page: Page) => page.evaluate(() => (window as unknown as { __f: Seen }).__f);
 
+/** The limit's window (1.1 s) and a little more, so a booked change has left it. */
+const ARRIVAL_WINDOW_MS = 1_300;
 /** Opens Work (waiting out the arrival's own tear) and starts watching the filters. */
 async function openWorkWatched(page: Page) {
+  // Notes when the arrival's tear starts on the canvas (it starts after the desk meter's power-on, which on a slow
+  // machine is after the camera has arrived, so "no filter yet" does not mean "tear over").
+  await page.addInitScript(() => {
+    const w = window as unknown as { __tearAt: number | null };
+    w.__tearAt = null;
+    new MutationObserver((records) => {
+      for (const r of records) if (w.__tearAt === null && r.target instanceof HTMLCanvasElement && r.target.style.filter.includes("shift-tear")) w.__tearAt = performance.now();
+    }).observe(document, { attributes: true, attributeFilter: ["style"], subtree: true });
+  });
   await openWork(page, 1280, 800);
-  // the first visit's tear is over once the canvas has no filter (its text, which waits for it, is already out)
-  await expect.poll(() => page.locator("canvas").evaluate((e) => (e as HTMLElement).style.filter), { timeout: 10_000 }).toBe("");
+  // The first visit's tear is over once the canvas has no filter after having had one (its text, which waits for it, is already out).
+  // A page turn books its flick against the limit of sudden changes in a window (WINDOW_MS in src/shift/shift.ts, 1.1 s from a
+  // change), and the tear's changes still count in it: a click that comes sooner is turned with no flick, and this
+  // helper's callers click at once. So wait out the window too, on the page's own clock.
+  await expect.poll(() => page.evaluate((window_ms) => {
+    const at = (window as unknown as { __tearAt: number | null }).__tearAt;
+    return at !== null && performance.now() - at > window_ms && document.querySelector("canvas")!.style.filter === "";
+  }, ARRIVAL_WINDOW_MS), { timeout: 10_000 }).toBe(true);
   await watchFilters(page);
 }
 /** Waits until every flick that started has snapped back. */
