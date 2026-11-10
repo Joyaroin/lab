@@ -234,4 +234,5 @@ get a folder; the rest are still flat files in `src/`.
   `src/tear.ts` (where the slip reaches 0), and the browser specs watch for it with `tests/lib/snap.ts`
   (changed by ddf9420), not for the filter coming off. `playTear` (`src/tear-draw.ts`) writes displacement scale 0
   and edge 0 on its last step, before it takes the filter off, so a frame that steps from slip > 0 straight to done
-  still leaves the snap back on record; `src/tear-draw.test.ts` tests it with a fake clock.
+  still leaves the snap back on record. Its stop function (a new play replacing a tear mid-way, or the view
+  unmounting) makes the same writes, so a tear cut short leaves its snap back on record too; `src/tear-draw.test.ts` tests it with a fake clock.

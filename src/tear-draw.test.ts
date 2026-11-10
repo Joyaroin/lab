@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { playTear, type TearTargets } from "./tear-draw";
 import { snapBackMs } from "./tear";
-import { SHIFT_SECONDS } from "./nixie";
 
 // A frame loop on a fake clock: `frame(ms)` draws one frame at that time, like requestAnimationFrame would.
 function setup(kind: "full" | "short" = "short", reduced = () => false) {
@@ -59,11 +58,20 @@ describe("the tear's frame loop", () => {
     expect(s.el.style.filter).toBe("");
   });
 
-  it("stopping early (the view goes away) takes the filter off", () => {
+  it("stopping mid-way (a new play replaces it, or the view goes away) leaves scale 0, edge 0 and the filter cleared, and draws no more", () => {
     const s = setup("full");
     s.frame(50);
+    expect(parseFloat(s.attrs.disp.scale)).toBeGreaterThan(0); // mid-slip when it is cut short
+    expect(parseFloat(s.attrs.red.dx)).not.toBe(0);
     s.stop();
+    expect(parseFloat(s.attrs.disp.scale)).toBe(0);
+    expect(parseFloat(s.attrs.red.dx)).toBe(0);
+    expect(parseFloat(s.attrs.cyan.dx)).toBe(0);
     expect(s.el.style.filter).toBe("");
-    expect(SHIFT_SECONDS.full).toBe(0.4);
+    expect(s.writes.at(-1)).toBe(0);
+    const writesAtStop = s.writes.length;
+    expect(s.frame(100)).toBe(false); // the loop is gone: nothing draws again
+    expect(s.writes.length).toBe(writesAtStop);
+    expect(s.el.style.filter).toBe("");
   });
 });
