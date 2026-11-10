@@ -444,7 +444,7 @@ test("the HUD's Résumé link points at the PDF", async ({ page, request }) => {
 const bigSizes = { "1280x800": { width: 1280, height: 800 }, "1920x1080": { width: 1920, height: 1080 } };
 for (const [name, size] of Object.entries(bigSizes)) {
   test(`at every station the text sits on the glass with no card and no phosphor behind it (${name})`, { tag: "@render" }, async ({ page }) => {
-    test.setTimeout(90_000); // six stops, each with a full-panel screenshot, on software WebGL
+    test.setTimeout(90_000); // five stops, each with a full-panel screenshot, on software WebGL
     await page.setViewportSize(size);
     await page.emulateMedia({ reducedMotion: "reduce" });
     await startTour(page);
@@ -497,7 +497,7 @@ for (const [name, size] of Object.entries(bigSizes)) {
 }
 
 test("the type is larger at 1920x1080 than at 1280x800 at every station", { tag: "@render" }, async ({ page }) => {
-  test.setTimeout(120_000); // 12 stops, each re-sized and settled
+  test.setTimeout(120_000); // 10 stops, each re-sized and settled
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize(bigSizes["1280x800"]);
   await startTour(page);

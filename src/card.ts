@@ -56,3 +56,16 @@ export function drawPhosphor(c: HTMLCanvasElement, card?: Pick<Station, "worldLi
   sheen.addColorStop(0, "rgba(200,255,220,0.07)"); sheen.addColorStop(0.35, "rgba(200,255,220,0)");
   g.fillStyle = sheen; g.fillRect(0, 0, w, h);
 }
+
+/** A switched-off tube: dark grey glass with a faint curve at the corners and a pale reflection, and
+ *  no glow, no scanlines and no card. Drawn over a TV's baked (lit) glass: the bench TV's. */
+export function drawSwitchedOff(c: HTMLCanvasElement) {
+  const g = c.getContext("2d")!, w = c.width, h = c.height;
+  g.fillStyle = "#0b0d0c"; g.fillRect(0, 0, w, h);
+  const v = g.createRadialGradient(w / 2, h / 2, h * 0.3, w / 2, h / 2, w * 0.68);
+  v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,0.7)");
+  g.fillStyle = v; g.fillRect(0, 0, w, h);
+  const sheen = g.createLinearGradient(0, 0, w, h); // the room's light on the glass
+  sheen.addColorStop(0, "rgba(210,225,215,0.16)"); sheen.addColorStop(0.4, "rgba(210,225,215,0.03)"); sheen.addColorStop(1, "rgba(210,225,215,0)");
+  g.fillStyle = sheen; g.fillRect(0, 0, w, h);
+}

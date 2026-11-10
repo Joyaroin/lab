@@ -9,6 +9,11 @@ The language of this project: its terms, what each one means, and what it doesn'
 - **Tour**: visiting the stations by clicking. The site opens on the overview; the HUD's links, the meter and
   Esc move the visitor, as does clicking a TV (see **TV click**), and the camera follows the visit. Nothing scrolls: the wheel never moves the camera
   (ADR 0005, spec #170).
+- **Bench TV**: the switched-off TV on the workbench, once Order Tracker's. It has no station, so it is not in
+  `crts` (one entry per station, in tour order); it is `bench` in `src/crts.ts`, from the `bench` key of
+  `src/room-layout.json`, and `tools/room/build.py` still places it. `Phosphor.tsx` draws its glass dark over the
+  baked lit glass. It has no title card, bezel layer, hover glow or click of its own: a click on it is a click on the
+  room. The overview shows it dark, and it is not counted among the five stations.
 - **TV click**: at the overview only, a TV takes a click and flies the visitor to its station, and a hover glow shows which
   one (`clickable` in `src/clickable.ts`, `easeGlow` in `src/glow.ts`). At a station or in flight no TV is clickable and no
   glow shows. At a station, a click on the room goes back to the overview: any press on the room that is not on that
@@ -49,7 +54,7 @@ The language of this project: its terms, what each one means, and what it doesn'
 - **Maker's plate**: the small metal label on a bezel's bottom left, with a made-up model number such as
   "HALDEN HX-101". One per TV.
 - **Sticky note**: the small coloured note at a bezel's top left, with a few words of its own and a tilt
-  that differs on each TV.
+  that differs on each TV, pinned to its station by id (`noteStyleFor` in `src/notes.ts`).
 - **Diagram**: a station's line drawing on its glass. It redraws facts already in that station's copy
   and adds none, and never reads as a live status or result. Contact has none. Most are a left-to-right
   chain of steps joined by hops; Work's is its timeline, made of segments, with no steps or hops.
@@ -138,7 +143,7 @@ get a folder; the rest are still flat files in `src/`.
   the tear-over wake-up, the leaving rule, the page-turn limit and the
   shift's lengths (`SHIFT_SECONDS`). No shift starts until the desk meter reports its power-on, which it
   does on the first frame it draws once the room is ready (`src/App.tsx:53` sets `meter.on`,
-  `src/DeskMeter.tsx:93` reports), so a room that never draws a frame plays no shift. `src/nixie.ts`
+  `src/DeskMeter.tsx:94` reports), so a room that never draws a frame plays no shift. `src/nixie.ts`
   re-exports `SHIFT_SECONDS` for the browser specs. `shift.hold` is the station the visitor is at (0 at the overview or in flight). The room
   asks it one question per station per frame, `shift.textState(station, nowMs)` (the shift knows where the visitor is): `held`,
   `resolving` or `showing`. Asking changes nothing; the module's state changes when it learns something
@@ -164,8 +169,8 @@ get a folder; the rest are still flat files in `src/`.
   word turns up quoted in other `src` code. `validateContent` covers every key. Only the name, title and page
   title are also in `index.html`, so they show before the script runs; a test checks they match. Failure
   codes such as `no-webgl` and the other identifiers stay in code: they are ids, not copy.
-- The tour view (`TourView.tsx`) reports the visit to the shift and the HUD, and renders. The HUD (`Hud.tsx`) has the links: stations fly, Room goes back. The room (`Room.tsx`, and the overlays `DeskMeter.tsx`, `Phosphor.tsx`, `Bezels.tsx`, `Rain.tsx`, `TvTargets.tsx`, with `draw.ts` for what they share) draws the
-  scene and the desk meter. The nixie module (`nixie.ts`) is the meter's digits and power-on.
+- The tour view (`TourView.tsx`) reports the visit to the shift and the HUD, and renders. The HUD (`Hud.tsx`) has the links: stations fly, Room goes back. The room (`Room.tsx`, and the overlays `DeskMeter.tsx`, `Phosphor.tsx`, `Bezels.tsx`, `Rain.tsx`, `TvTargets.tsx`, `RoomClick.tsx`, with `draw.ts` for what they share) draws the
+  scene and the desk meter. `card.ts` draws the phosphor screen and title card on each glass, and `glass.ts` projects a glass to window pixels. `theme.css`, imported by `src/main.tsx`, is the focus ring and the boot progress bar's colours. The nixie module (`nixie.ts`) is the meter's digits and power-on.
 - **`src/frames.ts`**: the frame loop. `runFrames(step, opts)` runs `step` with the seconds since the loop started,
   the first time at once with 0 s and then on each requested frame, until `step` returns true; it returns a function
   that stops it. Its clock and frame scheduler are `opts.now`, `opts.request` and `opts.cancel`, defaulting to

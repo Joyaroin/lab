@@ -32,12 +32,18 @@ export const CRT_GLASS = { width: 0.46, height: 0.36 };
 
 const v3 = (a: number[]): V3 => [a[0], a[1], a[2]];
 
-/** One entry per station, in tour order. Ids match the content module's station ids. */
-export const crts: Crt[] = (layout.crts as LayoutCrt[]).map((c) => ({
+const toCrt = (c: LayoutCrt): Crt => ({
   id: c.id, screen: v3(c.screen), yaw: c.yaw, camera: v3(c.camera), look: v3(c.look),
   panel: v3(c.panel ?? c.screen), portrait: c.portrait ?? 1,
   ...(c.phone && { phone: { camera: v3(c.phone.camera), look: v3(c.phone.look), panel: v3(c.phone.panel ?? c.panel ?? c.screen) } }),
-}));
+});
+
+/** One entry per station, in tour order. Ids match the content module's station ids. */
+export const crts: Crt[] = (layout.crts as LayoutCrt[]).map(toCrt);
+
+/** The bench TV: the switched-off set on the workbench. It has no station, so it is not in `crts`
+ *  (the code matches a TV's place in that list to its station). Only Phosphor.tsx draws it. */
+export const bench: Crt = toCrt(layout.bench as LayoutCrt);
 
 /** The camera's vertical field of view, in degrees. */
 export const CAMERA_FOV = 55;

@@ -274,7 +274,7 @@ test.describe("reduced motion", () => {
       const at = await page.evaluate(([x, y]) => new Promise<number>((done) => {
         const bar = document.querySelector<HTMLElement>("[data-meter-bar]")!, canvas = document.querySelector("canvas")!;
         const t0 = performance.now();
-        bar.click(); // next: Home lab to Order Tracker, a 300 ms fade
+        bar.click(); // next: Work to MediaSafe, a 300 ms fade
         const tick = () => {
           const elapsed = performance.now() - t0;
           if (elapsed < 170) return void requestAnimationFrame(tick);
@@ -286,7 +286,7 @@ test.describe("reduced motion", () => {
         requestAnimationFrame(tick);
       }), [p.x, p.y]);
       clickedAt = at;
-      if (at < 0) { // too late to count: let it settle, put the visitor back at Home lab and go again
+      if (at < 0) { // too late to count: let it settle, put the visitor back at Work and go again
         await landedAt(page, 2);
         await goTo(page, 1);
         await waitForCamera(page);
