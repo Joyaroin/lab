@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { BOTTOM_CLEAR, fitPanel, glassFontSize, TOP_CLEAR } from "./pin";
+import {
+  BUTTON_PX, clearances, deviceSize, fitPanel, glassFontSize, HUD_GAP, HUD_MARGIN, LINK_ROW_H, LINK_ROW_W, NAME_BLOCK_H, NAME_BLOCK_W,
+  ONE_ROW_MIN_W, PHONE_MENU_H,
+} from "./pin";
 
 // fitPanel only places text pinned beside the CRT, which only a portrait window does (src/framing).
 const wins = [{ width: 800, height: 1000 }, { width: 390, height: 780 }, { width: 320, height: 500 }];
@@ -18,11 +21,18 @@ describe("fitPanel", () => {
             expect(f.top + h).toBeLessThanOrEqual(win.height);
           }
   });
-  it("on a phone, leaves at least half the free height for the room, scrolling the text", () => {
+  it("on a phone, gives a tall panel all the free height between the name block and the meter bar", () => {
     const phone = { width: 390, height: 844 };
-    const free = phone.height - TOP_CLEAR - BOTTOM_CLEAR;
-    expect(fitPanel(phone, 195, 400, 200, 2000).maxHeight).toBeLessThanOrEqual(free / 2);
-    expect(fitPanel(wins[0], 400, 500, 400, 2000).maxHeight).toBe(wins[0].height - TOP_CLEAR - BOTTOM_CLEAR);
+    const { top, bottom } = clearances(phone);
+    const f = fitPanel(phone, 195, 400, 200, 2000);
+    expect(f.maxHeight).toBeCloseTo(phone.height - top - bottom, 6);
+    expect(f.maxHeight).toBeGreaterThanOrEqual(460);
+    expect(f.top).toBe(top);
+    expect(f.top + f.maxHeight).toBeCloseTo(phone.height - bottom, 6);
+  });
+  it("on a wide portrait window it takes all the free height too, with no half rule", () => {
+    const win = wins[0], { top, bottom } = clearances(win);
+    expect(fitPanel(win, 400, 500, 400, 2000).maxHeight).toBeCloseTo(win.height - top - bottom, 6);
   });
   it("never makes the panel wider than 640 px, however wide the window and the CRT (#49)", () => {
     const wide = { width: 2560, height: 1440 };
@@ -45,12 +55,63 @@ describe("glassFontSize", () => {
   });
 });
 
-describe("fitPanel with a phone menu", () => {
-  it("keeps the panel above the menu's height as well as the usual clearance", () => {
-    const phone = { width: 390, height: 844 }, menu = 106;
+describe("fitPanel with the phone menu", () => {
+  it("keeps the panel above the menu, the meter bar and the device, wherever the CRT projects", () => {
+    const phone = { width: 390, height: 844 };
     for (const cy of [0, 400, 844, 1500]) {
-      const f = fitPanel(phone, 195, cy, 200, 2000, menu);
-      expect(f.top + f.maxHeight).toBeLessThanOrEqual(phone.height - BOTTOM_CLEAR - menu);
+      const f = fitPanel(phone, 195, cy, 200, 2000);
+      expect(f.top + f.maxHeight).toBeLessThanOrEqual(phone.height - clearances(phone).bottom + 1e-6);
     }
+  });
+});
+
+describe("the device", () => {
+  it("is clamp(280, 0.29 x width, 420) wide on a landscape window, 660:280 in shape", () => {
+    expect(deviceSize({ width: 1920, height: 1080 }).width).toBe(420);
+    expect(deviceSize({ width: 1920, height: 1080 }).height).toBeCloseTo(178.2, 1);
+    expect(deviceSize({ width: 1440, height: 900 }).width).toBeCloseTo(417.6, 6);
+    expect(deviceSize({ width: 1280, height: 800 }).width).toBeCloseTo(371.2, 6);
+    expect(deviceSize({ width: 800, height: 700 }).width).toBe(280); // 0.29 x 800 = 232, floored at 280
+  });
+  it("is 280 px wide on a portrait window, or 72% of the width if that is less", () => {
+    const d = deviceSize({ width: 390, height: 844 });
+    expect(d.width).toBe(280);
+    expect(d.height).toBeCloseTo(118.8, 1);
+    expect(deviceSize({ width: 320, height: 500 }).width).toBeCloseTo(230.4, 6);
+  });
+});
+
+describe("clearances", () => {
+  it("at 1920 x 1080 the bottom is the device's height plus 42 px", () => {
+    expect(clearances({ width: 1920, height: 1080 }).bottom).toBeCloseTo(220.2, 1);
+  });
+  it("on landscape the bottom is the device's height plus 42 px at every width", () => {
+    for (const width of [1024, 1280, 1440, 2560]) {
+      const win = { width, height: 800 };
+      expect(clearances(win).bottom).toBeCloseTo(deviceSize(win).height + 42, 6);
+    }
+  });
+  it("on portrait the bottom is the menu, 16, the device and 32", () => {
+    const win = { width: 390, height: 844 };
+    expect(PHONE_MENU_H).toBeCloseTo(105.6, 6); // two rows of 44 px buttons, a gap and the padding
+    expect(clearances(win).bottom).toBeCloseTo(105.6 + 16 + 118.8 + 32, 1);
+    expect(clearances(win).top).toBe(96);
+  });
+  it("the top is the one-row HUD's height from ONE_ROW_MIN_W wide, the two-line HUD's under it, and 96 on portrait", () => {
+    const oneRow = HUD_MARGIN + NAME_BLOCK_H, twoLine = oneRow + LINK_ROW_H;
+    expect(oneRow).toBe(90);
+    expect(twoLine).toBe(126);
+    expect(clearances({ width: ONE_ROW_MIN_W, height: 900 }).top).toBe(oneRow);
+    expect(clearances({ width: 1920, height: 1080 }).top).toBe(oneRow);
+    expect(clearances({ width: ONE_ROW_MIN_W - 1, height: 900 }).top).toBe(twoLine);
+    expect(clearances({ width: 1280, height: 800 }).top).toBe(twoLine); // the threshold ends above 1280: accepted
+    expect(clearances({ width: 1024, height: 768 }).top).toBe(twoLine);
+    expect(clearances({ width: 390, height: 844 }).top).toBe(96);
+  });
+  it("ONE_ROW_MIN_W is worked out from the HUD's boxes: name block, link row, the gap and both margins", () => {
+    expect(ONE_ROW_MIN_W).toBe(NAME_BLOCK_W + HUD_GAP + LINK_ROW_W + 2 * HUD_MARGIN);
+  });
+  it("the phone menu's height comes from the button, gap, padding and rows", () => {
+    expect(BUTTON_PX).toBe(44);
   });
 });

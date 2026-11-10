@@ -3,7 +3,7 @@ import { PerspectiveCamera } from "three";
 import { CAMERA_FOV, crts } from "./crts";
 import { glassBox, glassOnScreen } from "./glass";
 import { framingFor } from "./framing";
-import { BOTTOM_CLEAR, SIDE, TOP_CLEAR } from "./pin";
+import { clearances, SIDE } from "./pin";
 import { squareStop } from "./stop";
 
 /** The glass on screen at station `i`, through the code the app runs: the tour's camera
@@ -23,22 +23,22 @@ function glassAtHold(i: number, w: number, h: number) {
 const windows = [[1280, 800], [1920, 1080], [1440, 900], [1024, 768], [1366, 640], [2560, 1440]];
 
 describe("square stops", () => {
-  it("stand about 0.53 m from the glass at 1280x800", () => {
+  it("stand about 0.58 m from the glass at 1280x800", () => {
     for (const c of crts) {
       const s = squareStop(c, { width: 1280, height: 800 });
-      expect(Math.hypot(s.camera[0] - c.screen[0], s.camera[2] - c.screen[2])).toBeCloseTo(0.53, 2);
+      expect(Math.hypot(s.camera[0] - c.screen[0], s.camera[2] - c.screen[2])).toBeCloseTo(0.58, 2);
     }
   });
   for (const [w, h] of windows) {
     it(`put the glass between the HUD and the meter at every station, ${w}x${h}`, () => {
       for (let i = 0; i < crts.length; i++) {
-        const g = glassAtHold(i, w, h);
-        expect(g.top, crts[i].id).toBeGreaterThanOrEqual(TOP_CLEAR - 1);
-        expect(g.bottom, crts[i].id).toBeLessThanOrEqual(h - BOTTOM_CLEAR + 1);
+        const g = glassAtHold(i, w, h), { top, bottom } = clearances({ width: w, height: h });
+        expect(g.top, crts[i].id).toBeGreaterThanOrEqual(top - 1);
+        expect(g.bottom, crts[i].id).toBeLessThanOrEqual(h - bottom + 1);
         expect(g.left, crts[i].id).toBeGreaterThanOrEqual(SIDE - 1);
         expect(g.right, crts[i].id).toBeLessThanOrEqual(w - SIDE + 1);
         // and fills it: height of the band, unless the window is too narrow for that
-        const fills = g.bottom - g.top > (h - TOP_CLEAR - BOTTOM_CLEAR) * 0.98 || g.right - g.left > (w - 2 * SIDE) * 0.98;
+        const fills = g.bottom - g.top > (h - top - bottom) * 0.98 || g.right - g.left > (w - 2 * SIDE) * 0.98;
         expect(fills, crts[i].id).toBe(true);
       }
     });
@@ -54,17 +54,17 @@ describe("square stops", () => {
     });
     it(`give the text the glass's own box, which fills the band between the HUD and the meter, ${w}x${h}`, () => {
       for (let i = 0; i < crts.length; i++) {
-        const { box } = glassAtHold(i, w, h);
-        const bandH = h - TOP_CLEAR - BOTTOM_CLEAR, bandW = w - 2 * SIDE;
+        const { box } = glassAtHold(i, w, h), { top, bottom } = clearances({ width: w, height: h });
+        const bandH = h - top - bottom, bandW = w - 2 * SIDE;
         // inside the band on every side...
-        expect(box.top, crts[i].id).toBeGreaterThanOrEqual(TOP_CLEAR - 1);
-        expect(box.top + box.height, crts[i].id).toBeLessThanOrEqual(h - BOTTOM_CLEAR + 1);
+        expect(box.top, crts[i].id).toBeGreaterThanOrEqual(top - 1);
+        expect(box.top + box.height, crts[i].id).toBeLessThanOrEqual(h - bottom + 1);
         expect(box.left, crts[i].id).toBeGreaterThanOrEqual(SIDE - 1);
         expect(box.left + box.width, crts[i].id).toBeLessThanOrEqual(w - SIDE + 1);
         // ...and as big as the band allows, in the middle of it
         expect(box.height >= bandH - 2 || box.width >= bandW - 2, crts[i].id).toBe(true);
         expect(box.left + box.width / 2, crts[i].id).toBeCloseTo(w / 2, 0);
-        expect(box.top + box.height / 2, crts[i].id).toBeCloseTo(TOP_CLEAR + bandH / 2, 0);
+        expect(box.top + box.height / 2, crts[i].id).toBeCloseTo(top + bandH / 2, 0);
       }
     });
   }

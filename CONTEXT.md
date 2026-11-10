@@ -140,7 +140,7 @@ get a folder; the rest are still flat files in `src/`.
 - **`src/framing/`**: the framing. `framingFor({ width, height })` picks Square or Portrait, and is called with
   the current window each time. The framing answers `cameraAt(where, launch)` (camera, look and field of view; a flying Where is `flightPose` from the launch pose to the stop),
   `textOnGlass(where, station)`, `parallaxStrength(where)` and `panelPoint(crt)`, each taking a **Where**; nothing else decides
-  the portrait split. The tour module (`src/tour.ts`) keeps `readingAt(where, gap)` and the mouse `parallax`; `panelStrength(where, station)` in `src/hold.ts` takes a Where. The narrow-window width check in `src/pin.ts` (`NARROW`) is a different rule and stays.
+  the portrait split. The tour module (`src/tour.ts`) keeps `readingAt(where, gap)` and the mouse `parallax`; `panelStrength(where, station)` in `src/hold.ts` takes a Where. The room the HUD and the meter bar take is one pure rule of the window in `src/pin.ts` (`clearances`, with `deviceSize`); the camera's stop and the text panel both read it, and on a portrait window the panel takes all the free height.
 - **`src/content.ts`**: all copy in the app: station text, links, the bezel and timeline words, and `ui`, the
   rest of what visitors see or hear (HUD, meter aria labels, boot log, signal lost, the gap's sentence).
   Templates take `{name}` placeholders through `fill`. Components hold none of it; a test fails if a `ui`

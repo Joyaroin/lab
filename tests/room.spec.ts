@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { BOTTOM_CLEAR, SIDE, TOP_CLEAR } from "../src/pin";
+import { clearances, SIDE } from "../src/pin";
 import { boxOf, panelOf, meanBrightness, goTo, landedAt, openTour, stationIds, waitForCamera, waitForPanel, waitUntilStill } from "./lib/page";
 
 // Baked room loads and the tour still moves the camera. Screenshots go to test-results/.
@@ -82,14 +82,14 @@ for (const [w, h] of [[1280, 800], [1920, 1080]]) {
       // The text is laid over the glass, and the glass fills the band between the HUD and the meter:
       // inside it on every side, and as big as the band allows. The margins are the app's own (pin.ts),
       // so the test moves with them. The old floating card was inside the band too, but never filled it.
-      const bandH = h - TOP_CLEAR - BOTTOM_CLEAR, bandW = w - 2 * SIDE;
-      expect(b.top, id).toBeGreaterThanOrEqual(TOP_CLEAR - 1);
-      expect(b.top + b.height, id).toBeLessThanOrEqual(h - BOTTOM_CLEAR + 1);
+      const { top, bottom } = clearances({ width: w, height: h }), bandH = h - top - bottom, bandW = w - 2 * SIDE;
+      expect(b.top, id).toBeGreaterThanOrEqual(top - 1);
+      expect(b.top + b.height, id).toBeLessThanOrEqual(h - bottom + 1);
       expect(b.left, id).toBeGreaterThanOrEqual(SIDE - 1);
       expect(b.left + b.width, id).toBeLessThanOrEqual(w - SIDE + 1);
       expect(b.height >= bandH - 2 || b.width >= bandW - 2, `${id} fills the band (${b.width.toFixed(0)}x${b.height.toFixed(0)} in ${bandW}x${bandH})`).toBe(true);
       expect(Math.abs(b.left + b.width / 2 - w / 2), `${id} centred across`).toBeLessThan(2);
-      expect(Math.abs(b.top + b.height / 2 - (TOP_CLEAR + bandH / 2)), `${id} centred in the band`).toBeLessThan(2);
+      expect(Math.abs(b.top + b.height / 2 - (top + bandH / 2)), `${id} centred in the band`).toBeLessThan(2);
       await page.screenshot({ path: `test-results/desktop-${w}x${h}-${id}.png` });
       // pointer to a corner: the text, and so the glass behind it, stay where they are
       await page.mouse.move(5, 5);
