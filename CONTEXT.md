@@ -22,9 +22,12 @@ The language of this project: its terms, what each one means, and what it doesn'
   next, and the HUD, the menu, the meter bar and the station's text are controls, not the room. At the overview and in
   flight it never applies, and not through a reduced-motion fade either (the fade's second half already reads as the new
   station, so the rule is given `visit.moving()`).
-- **Overview**: stop 0. A camera pose that shows every TV on a landscape window, with its own wider field of
+- **Overview**: stop 0. A camera pose that shows the glass of all five station TVs and the whole desk meter on a
+  landscape window at 16:9 and 16:10, with none of them under the HUD's name block, link row or the meter device
+  (the boxes in `src/pin.ts`). The bench TV may be out of frame. It has its own wider field of
   view (`OVERVIEW` in `src/crts.ts`, 75 degrees at most; stations use `CAMERA_FOV`), and a separate pose for a
-  portrait window. It is where the site opens and where Back (the HUD's Room link, Esc) goes. The meter shows
+  portrait window. `src/visit/flight.test.ts` projects the TVs and the meter through the real camera to check this; if the
+  HUD's boxes in `src/pin.ts` change, the pose may need to change with them. It is where the site opens and where Back (the HUD's Room link, Esc) goes. The meter shows
   the gap there. It is not a station.
 - **Visit**: where the visitor is and is going: at a stop, or flying to one. `src/visit/` owns it.
 - **Cover**: the dark layer over the room that hides the cut of a reduced-motion fade. It rises at once but falls no faster
