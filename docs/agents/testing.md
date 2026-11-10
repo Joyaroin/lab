@@ -20,6 +20,7 @@ Checked against the code on 2026-11-09, at 5de46d9.
 - A flash limit spec counts the tear's visible snap back (the displacement map's scale reaching 0, `tests/lib/snap.ts`), never the filter coming off. `src/tear-draw.test.ts` checks the view leaves scale 0 on its last frame, whatever the frame rate
 - `tests/shift.spec.ts` records the snap back's measured time as a `snap-back-ms` test annotation and a log line, for CI's browser job report
 - A browser spec can't import `src/meter-layers.ts` (Playwright's loader refuses JSON modules); `tests/device.spec.ts` reads `src/assets/meter/layers.json` itself
+- `tests/boot.spec.ts`'s `slowModel` helper serves the room model from a local server and waits on CDP `Network.dataReceived` for each chunk. That server must answer only `/room.glb`: on the Mac a stray `GET /` sometimes reaches it, and taking it for the model sent later chunks to a dead response, so the wait timed out (a chunk behind, or at 0) in whole-file runs only. The slow-load test needs the whole file to show it: `heavy make browser-light PW_ARGS="tests/boot.spec.ts --repeat-each=5"`
 - One spec in the session: `heavy npx playwright test tests/<spec> --workers=1`
 
 ## What CI runs
