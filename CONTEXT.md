@@ -171,8 +171,10 @@ get a folder; the rest are still flat files in `src/`.
   the first time at once with 0 s and then on each requested frame, until `step` returns true; it returns a function
   that stops it. Its clock and frame scheduler are `opts.now`, `opts.request` and `opts.cancel`, defaulting to
   `performance.now`, `requestAnimationFrame` and `cancelAnimationFrame`; `opts.onStart` gets the clock reading the loop
-  counts from. `useTear` (`src/TearView.tsx`) and `useShifted` (`src/Meter.tsx`) run on it. Its timing is tested in
+  counts from. `useTear` (`src/TearView.tsx`, through `playTear` in `src/tear-draw.ts`) and `useShifted` (`src/Meter.tsx`) run on it. Its timing is tested in
   `src/frames.test.ts` with a fake clock and a fake frame scheduler.
 - **`src/tear.ts`** and **`tests/lib/snap.ts`**: the flash count takes the snap back from `snapBackMs` in
   `src/tear.ts` (where the slip reaches 0), and the browser specs watch for it with `tests/lib/snap.ts`
-  (changed by ddf9420), not for the filter coming off.
+  (changed by ddf9420), not for the filter coming off. `playTear` (`src/tear-draw.ts`) writes displacement scale 0
+  and edge 0 on its last step, before it takes the filter off, so a frame that steps from slip > 0 straight to done
+  still leaves the snap back on record; `src/tear-draw.test.ts` tests it with a fake clock.
