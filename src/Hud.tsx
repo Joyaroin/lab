@@ -70,7 +70,7 @@ const button: CSSProperties = {
   justifyContent: "center", textAlign: "center", fontSize: "0.8rem", lineHeight: 1.1, minHeight: BUTTON_PX, boxSizing: "border-box",
 };
 const hint: CSSProperties = {
-  position: "fixed", left: 0, right: 0, bottom: "calc(var(--meter-bottom, 1rem) + 5.5rem)", zIndex: 15, textAlign: "center",
+  position: "fixed", left: 0, right: 0, bottom: "calc(var(--meter-bottom, 1rem) + 11rem)", zIndex: 15, textAlign: "center",
   color: "#ffb347", fontSize: "0.9rem", pointerEvents: "none", transition: "opacity 0.5s",
 };
 const hud: CSSProperties = {

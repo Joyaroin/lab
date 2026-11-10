@@ -149,6 +149,16 @@ for (const [name, size, atStation] of [
   });
 }
 
+// The hint line stands above the bar, so the bar's keys and line grow it upward and the hint must clear it.
+for (const [name, size] of [["1440 x 900", { width: 1440, height: 900 }], ["390 x 844", { width: 390, height: 844 }]] as const) {
+  test(`at the overview the hint line is clear of the bar (${name})`, async ({ page }) => {
+    await page.setViewportSize(size);
+    const hint = (await page.locator("[data-hint]").boundingBox())!;
+    const bar = (await page.locator("[data-meter-bar]").boundingBox())!;
+    expect(hint.y + hint.height, `the hint ends above the bar (${bar.y})`).toBeLessThanOrEqual(bar.y);
+  });
+}
+
 test.describe("the bar itself", () => {
   test("a click on the bar outside its keys moves nothing", async ({ page }) => {
     const bar = page.locator("[data-meter-bar]");
