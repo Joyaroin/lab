@@ -34,8 +34,10 @@ export function RoomClick({ visit, where }: { visit: Visit; where: MutableRefObj
       const start = down ?? { x: e.clientX, y: e.clientY };
       down = null;
       const w = where.current;
-      // not at a station, or a move already begun toward the overview (a fade's second half): nothing to do
-      if (w.kind !== "at" || w.stop === 0 || visit.target() !== w.stop) return;
+      // not at a station, or a move is running (a flight, or a reduced-motion fade: its second half already reads
+      // as the new station): nothing to do. goesBack checks this too; this saves the hit test.
+      const moving = visit.moving(performance.now());
+      if (moving || w.kind !== "at" || w.stop === 0) return;
       const r = el.getBoundingClientRect();
       ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       raycaster.setFromCamera(ndc, camera);
@@ -43,7 +45,7 @@ export function RoomClick({ visit, where }: { visit: Visit; where: MutableRefObj
       for (const h of raycaster.intersectObjects(scene.children, true)) { hit = tagOf(h.object); if (hit) break; }
       const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y);
       const press: Press = hit ? { ...hit, moved } : { on: "room", moved };
-      if (goesBack(w, press)) visit.back();
+      if (goesBack(w, press, moving)) visit.back();
     };
     el.addEventListener("pointerdown", onDown);
     el.addEventListener("click", onClick);

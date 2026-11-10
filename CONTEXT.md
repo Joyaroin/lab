@@ -15,7 +15,8 @@ The language of this project: its terms, what each one means, and what it doesn'
   station's own TV (its glass or bezel), and another TV counts as the room from there (`goesBack` in `src/back.ts`, heard by
   `src/RoomClick.tsx`). A press that moves more than 6 px is a drag and does nothing. The desk meter's click still means
   next, and the HUD, the menu, the meter bar and the station's text are controls, not the room. At the overview and in
-  flight it never applies.
+  flight it never applies, and not through a reduced-motion fade either (the fade's second half already reads as the new
+  station, so the rule is given `visit.moving()`).
 - **Overview**: stop 0. A camera pose that shows every TV on a landscape window, with its own wider field of
   view (`OVERVIEW` in `src/crts.ts`, 75 degrees at most; stations use `CAMERA_FOV`), and a separate pose for a
   portrait window. It is where the site opens and where Back (the HUD's Room link, Esc) goes. The meter shows
@@ -108,7 +109,7 @@ get a folder; the rest are still flat files in `src/`.
 
 - **`src/visit/`**: the visit. `createVisit({ reduced })` makes the one visit object; the app creates it and gives it to
   the room and the tour. `go(stop)`, `back()` and `next()` start a flight from wherever the camera is, mid-flight
-  included; `land(stop)` puts the visitor at a stop with no flight. `where(nowMs)` and `fade(nowMs)` read it, and
+  included; `land(stop)` puts the visitor at a stop with no flight. `where(nowMs)`, `fade(nowMs)` and `moving(nowMs)` (a flight or a fade is running) read it, and
   `launch(nowMs)` gives where the current flight began (a chain of re-targets), which `framing.cameraAt` resolves with
   `flightPose`. The visit has no timer: the room's per-frame read (`CameraRig`) is what notices a landing and fires
   `land`. `flight.ts` is the pure path (`flightPose`, with its field of view) and is tested without a browser. `history.ts` holds

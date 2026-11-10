@@ -257,4 +257,43 @@ test.describe("reduced motion", () => {
     await page.mouse.click(p.x, p.y);
     await landedAt(page, 0);
   });
+
+  // The fade's second half already reads as the new station, so only the visit's "moving" keeps the click out (#224).
+  // The click is dispatched inside the page, in the first frame at least 170 ms after the press (the fade is 300 ms,
+  // its cut at 150 ms). A rig too slow to get a frame in before the fade ends (it reports `late`) tries again.
+  test("a click on the room during the fade of a move does nothing: the visitor lands and stays", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openTour(page);
+    await goTo(page, 2);
+    await waitForCamera(page);
+    const p = await roomPoint(page, 2, page.viewportSize()!);
+    await goTo(page, 1);
+    await waitForCamera(page);
+    let clickedAt = -1;
+    for (let attempt = 0; attempt < 5 && clickedAt < 0; attempt++) {
+      const at = await page.evaluate(([x, y]) => new Promise<number>((done) => {
+        const bar = document.querySelector<HTMLElement>("[data-meter-bar]")!, canvas = document.querySelector("canvas")!;
+        const t0 = performance.now();
+        bar.click(); // next: Home lab to Order Tracker, a 300 ms fade
+        const tick = () => {
+          const elapsed = performance.now() - t0;
+          if (elapsed < 170) return void requestAnimationFrame(tick);
+          if (elapsed > 280) return done(-elapsed); // late: the fade is nearly over
+          canvas.dispatchEvent(new PointerEvent("pointerdown", { clientX: x, clientY: y, bubbles: true }));
+          canvas.dispatchEvent(new MouseEvent("click", { clientX: x, clientY: y, bubbles: true }));
+          done(elapsed);
+        };
+        requestAnimationFrame(tick);
+      }), [p.x, p.y]);
+      clickedAt = at;
+      if (at < 0) { // too late to count: let it settle, put the visitor back at Home lab and go again
+        await landedAt(page, 2);
+        await goTo(page, 1);
+        await waitForCamera(page);
+      }
+    }
+    expect(clickedAt, "a click was made inside the fade").toBeGreaterThan(0);
+    const url = await page.evaluate(() => location.href);
+    await staysAt(page, 2, url);
+  });
 });

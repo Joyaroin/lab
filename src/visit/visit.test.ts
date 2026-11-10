@@ -206,6 +206,19 @@ describe("reduced motion", () => {
     expect(visit.where(now())).toEqual({ kind: "at", stop: 3 });
   });
 
+  it("moving is true through the whole fade, both halves, and false at rest", () => {
+    const { visit, advance, now } = setup(true);
+    visit.land(1);
+    expect(visit.moving(now())).toBe(false);
+    visit.go(3);
+    expect(visit.moving(now())).toBe(true);
+    advance(FADE_MS * 0.75);
+    expect(visit.where(now())).toEqual({ kind: "at", stop: 3 }); // reads as arrived, yet still moving
+    expect(visit.moving(now())).toBe(true);
+    advance(FADE_MS);
+    expect(visit.moving(now())).toBe(false);
+  });
+
   it("fade is 0 at rest, rises to 1 at the midpoint, and falls back to 0", () => {
     const { visit, advance, now } = setup(true);
     expect(visit.fade(now())).toBe(0);

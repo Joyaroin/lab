@@ -38,6 +38,9 @@ export type Visit = {
   where(nowMs: number): Where;
   /** The cover's opacity, 0..1, under reduced motion: 0 when not fading, 1 at the midpoint (the cut). */
   fade(nowMs: number): number;
+  /** Whether a move (a flight, or under reduced motion a fade) is running at `nowMs`. Under reduced motion `where()`
+   *  reads as at a stop through the whole fade, so this is how to tell a fade from a rest. */
+  moving(nowMs: number): boolean;
   /** Where the camera was when the current flight began: a stop, or a chain of the flights it replaced, each
    *  with the share the camera had flown. Null when not flying. #174 flies from `launch(now)` to `target()`. */
   launch(nowMs: number): Launch | null;
@@ -130,6 +133,10 @@ export function createVisit({ reduced, now = () => performance.now() }: { reduce
       if (!reduced || !move) return 0;
       const u = Math.min(Math.max((nowMs - move.start) / FADE_MS, 0), 1);
       return 1 - Math.abs(2 * u - 1);
+    },
+    moving(nowMs) {
+      settle(nowMs);
+      return move !== null;
     },
     launch(nowMs) {
       settle(nowMs);
