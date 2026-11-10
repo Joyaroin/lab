@@ -32,6 +32,9 @@ export type Visit = {
   /** The overview goes to Work, a station to the next, the last station to the overview. During a move,
    *  the stop after its destination. */
   next(): void;
+  /** A station goes to the one before, the first station to the overview, the overview nowhere. During a move,
+   *  the stop before its destination. */
+  prev(): void;
   /** Puts the visitor at `stop` with no flight and no fade. */
   land(stop: number): void;
   /** Where the visitor is at `nowMs`. Also settles a finished move, telling subscribers it landed. */
@@ -113,6 +116,10 @@ export function createVisit({ reduced, now = () => performance.now() }: { reduce
     next() {
       settle(now());
       go((target() + 1) % (STATION_COUNT + 1));
+    },
+    prev() {
+      settle(now());
+      if (target() >= 1) go(target() - 1);
     },
     land(stop) {
       const to = clampStop(stop);

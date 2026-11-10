@@ -1,9 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { stations } from "../src/content";
 import { clickLink, goTo, hudLink, landedAt, openTour, stationIds, waitForCamera } from "./lib/page";
 
 // Click-to-visit (#174, ADR 0005): the HUD's station links fly to a station, Room flies back, Esc goes back from a
-// station, and the meter bar's click steps to the next monitor (the last one to the overview, the overview to Work).
+// station. The meter bar's keys are in tests/stepping.spec.ts.
 // Each waits for the HUD link's aria-current, which is set when the visitor lands.
 
 test("the site opens on the overview: Room is current, no station is", async ({ page }) => {
@@ -34,18 +33,6 @@ test("Esc at a station goes back to the overview; at the overview it does nothin
   await landedAt(page, 0);
   await goTo(page, 2);
   await page.keyboard.press("Escape");
-  await landedAt(page, 0);
-});
-
-test("the meter bar steps to the next monitor: Work from the overview, on to the next, the last back to the overview", async ({ page }) => {
-  await openTour(page);
-  const bar = page.getByRole("button", { name: /^Meter/ });
-  await bar.click();
-  await landedAt(page, 1);
-  await bar.click();
-  await landedAt(page, 2);
-  await goTo(page, stations.length);
-  await bar.click();
   await landedAt(page, 0);
 });
 

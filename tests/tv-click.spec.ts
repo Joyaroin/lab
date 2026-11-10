@@ -272,9 +272,9 @@ test.describe("reduced motion", () => {
     let clickedAt = -1;
     for (let attempt = 0; attempt < 5 && clickedAt < 0; attempt++) {
       const at = await page.evaluate(([x, y]) => new Promise<number>((done) => {
-        const bar = document.querySelector<HTMLElement>("[data-meter-bar]")!, canvas = document.querySelector("canvas")!;
+        const next = document.querySelector<HTMLElement>('[data-meter-bar] [data-key="next"]')!, canvas = document.querySelector("canvas")!;
         const t0 = performance.now();
-        bar.click(); // next: Home lab to Order Tracker, a 300 ms fade
+        next.click(); // NEXT: Home lab to Order Tracker, a 300 ms fade
         const tick = () => {
           const elapsed = performance.now() - t0;
           if (elapsed < 170) return void requestAnimationFrame(tick);

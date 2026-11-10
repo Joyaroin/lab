@@ -10,7 +10,7 @@ const METER_BOTTOM = "1rem";
 const PHONE_METER_BOTTOM = `calc(${PHONE_MENU_H}px + 1rem)`;
 
 /** True on a portrait window, the same test the framing makes (width under height). */
-function usePortrait() {
+export function usePortrait() {
   return useSyncExternalStore(
     (cb) => { window.addEventListener("resize", cb); return () => window.removeEventListener("resize", cb); },
     () => window.innerWidth < window.innerHeight,
