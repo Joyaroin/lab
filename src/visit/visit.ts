@@ -2,7 +2,7 @@ import { STATION_COUNT } from "../hold";
 import type { Where } from "../where";
 
 /** A flight's length in ms. A design constant (Adham, 2026-11-08): checked by unit tests only. */
-export const FLIGHT_MS = 1200;
+export const FLIGHT_MS = 900;
 /** A reduced-motion move's whole fade in ms (out, cut, in). A design constant like FLIGHT_MS. */
 export const FADE_MS = 300;
 

@@ -40,3 +40,13 @@ without baking, run `blender -b -P tools/room/build.py -- --preview /tmp/shots` 
 view in the layout, the overview at 16:9 and 16:10 included (the desktop stops are not among them). For a quick
 test bake, pass `--size 1024 --light-size 512 --samples 64` after `--`. Draco mesh compression isn't
 used, because this Blender build lacks the library.
+
+## Rendering the meter bar's images
+
+`make meter` renders the meter bar's images: a walnut case with seven glass nixie tubes and legend keys, drawn as
+layers (the unlit device, the tubes' light on the case, ten lit numerals, the decimal point and four keys). It
+serves `tools/meter/` through Vite and opens it in Playwright's Chromium, which has WebGL, so no CDN is fetched,
+and writes the layers to `src/assets/meter/`. Run it on the Mac, through `heavy`: `heavy make meter`. The wood
+grain uses a fixed seed, so rendering again at the same commit writes the same files. `src/meter-layers.ts` lists
+the layers with their places and sizes on the 840 px wide device. The key words come from `src/content.ts`, so a
+change to one means rendering again. The images are committed (ADR-0006), and CI never runs it.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runFrames } from "./frames";
 import { tearAt } from "./tear";
-import { shiftDigits } from "./nixie";
+import { SHIFT_SECONDS, shiftDigits } from "./nixie";
 
 /** A fake clock and frame scheduler: `frame(ms)` moves the clock on and runs the requested frame. */
 function fake(startMs = 0) {
@@ -67,7 +67,7 @@ describe("runFrames", () => {
     expect(runs).toBe(1);
   });
 
-  it.each([["full", 0.8], ["short", 0.25]] as const)("the %s tear is on at the last frame before %s s and done at the first at or past it", (kind, len) => {
+  it.each([["full", SHIFT_SECONDS.full], ["short", SHIFT_SECONDS.short]] as const)("the %s tear is on at the last frame before %s s and done at the first at or past it", (kind, len) => {
     const { end, steps } = endsAt((s) => tearAt(s, kind).done);
     const lenMs = len * 1000;
     expect(end).toBeGreaterThanOrEqual(lenMs);
@@ -79,8 +79,8 @@ describe("runFrames", () => {
     const normal = endsAt((s) => tearAt(s, "full").done);
     const slow = endsAt((s) => tearAt(s, "full").done, 1000 / 60, 200);
     expect(slow.steps.length).toBeLessThan(normal.steps.length); // fewer frames, same length of time
-    expect(slow.end!).toBeGreaterThanOrEqual(800);
-    expect(slow.steps.some((s) => tearAt(s, "full").done && s < 0.8)).toBe(false);
+    expect(slow.end!).toBeGreaterThanOrEqual(SHIFT_SECONDS.full * 1000);
+    expect(slow.steps.some((s) => tearAt(s, "full").done && s < SHIFT_SECONDS.full)).toBe(false);
   });
 
   it("the scramble ends on the digits read at its last frame, not those it started with", () => {

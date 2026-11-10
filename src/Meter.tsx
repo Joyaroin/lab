@@ -24,7 +24,7 @@ function useShifted(digits: string, shift?: { kind: ShiftKind; id: number } | nu
 }
 
 // The meter's plain label, under the room. The meter itself is the nixie meter on the desk
-// (DeskMeter in Effects.tsx), which shows the live digits. Where the desk meter is out of frame,
+// (DeskMeter in DeskMeter.tsx), which shows the live digits. Where the desk meter is out of frame,
 // too small, or under a station's text, the room marks this bar `data-desk-meter="out-of-view"`
 // and it shows a small copy of the digits, so the reading is always on screen exactly once.
 // Clicking it calls `onClick` (the tour advances), as clicking the desk meter does.

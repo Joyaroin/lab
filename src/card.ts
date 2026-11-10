@@ -1,7 +1,7 @@
 // The phosphor screen drawn on each CRT's glass, with a station's title card on it if one is given.
 // Kept free of imports and of anything but plain canvas calls, so the browser tests can run this
 // same code in a page to draw the card they expect to see (tests/titlecards.spec.ts).
-// (Effects.tsx explains where the cards go and when they show.)
+// (Phosphor.tsx explains where the cards go and when they show.)
 
 import type { Station } from "./content";
 

@@ -50,7 +50,7 @@ export function placeText(el: PanelEl, crt: Crt, k: number, f: Frame) {
   const { camera, size, where, shift } = f;
   // Full for the whole hold. Held back (but still in the page, for readers and selection)
   // from arrival until the shift ends, then (first visit) it resolves out of the effect. A return's
-  // text shows when the wait ends and the flick plays over it.
+  // text shows on the landing and the flick plays over it.
   const strength = panelStrength(where, k + 1);
   const state = shift.textState(k + 1, f.nowMs);
   const out = state !== "held";

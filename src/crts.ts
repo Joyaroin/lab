@@ -24,7 +24,7 @@ type LayoutCrt = {
 
 /** Where the maker's plate and the sticky note sit on a TV's bezel: metres right of and up from the
  *  glass centre. The note sits near the baked note's spot (tools/room/build.py): it covers the part
- *  left of the glass, and the glass hides the rest (see Effects.tsx). */
+ *  left of the glass, and the glass hides the rest (see Bezels.tsx). */
 export const PLATE_AT = [-0.2, -0.21] as const;
 export const NOTE_AT = [-0.258, 0.149] as const;
 /** The glass on every CRT, in metres. */

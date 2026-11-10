@@ -4,12 +4,8 @@ import { POWER_ON_SECONDS } from "../nixie";
 import { snapBackMs, TEAR_POSES } from "../tear";
 import { SHIFT_SECONDS, type ShiftKind } from "./lengths";
 
-// The shift: a moment of arrival at a station. This module runs it from start to finish (the wait, the
+// The shift: a moment of arrival at a station. This module runs it from start to finish (the power-on hold, the
 // leaving rule, the page-turn limit, the wake-up after a tear); the views draw it. Visits live in the tracker (memory), so a reload starts over.
-
-/** The wait: how long the visitor must stay at a station before the shift fires, so passing
- *  quickly through a station doesn't trigger it. */
-export const WAIT_MS = 250;
 
 /** A shift that is playing, as the views are told of it. `id` changes for each new one. */
 export type Play = { kind: ShiftKind; id: number };
@@ -58,7 +54,7 @@ type Change = { at: number };
 export type TextState = "held" | "resolving" | "showing";
 
 /** Timers are set a little past the moment they wait for (and a late timer is no problem), so that
- *  when one fires the moment has really come: the wait is over, the tear has snapped back. */
+ *  when one fires the moment has really come: the power-on hold is over, the tear has snapped back. */
 const TIMER_SLACK_MS = 30;
 
 /** What the tour gives the shift when it mounts. */
@@ -95,32 +91,34 @@ export function createShift(reduced = false) {
     changes = changes.filter((c) => !plans[slot].includes(c)); changes.push(...added); plans[slot] = added;
   };
 
-  let at = 0, since = 0, fired = false, readyAt = 0;
+  let at = 0, fired = false, readyAt = 0;
   let poweredOnAt: number | null = null; // when the desk meter says its power-on really began
   let where: Where = { kind: "at", stop: 0 }, playId = 0;
   let active: number | null = null; // the station whose shift is playing
-  let waitTimer: ReturnType<typeof setTimeout> | undefined, wakeTimer: ReturnType<typeof setTimeout> | undefined;
+  let quietTimer: ReturnType<typeof setTimeout> | undefined, wakeTimer: ReturnType<typeof setTimeout> | undefined;
   let mounted = false, wake: (() => void) | null = null;
   let current: Play | null = null; // the shift the bar and the desk meter are playing
   const listeners = new Set<() => void>();
   const setCurrent = (play: Play | null) => { current = play; listeners.forEach((l) => l()); };
-  /** How long to wait before looking again: the wait, or the rest of the power-on if that is longer. */
-  const waitFor = (nowMs: number) => Math.max(WAIT_MS, poweredOnAt === null ? 0 : quietEnd() - nowMs) + TIMER_SLACK_MS;
+  /** How long to wait before looking again: the rest of the power-on hold, if any. */
+  const waitFor = (nowMs: number) => Math.max(0, poweredOnAt === null ? 0 : quietEnd() - nowMs) + TIMER_SLACK_MS;
   /** The power-on hold: no shift while the desk meter is still powering on, or before it has begun. */
   const quietEnd = () => (poweredOnAt === null ? Infinity : poweredOnAt + POWER_ON_SECONDS * 1000);
 
-  /** Decide what the visitor's stay so far calls for: end a shift they left, fire one they waited for. */
+  /** Decide what the visitor's position calls for: end a shift they left, fire the one a landing calls for
+   *  (at once, unless the power-on hold is still running; the timer looks again when it ends). A flight
+   *  through a station is not a landing: `where` is `flying`, not `at`. */
   const check = (nowMs: number) => {
     const here = stationAt(where);
     if (here !== at) {
       // The text that was showing stays through the fade out, until the visitor has left the panel.
       if (at !== 0 && fired && nowMs >= readyAt) revealed.add(at);
-      at = here; since = nowMs; fired = false;
+      at = here; fired = false;
     }
     // Leaving mid-shift ends it for the views: the bar and the desk meter go straight to the reading
     // for where the visitor is. The tear finishes its own length.
     if (active !== null && at !== active) { active = null; setCurrent(null); }
-    if (!(reduced || here === 0 || fired || nowMs - since < WAIT_MS || nowMs < quietEnd())) {
+    if (!(reduced || here === 0 || fired || nowMs < quietEnd())) {
       fired = true;
       const kind: ShiftKind = visited.has(here) ? "short" : "full";
       if (!book("whole", kind, nowMs)) readyAt = nowMs;
@@ -139,19 +137,18 @@ export function createShift(reduced = false) {
     /** The tour is up. Returns the unmount. */
     mount(m: Mount): () => void {
       mounted = true;
-      const mountedAt = performance.now();
       where = m.startWhere;
-      at = stationAt(where); fired = at !== 0; since = mountedAt; active = null; current = null;
+      at = stationAt(where); fired = at !== 0; active = null; current = null;
       if (at) revealed.add(at);
-      return () => { clearTimeout(waitTimer); clearTimeout(wakeTimer); mounted = false; };
+      return () => { clearTimeout(quietTimer); clearTimeout(wakeTimer); mounted = false; };
     },
     /** The desk meter's power-on really began at `nowMs` (its first frame, later than the tour's start on
      *  a slow device). No shift starts until it has run its length from here. */
     powerOnBegan(nowMs: number) {
       poweredOnAt = nowMs;
       if (!mounted) return;
-      clearTimeout(waitTimer);
-      waitTimer = setTimeout(() => check(performance.now()), waitFor(performance.now()));
+      clearTimeout(quietTimer);
+      quietTimer = setTimeout(() => check(performance.now()), waitFor(performance.now()));
     },
     /** The shift the bar and the desk meter are playing: null when none, or once the visitor has left its
      *  hold. A new play is a new object (new `id`). The tear's own length is its own business. */
@@ -163,7 +160,7 @@ export function createShift(reduced = false) {
     /** The station the visitor is at, 0 for the overview or a flight. */
     get hold() { return at; },
     /** Where the visitor is now. Call whenever it changes (and on resize); the module re-checks by itself once
-     *  the wait is over (the visitor may have stopped). */
+     *  the power-on hold is over (the visitor may have landed during it). */
     observe(w: Where) {
       const nowMs = performance.now();
       where = w;
@@ -171,8 +168,8 @@ export function createShift(reduced = false) {
       for (let i = 1; i <= STATION_COUNT; i++) { // a panel that has gone is forgotten (after check, which may keep it through the fade)
         if (panelStrength(w, i) < PANEL_SHOWN) { revealed.delete(i); resolving.delete(i); }
       }
-      clearTimeout(waitTimer);
-      waitTimer = setTimeout(() => check(performance.now()), waitFor(nowMs));
+      clearTimeout(quietTimer);
+      quietTimer = setTimeout(() => check(performance.now()), waitFor(nowMs));
     },
     /** The tear actually began (the view is drawn a moment after the shift fires, more on a slow
      *  device): its changes count from here, the text follows `kind`'s length after that, never
@@ -193,8 +190,8 @@ export function createShift(reduced = false) {
     /** The flick on the Work TV really began at `nowMs`: its changes count from here. */
     turnStarted(nowMs: number) { rebook("page", "short", nowMs); },
     /** How station `i`'s text stands at this time, for where the visitor is. A read: it changes nothing. On a first visit
-     *  it is held back until the full tear ends, so it resolves out of it; on a return it shows as soon as
-     *  the wait ends. A station whose panel isn't showing is held. */
+     *  it is held back until the full tear ends, so it resolves out of it; on a return it shows on the
+     *  landing. A station whose panel isn't showing is held. */
     textState(station: number, nowMs: number): TextState {
       if (reduced || !mounted) return "showing"; // until the tour is up every text may show
       if (panelStrength(where, station) < PANEL_SHOWN) return "held";
