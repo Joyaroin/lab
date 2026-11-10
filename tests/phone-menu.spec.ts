@@ -19,6 +19,12 @@ test("on a phone the links are bottom buttons at least 44 px tall, clear of the 
     expect(b.y + b.height, `link ${i} is on screen`).toBeLessThanOrEqual(844);
     expect(b.y >= meter.y + meter.height || b.y + b.height <= meter.y, `link ${i} clear of the meter bar`).toBe(true);
   }
+  // Three to a row: Room and the stations fill rows of three, the last one with what is left.
+  const ys: number[] = [];
+  for (let i = 0; i <= stationIds.length; i++) ys.push(Math.round((await hudLink(page, i).boundingBox())!.y));
+  const perRow = [...new Set(ys)].map((y) => ys.filter((v) => v === y).length);
+  const n = stationIds.length + 1;
+  expect(perRow, "links per row").toEqual(Array.from({ length: Math.ceil(n / 3) }, (_, r) => Math.min(3, n - 3 * r)));
   await hudLink(page, 3).tap();
   await landedAt(page, 3);
   await expect(page.locator(`[data-screen="${stationIds[2]}"]`)).toBeVisible();

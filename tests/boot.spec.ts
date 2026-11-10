@@ -3,7 +3,7 @@ import { createServer, type Server, type ServerResponse } from "node:http";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { AddressInfo } from "node:net";
-import { stations } from "../src/content";
+import { identity, stations } from "../src/content";
 import { GAP_TIMEOUT_MS, formatReading } from "../src/gap";
 import { STATION_COUNT } from "../src/hold";
 import { goBack, goTo, landedAt, readCamera, readShot, stationIds, waitForCamera } from "./lib/page";
@@ -110,7 +110,7 @@ async function startTour(page: Page) {
   );
   await page.goto("/");
   await expect(hud(page)).toBeVisible();
-  await expect(hud(page)).toContainText("Open to co-op and full-time");
+  await expect(hud(page)).toContainText(identity.name);
 }
 
 test("visiting a station rolls the meter, and Room rolls it back", async ({ page }) => {

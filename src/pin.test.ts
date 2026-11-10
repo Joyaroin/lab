@@ -26,7 +26,7 @@ describe("fitPanel", () => {
     const { top, bottom } = clearances(phone);
     const f = fitPanel(phone, 195, 400, 200, 2000);
     expect(f.maxHeight).toBeCloseTo(phone.height - top - bottom, 6);
-    expect(f.maxHeight).toBeGreaterThanOrEqual(460);
+    expect(f.maxHeight).toBeGreaterThanOrEqual(420); // 460 with a two-row menu; three rows (Room and six stations, three to a row) cost 48.8 px, see #222
     expect(f.top).toBe(top);
     expect(f.top + f.maxHeight).toBeCloseTo(phone.height - bottom, 6);
   });
@@ -93,8 +93,8 @@ describe("clearances", () => {
   });
   it("on portrait the bottom is the menu, 16, the device and 32", () => {
     const win = { width: 390, height: 844 };
-    expect(PHONE_MENU_H).toBeCloseTo(105.6, 6); // two rows of 44 px buttons, a gap and the padding
-    expect(clearances(win).bottom).toBeCloseTo(105.6 + 16 + 118.8 + 32, 1);
+    expect(PHONE_MENU_H).toBeCloseTo(154.4, 6); // three rows of 44 px buttons (Room and six stations, three to a row), two gaps and the padding
+    expect(clearances(win).bottom).toBeCloseTo(154.4 + 16 + 118.8 + 32, 1);
     expect(clearances(win).top).toBe(96);
   });
   it("the top is the one-row HUD's height from ONE_ROW_MIN_W wide, the two-line HUD's under it, and 96 on portrait", () => {

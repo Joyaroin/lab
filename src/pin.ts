@@ -9,9 +9,9 @@ import { stations } from "./content";
 export const SIDE = 8;
 
 // The phone's bottom menu (src/Hud.tsx builds it from these): Room and one button per station, in rows
-// of PHONE_COLS, each BUTTON_PX tall. #222 changes the columns to three; the clearance follows.
+// of PHONE_COLS (three), each BUTTON_PX tall; the clearance follows.
 export const BUTTON_PX = 44;
-export const PHONE_COLS = 4;
+export const PHONE_COLS = 3;
 export const PHONE_GAP_PX = 4.8; // 0.3rem
 export const PHONE_PAD_PX = 6.4; // 0.4rem
 export const PHONE_ROWS = Math.ceil((stations.length + 1) / PHONE_COLS);
