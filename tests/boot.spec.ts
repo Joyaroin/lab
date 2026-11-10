@@ -330,7 +330,10 @@ async function slowModel(page: Page) {
   const glb = readFileSync(fileURLToPath(new URL("../src/assets/room.glb", import.meta.url)));
   let res: ServerResponse | undefined;
   let sent = 0;
-  const server: Server = createServer((_req, r) => {
+  const server: Server = createServer((req, r) => {
+    // Only the model's own request counts. On the Mac a stray GET / sometimes reaches this server
+    // (it is closed at once); taking it for the model made the next chunk go to a dead response.
+    if (req.url !== "/room.glb") { r.writeHead(404).end(); return; }
     res = r;
     r.writeHead(200, {
       "content-type": "model/gltf-binary", "content-length": glb.length,
