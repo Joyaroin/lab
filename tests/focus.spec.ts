@@ -45,6 +45,15 @@ test("a link in a station's panel reached with Tab has the ring", async ({ page 
   expect(await outline(link)).toBe(RING);
 });
 
+test("the meter bar's button reached with Tab has the ring", async ({ page }) => {
+  // Its inline style starts with `all: unset`, which would beat a plain stylesheet rule.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openTour(page);
+  const bar = page.locator("[data-meter-bar]");
+  await tabTo(page, bar);
+  expect(await outline(bar)).toBe(RING);
+});
+
 test("a station's panel has no outline after a click on its HUD link, and the ring after Enter on it", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await openTour(page);
