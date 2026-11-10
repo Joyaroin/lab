@@ -19,8 +19,8 @@ The language of this project: its terms, what each one means, and what it doesn'
 - **Visit**: where the visitor is and is going: at a stop, or flying to one. `src/visit/` owns it.
 - **Cover**: the dark layer over the room that hides the cut of a reduced-motion fade. It rises at once but falls no faster
   than `COVER_MAX_FALL_PER_SEC` (`nextCover` in `src/visit/cover.ts`), so it never snaps off.
-- **Flight**: the camera's move from where it is to a station (or to the overview): one smooth curve of about
-  1.2 s that passes no other station (`flightPose` in `src/visit/flight.ts`). A move started mid-flight starts
+- **Flight**: the camera's move from where it is to a station (or to the overview): one smooth curve of
+  0.9 s (`FLIGHT_MS`) that passes no other station (`flightPose` in `src/visit/flight.ts`). A move started mid-flight starts
   from where the camera really is. Under reduced motion a move is a quick fade, out, cut, in, about 300 ms, with
   no tear. A press during a fade waits until the fade ends, and the latest waiting press wins: it replaces any
   earlier one, and one for the stop just reached does nothing. `visit.target()` is the stop the last press asked for.
@@ -90,14 +90,14 @@ The language of this project: its terms, what each one means, and what it doesn'
   to another with `f`, the share of the flight done. `visit.where(now)` gives it; the framing and the text's
   strength take it.
 - **Shift**: the moment of arrival at a station, when the view tears and the meter scrambles and locks
-  onto the reading. It fires once the visitor has stayed at a station for the wait, after the flight has landed, not when flying through. Full on
+  onto the reading. It fires as the camera lands, with no wait (once the power-on hold is over), not when flying through. Full on
   a station's first visit, a short flick after. Never at the overview, never with reduced motion. There is no restore window: a reload followed by a click plays the shift. The
   tear is room-only: the HUD and the meter bar stay still. A Work page turn plays the short flick too, on
-  that TV's screen only (not the room); the same limit counts it. On a return the text shows as soon as
-  the wait ends and the flick plays over it; on a first visit it waits for the tear, then resolves out of
-  it. The full tear re-cuts its bands once. No one-second window holds more than 3 sudden changes (the
+  that TV's screen only (not the room); the same limit counts it. On a return the text shows on
+  the landing and the flick plays over it; on a first visit it waits for the tear, then resolves out of
+  it. The full tear lasts 0.4 s and re-cuts its bands once; the short flick lasts 0.25 s. No one-second window holds more than 3 sudden changes (the
   tear starting, a re-cut, the snap back), the snap back counted where it is visible (the slip reaches 0, at
-  0.85 of the tear's length: 680 ms of a full tear, 212.5 ms of a short one, `snapBackMs` in `src/tear.ts`),
+  0.85 of the tear's length: 340 ms of a full tear, 212.5 ms of a short one, `snapBackMs` in `src/tear.ts`),
   not where the tear's length ends; the text still waits for the full length plus `SNAP_BACK_MS`. Counted
   over a little more than a second to cover late frames; a shift held back by that still shows its text.
   Visits are kept in memory only, and nothing on screen shows where you have been.
@@ -122,11 +122,11 @@ get a folder; the rest are still flat files in `src/`.
   goes null), and the desk meter reads it every frame. The tour `mount`s it, calls `observe(where)`
   when a move starts and when it lands and `turn()` on a Work page turn. The tear reports straight to it (`tearStarted`,
   `turnStarted`), and the desk meter reports when its power-on really began (`powerOnBegan`). The room
-  gives it one function to ask for a frame (`setWake`). The module owns the wait timer, the power-on hold,
+  gives it one function to ask for a frame (`setWake`). The module owns the power-on timer, the power-on hold,
   the tear-over wake-up, the leaving rule, the page-turn limit and the
   shift's lengths (`SHIFT_SECONDS`). No shift starts until the desk meter reports its power-on, which it
   does on the first frame it draws once the room is ready (`src/App.tsx:53` sets `meter.on`,
-  `src/Effects.tsx:124` reports), so a room that never draws a frame plays no shift. `src/nixie.ts`
+  `src/DeskMeter.tsx:93` reports), so a room that never draws a frame plays no shift. `src/nixie.ts`
   re-exports `SHIFT_SECONDS` for the browser specs. `shift.hold` is the station the visitor is at (0 at the overview or in flight). The room
   asks it one question per station per frame, `shift.textState(station, nowMs)` (the shift knows where the visitor is): `held`,
   `resolving` or `showing`. Asking changes nothing; the module's state changes when it learns something
@@ -152,7 +152,7 @@ get a folder; the rest are still flat files in `src/`.
   word turns up quoted in other `src` code. `validateContent` covers every key. Only the name, title and page
   title are also in `index.html`, so they show before the script runs; a test checks they match. Failure
   codes such as `no-webgl` and the other identifiers stay in code: they are ids, not copy.
-- The tour view (`TourView.tsx`) reports the visit to the shift and the HUD, and renders. The HUD (`Hud.tsx`) has the links: stations fly, Room goes back. The room (`Room.tsx`, `Effects.tsx`) draws the
+- The tour view (`TourView.tsx`) reports the visit to the shift and the HUD, and renders. The HUD (`Hud.tsx`) has the links: stations fly, Room goes back. The room (`Room.tsx`, and the overlays `DeskMeter.tsx`, `Phosphor.tsx`, `Bezels.tsx`, `Rain.tsx`, `TvTargets.tsx`, with `draw.ts` for what they share) draws the
   scene and the desk meter. The nixie module (`nixie.ts`) is the meter's digits and power-on.
 - **`src/frames.ts`**: the frame loop. `runFrames(step, opts)` runs `step` with the seconds since the loop started,
   the first time at once with 0 s and then on each requested frame, until `step` returns true; it returns a function
