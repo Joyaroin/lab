@@ -1,7 +1,8 @@
 import { useEffect, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { identity, links, stations, ui } from "./content";
 import {
-  BUTTON_PX, clearances, HUD_GAP, HUD_MARGIN, LINK_ROW_H, LINK_ROW_W, NAME_BLOCK_W, ONE_ROW_MIN_W, PHONE_COLS, PHONE_GAP_PX, PHONE_MENU_H, PHONE_PAD_PX,
+  BUTTON_PX, clearances, COMPACT_GAP, COMPACT_LINE_H, HUD_GAP, HUD_MARGIN, hudTier, LINK_ROW_H, LINK_ROW_W, NAME_BLOCK_W, PHONE_COLS, PHONE_GAP_PX,
+  PHONE_MENU_H, PHONE_PAD_PX,
 } from "./pin";
 import type { Visit } from "./visit";
 import type { Where } from "./where";
@@ -33,7 +34,8 @@ export function usePortrait() {
 // The always-on overlay (#222). On a landscape window: a name block at the top left (name, title, availability)
 // and a row of links: Room and the stations, a divider, then the outside links. From ONE_ROW_MIN_W (src/pin.ts)
 // the two share a line; narrower, the row has its own line under the name block, and from under TWO_LINE_MIN_W (the row's box plus both margins)
-// it wraps as two whole groups, so the HUD has three lines. On a portrait window the name block spans the top with the outside links (no
+// it wraps as two whole groups, so the HUD has three lines. On a short landscape window (`hudTier`, src/pin.ts) the HUD is compact: name, title
+// and outside links on one line and the stops under it, or from under COMPACT_MIN_W three short lines. On a portrait window the name block spans the top with the outside links (no
 // availability line) and Room and the stations are a bottom menu, three to a row. Fixed, so it is reachable at every
 // point. The station links are real #id links that fly to that station; Room flies back to the overview.
 // It owns what #177 changes: the parts that depend on where the visitor is and on whether they have
@@ -42,8 +44,10 @@ export function usePortrait() {
 // clearances, the hint's height) come from src/pin.ts, so the fitting rule and the HUD can't drift apart.
 export function Hud({ where, visited, visit }: { where: Where; visited: boolean; visit: Visit }) {
   const win = useWin();
-  const portrait = win.width < win.height;
-  const oneRow = win.width >= ONE_ROW_MIN_W;
+  const tier = hudTier(win); // the same rule the clearances follow (src/pin.ts)
+  const portrait = tier === "phone";
+  const oneRow = tier === "oneRow";
+  const compact = tier === "compactTwo" || tier === "compactThree";
   useEffect(() => {
     document.documentElement.style.setProperty("--meter-bottom", portrait ? PHONE_METER_BOTTOM : METER_BOTTOM);
   }, [portrait]);
@@ -57,7 +61,7 @@ export function Hud({ where, visited, visit }: { where: Where; visited: boolean;
   const hintShown = !hintGone;
   const stop = where.kind === "at" ? where.stop : -1; // during a flight no link is current
   const look = (i: number, base: CSSProperties, current: CSSProperties) => (stop === i ? { ...base, ...current } : base);
-  const stopLink = portrait ? button : link;
+  const stopLink = portrait ? button : compact ? linkCompact : link;
   const stopHere = portrait ? buttonHere : linkHere;
   const stopLinks = (
     <>
@@ -71,13 +75,26 @@ export function Hud({ where, visited, visit }: { where: Where; visited: boolean;
   );
   // The outside links open a new tab; the mark is decoration, so it is out of the link's name.
   const outside = links.map((l) => (
-    <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" style={link}>{l.label}<span aria-hidden="true" style={{ marginLeft: 4 }}>↗</span></a>
+    <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" style={compact ? linkTight : link}>{l.label}<span aria-hidden="true" style={{ marginLeft: 4 }}>↗</span></a>
   ));
   return (
     <>
     {hintShown && <div role="status" data-hint style={{ ...hint, bottom: clearances(win).bottom + HINT_GAP, opacity: visited ? 0 : 1 }}>{portrait ? ui.hintPortrait : ui.hintLandscape}</div>}
-    <nav aria-label={ui.hud} style={portrait ? hudPhone : oneRow ? hudOneRow : hudTwoLines}>
-      {portrait ? (
+    <nav aria-label={ui.hud} style={portrait ? hudPhone : oneRow ? hudOneRow : compact ? hudCompact : hudTwoLines}>
+      {compact ? (
+        // Two lines: name, title and the outside links, then the stops. Three (under COMPACT_MIN_W): the outside links get a line.
+        <>
+          <div data-name-block style={{ ...nameBlock, ...compactLine }}>
+            <div style={{ ...nameStyle, whiteSpace: "nowrap" }}>{identity.name}</div>
+            <div style={{ ...lineStyle, whiteSpace: "nowrap" }}>{identity.title}</div>
+            {tier === "compactTwo" && <div style={{ ...groupWhole, columnGap: 4, marginLeft: "auto", paddingLeft: 6 }}>{outside}</div>}
+          </div>
+          {tier === "compactThree" && <div data-outside style={{ ...nameBlock, ...compactLine, columnGap: 4 }}>{outside}</div>}
+          <div data-link-row style={{ ...compactLine, ...linkRowBase, flexWrap: "nowrap" }}>
+            <div style={groupWhole}>{stopLinks}</div>
+          </div>
+        </>
+      ) : portrait ? (
         <div data-name-block style={{ ...nameBlock, ...nameBlockPhone }}>
           <div style={nameStyle}>{identity.name}</div>
           <div style={lineStyle}>{identity.title}</div>
@@ -115,6 +132,8 @@ const hudBase: CSSProperties = {
 };
 const hudOneRow: CSSProperties = { ...hudBase, padding: `${HUD_MARGIN}px`, paddingBottom: 0, justifyContent: "space-between", alignItems: "flex-start", gap: HUD_GAP };
 const hudTwoLines: CSSProperties = { ...hudBase, padding: `${HUD_MARGIN}px`, paddingBottom: 0, flexDirection: "column", alignItems: "flex-start", gap: 8 };
+const hudCompact: CSSProperties = { ...hudBase, padding: `${HUD_MARGIN}px`, paddingBottom: 0, flexDirection: "column", alignItems: "flex-start", gap: COMPACT_GAP };
+const compactLine: CSSProperties = { display: "flex", alignItems: "center", columnGap: 10, height: COMPACT_LINE_H, maxWidth: "100%", boxSizing: "border-box" };
 const hudPhone: CSSProperties = { ...hudBase, flexDirection: "column" };
 const nameBlock: CSSProperties = {
   boxSizing: "border-box", maxWidth: NAME_BLOCK_W, background: "rgba(5,8,10,0.7)", boxShadow: backdrop, pointerEvents: "auto", flex: "none",
@@ -147,6 +166,9 @@ const button: CSSProperties = {
 const here: CSSProperties = { color: INK, background: GREEN, fontWeight: "bold" };
 const buttonHere = here;
 const linkHere: CSSProperties = { ...here, textDecoration: "none" };
+const linkCompact: CSSProperties = { color: GREEN, padding: "4px 5px", fontWeight: "normal", background: "transparent", whiteSpace: "nowrap" };
+// The outside links beside the title: 4 px of padding each side, so name, title and links fit COMPACT_MIN_W (src/pin.ts).
+const linkTight: CSSProperties = { ...linkCompact, padding: "4px" };
 const link: CSSProperties = { color: GREEN, padding: "5px 5px", fontWeight: "normal", background: "transparent", whiteSpace: "nowrap" };
 const hint: CSSProperties = {
   position: "fixed", left: 0, right: 0, zIndex: 15, textAlign: "center",

@@ -36,7 +36,25 @@ const TWO_LINE_H = ONE_ROW_H + LINK_ROW_H; // about 126
 const THREE_LINE_H = TWO_LINE_H + LINK_ROW_H; // about 162
 const PHONE_TOP = 96;
 
+// The compact HUD, for a short landscape window: name and title (with the outside links beside them where they fit),
+// then the stops row. Lines are COMPACT_LINE_H tall (the name's 24 px, a link's 18.2 px and 8 px of padding),
+// COMPACT_GAP apart. `COMPACT_TOP_W` is the width of the first line at 14 px: name 132 + 10 + title 236 + 16 +
+// the outside links (Résumé, LinkedIn, GitHub, with ↗, 4 px padding, 4 px gaps) about 225, measured in Chromium.
+// Narrower than COMPACT_MIN_W the outside links take a line of their own, so three short lines.
+export const COMPACT_LINE_H = 27, COMPACT_GAP = 4;
+export const COMPACT_TOP_W = 619;
+/** From this width a short landscape window's HUD is two lines; narrower, three. */
+export const COMPACT_MIN_W = COMPACT_TOP_W + 2 * HUD_MARGIN;
+const COMPACT_TWO_H = HUD_MARGIN + 2 * COMPACT_LINE_H + COMPACT_GAP; // 76
+const COMPACT_THREE_H = HUD_MARGIN + 3 * COMPACT_LINE_H + 2 * COMPACT_GAP; // 107
+
+/** The least height (px) the glass and the text panel are given. Below it they stay this tall, so `clearances`
+ *  keeps the panel at this size or more by choosing the compact HUD first. `fitPanel` and `band()` (src/stop.ts) read it. */
+export const MIN_PANEL_H = 120;
+
 type Win = { width: number; height: number };
+
+export type HudTier = "phone" | "oneRow" | "twoLine" | "threeLine" | "compactTwo" | "compactThree";
 
 /** A portrait window is narrower than it is tall: the same test the framing makes. */
 const isPortrait = (win: Win) => win.width < win.height;
@@ -47,12 +65,26 @@ export function deviceSize(win: Win): { width: number; height: number } {
   return { width, height: (width * 280) / 660 };
 }
 
+/** Which HUD a window gets: a pure rule of its size. On landscape the tier by width (one row, two lines, three), unless that tier
+ *  would leave the panel under MIN_PANEL_H (a short window, such as a phone held sideways): then the compact HUD, two lines from
+ *  COMPACT_MIN_W wide, three under it. */
+export function hudTier(win: Win): HudTier {
+  if (isPortrait(win)) return "phone";
+  const [tier, h] = win.width >= ONE_ROW_MIN_W ? ["oneRow", ONE_ROW_H] as const : win.width >= TWO_LINE_MIN_W ? ["twoLine", TWO_LINE_H] as const : ["threeLine", THREE_LINE_H] as const;
+  if (win.height >= h + MIN_PANEL_H + deviceSize(win).height + 42) return tier;
+  return win.width >= COMPACT_MIN_W ? "compactTwo" : "compactThree";
+}
+
+const TOP: Record<HudTier, number> = {
+  phone: PHONE_TOP, oneRow: ONE_ROW_H, twoLine: TWO_LINE_H, threeLine: THREE_LINE_H, compactTwo: COMPACT_TWO_H, compactThree: COMPACT_THREE_H,
+};
+
 /** The room the HUD takes at the top and the meter bar (with the phone menu, on portrait) at the bottom. */
 export function clearances(win: Win): { top: number; bottom: number } {
   const device = deviceSize(win);
   if (isPortrait(win)) return { top: PHONE_TOP, bottom: PHONE_MENU_H + 16 + device.height + 32 };
   // 26 px of text, 8 px under it and 8 px over the device
-  return { top: win.width >= ONE_ROW_MIN_W ? ONE_ROW_H : win.width >= TWO_LINE_MIN_W ? TWO_LINE_H : THREE_LINE_H, bottom: device.height + 42 };
+  return { top: TOP[hudTier(win)], bottom: device.height + 42 };
 }
 
 export type Fit = { left: number; top: number; width: number; maxHeight: number };
@@ -65,7 +97,7 @@ export type Fit = { left: number; top: number; width: number; maxHeight: number 
 export function fitPanel(win: { width: number; height: number }, cx: number, cy: number, crtWidth: number, panelHeight: number): Fit {
   const { top: topClear, bottom: bottomClear } = clearances(win);
   const width = Math.min(Math.max(crtWidth, 352), win.width - 2 * SIDE, 640);
-  const room = Math.max(120, win.height - topClear - bottomClear);
+  const room = Math.max(MIN_PANEL_H, win.height - topClear - bottomClear);
   const maxHeight = Math.min(room, win.height - 2 * SIDE);
   const h = Math.min(panelHeight, maxHeight);
   const left = Math.min(Math.max(cx - width / 2, SIDE), win.width - width - SIDE);

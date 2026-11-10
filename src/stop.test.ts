@@ -3,7 +3,7 @@ import { PerspectiveCamera } from "three";
 import { CAMERA_FOV, crts } from "./crts";
 import { glassBox, glassOnScreen } from "./glass";
 import { framingFor } from "./framing";
-import { clearances, SIDE } from "./pin";
+import { clearances, deviceSize, hudTier, SIDE } from "./pin";
 import { squareStop } from "./stop";
 
 /** The glass on screen at station `i`, through the code the app runs: the tour's camera
@@ -20,7 +20,10 @@ function glassAtHold(i: number, w: number, h: number) {
   return { left: box.left, right: box.left + box.width, top: box.top, bottom: box.top + box.height, pts, box };
 }
 
-const windows = [[1280, 800], [1920, 1080], [1440, 900], [1024, 768], [1366, 640], [2560, 1440]];
+// Short landscape windows too: a phone held sideways (667x375, 740x360), 560x400, and the sizes either side of the tiers' limits.
+const windows = [[1280, 800], [1920, 1080], [1440, 900], [1024, 768], [1366, 640], [2560, 1440],
+  [800, 600], [700, 500], [835, 470], [667, 375], [740, 360], [560, 400]];
+const shortWindows = [[667, 375, "compactTwo"], [740, 360, "compactTwo"], [560, 400, "compactThree"]] as const;
 
 describe("square stops", () => {
   it("stand about 0.54 m from the glass at 1280x800", () => {
@@ -65,6 +68,17 @@ describe("square stops", () => {
         expect(box.height >= bandH - 2 || box.width >= bandW - 2, crts[i].id).toBe(true);
         expect(box.left + box.width / 2, crts[i].id).toBeCloseTo(w / 2, 0);
         expect(box.top + box.height / 2, crts[i].id).toBeCloseTo(top + bandH / 2, 0);
+      }
+    });
+  }
+  for (const [w, h, tier] of shortWindows) {
+    it(`on a short landscape window the HUD is the compact one and the glass ends above the device, ${w}x${h}`, () => {
+      expect(hudTier({ width: w, height: h })).toBe(tier);
+      const deviceTop = h - 16 - deviceSize({ width: w, height: h }).height; // the device stands 1rem above the window's bottom
+      for (let i = 0; i < crts.length; i++) {
+        const g = glassAtHold(i, w, h);
+        expect(g.bottom, crts[i].id).toBeLessThanOrEqual(deviceTop);
+        expect(g.bottom - g.top, `${crts[i].id}: the glass is not squeezed to a sliver`).toBeGreaterThanOrEqual(120 - 1);
       }
     });
   }
