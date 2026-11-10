@@ -60,8 +60,8 @@ export const ui = {
   meterButton: "Meter. {label}. Click for the next station",
   meterReading: "Reading {digits}",
   /** the gap's sentence: {n} deploys, {noun} one of the two nouns */
-  gapBehind: "prod is {n} {noun} behind staging",
-  gapBehindAtLeast: "prod is at least {n} {noun} behind staging",
+  gapBehind: "MediaSafe: {n} staging {noun} since the last prod release",
+  gapBehindAtLeast: "MediaSafe: at least {n} staging {noun} since the last prod release",
   gapSaved: "{gap} (saved value, not live)",
   deploy: "deploy",
   deploys: "deploys",
@@ -77,11 +77,21 @@ export const ui = {
   /** the signal lost screen; {reason} is the failure's code, which is not copy */
   signalLost: "SIGNAL LOST",
   signalLostReason: "The 3D room could not start in this browser ({reason}).",
+  /** the stop controls (not shown yet): the keys' caps, the buttons' aria labels, and the line naming the stop */
+  keyPrev: "PREV",
+  keyRoom: "ROOM",
+  keyNext: "NEXT",
+  keyStart: "START",
+  prevStation: "Previous station",
+  backToRoom: "Back to the room",
+  nextStation: "Next station",
+  startTour: "Start the tour",
+  stopLine: "{label} · {n} of {total}",
 };
 /** The placeholders each template must keep. */
 const PLACEHOLDERS: Record<string, string[]> = {
   meterButton: ["label"], meterReading: ["digits"], gapBehind: ["n", "noun"], gapBehindAtLeast: ["n", "noun"],
-  gapSaved: ["gap"], logDone: ["step"], logPending: ["step"], signalLostReason: ["reason"],
+  gapSaved: ["gap"], stopLine: ["label", "n", "total"], logDone: ["step"], logPending: ["step"], signalLostReason: ["reason"],
 };
 export const fill = (template: string, values: Record<string, string | number>) =>
   template.replace(/\{(\w+)\}/g, (m, k) => (k in values ? String(values[k]) : m));
@@ -117,7 +127,7 @@ export const content: Content = {
   ui,
   identity: {
     name: "Adham Sedik",
-    title: "SWE & Platform",
+    title: "Software & Platform Engineer",
     pageTitle: "Adham Sedik · Lab",
     availability: "Graduating Dec 2027. Open to co-op and full-time.",
   },
@@ -206,7 +216,7 @@ export const content: Content = {
       body: [
         "I plan a feature with an orchestrator agent, which cuts it into small tickets. Builder agents write each ticket test-first on my Mac and open a pull request.",
         "Every PR runs full CI on my own runner. Then a fresh reviewer agent decides whether it merges by itself, needs me, or goes back for a rebuild.",
-        "This site has 76 merged pull requests since 5 November 2026. Production moves only when I promote it.",
+        "This site has 90+ merged pull requests since 5 November 2026. Production moves only when I promote it.",
       ],
       diagram: {
         description: "I plan, agents build each ticket and open a PR, a reviewer agent decides, and it merges.",
