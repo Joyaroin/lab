@@ -30,7 +30,9 @@ The language of this project: its terms, what each one means, and what it doesn'
   02: MediaSafe", no count); after the pointer has rested `PREVIEW_REST_MS` (150 ms) the digits play the short scramble
   (`SHIFT_SECONDS.short`, 0.25 s) onto the station's reading, or change with no scramble under reduced motion. Leaving,
   or moving to another station before the 150 ms (which starts the rest again), puts the gap's line and digits back at
-  once with no animation. It is pointer only: keyboard focus never previews (the tour puts focus back on a HUD link
+  once with no animation. A visit ends the pointer's claim on a HUD link (it has not moved since), so back at the overview a
+  pointer left on the link clicked shows no preview until it enters a link again; a pointer left on a TV starts its rest again
+  on the landing. It is pointer only: keyboard focus never previews (the tour puts focus back on a HUD link
   whenever the visitor returns to the overview), touch has no preview, and it never applies at a station or in a flight.
   It is not a shift: the room never tears for it. The rule is in `src/bar.ts`: `createHover` (which station the pointer
   is on, from the TV and the HUD link, each reporting its own enter and leave), `previewStop` (only at the overview) and

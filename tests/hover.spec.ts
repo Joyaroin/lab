@@ -96,4 +96,24 @@ test.describe("the hover preview at the overview (1440 x 900)", () => {
     await expect(hudLink(page, 2), "focus is back on the link that started the visit").toBeFocused();
     await expect(barLine(page)).toHaveText(gapLine);
   });
+
+  test("a visit started by clicking a link the pointer stays on: back at the overview the line and digits are the gap's, with no preview and no scramble", async ({ page }) => {
+    await hudLink(page, 2).click(); // the pointer rests on the link from here on
+    await landedAt(page, 2);
+    await waitForCamera(page);
+    await page.keyboard.press("Escape");
+    await landedAt(page, 0);
+    await waitForCamera(page);
+    const digits = page.locator("[data-meter-bar] [role=img]");
+    const gapDigits = await digits.getAttribute("aria-label");
+    expect(gapDigits).not.toBe(fill(ui.meterReading, { digits: formatReading(stations[1].reading) }));
+    // past the 150 ms rest and the 0.25 s scramble, the bar still shows the gap's
+    await page.waitForTimeout(600);
+    await expect(barLine(page)).toHaveText(gapLine);
+    await expect(digits).toHaveAttribute("aria-label", gapDigits!);
+    // moving off the link and back on is a new rest: the preview works again
+    await page.mouse.move(720, 2);
+    await hudLink(page, 2).hover();
+    await expect(barLine(page)).toHaveText("World line 02: MediaSafe");
+  });
 });

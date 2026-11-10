@@ -100,7 +100,13 @@ export function Tour({ gap, visit, meter, shift: shifts }: { gap: Gap | null; vi
     return () => { meter.tvHover = () => {}; };
   }, [meter, hover]);
   const onPoint = useCallback((stop: number | null) => hover.point("link", stop), [hover]);
-  useEffect(() => visit.subscribe((e) => { if (e.type === "land" && e.stop === 0) hover.rest(); }), [visit, hover]);
+  // A visit ends the pointer's claim on a HUD link: it has not moved since, so back at the overview it shows no preview until
+  // it enters a link again (the shift's rule: leaving ends on the true reading). The TV's report already follows the same rule
+  // (TvTargets reports it only at the overview), so a pointer left on a TV starts its rest again on the landing.
+  useEffect(() => visit.subscribe((e) => {
+    if (e.type === "move") hover.point("link", null);
+    else if (e.stop === 0) hover.rest();
+  }), [visit, hover]);
   useEffect(() => {
     if (!preview || previewStop(here, preview) === null) return;
     const left = preview.since + PREVIEW_REST_MS - performance.now();
