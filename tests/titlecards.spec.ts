@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { PerspectiveCamera, Vector3 } from "three";
 import { stations } from "../src/content";
-import { crts } from "../src/crts";
+import { bench, crts, type Crt } from "../src/crts";
 import { glassOnScreen } from "../src/glass";
 import { framingFor } from "../src/framing";
 import { goBack, readCamera, readShot } from "./lib/page";
@@ -15,6 +15,7 @@ import { goBack, readCamera, readShot } from "./lib/page";
 // card with the app's own drawing code (src/card.ts, run in a blank page) and checks that the glass
 // matches its own station's card better than any other station's, and better than plain glass.
 // Counting green pixels would pass on another station's card, or on a lit patch of glass.
+// The bench TV has no station and so no card: the same shot checks its glass matches none.
 // The other half, that the card is gone behind the text at the stop, is checked in boot.spec.ts
 // ("the text sits on the glass with no card and no phosphor behind it").
 
@@ -32,13 +33,16 @@ async function arriveAtOverview(page: Page) {
 }
 
 /** The glass's four corners on screen (texture corners top-left, top-right, bottom-left, bottom-right). */
-function glassCornersAt(i: number) {
+function glassCornersAt(crt: Crt) {
   const s = viewAt();
   const cam = new PerspectiveCamera(s.fov, size.width / size.height, 0.1, 1000);
   cam.position.set(...s.camera); cam.lookAt(new Vector3(...s.look)); cam.updateMatrixWorld();
-  const [bl, tl, br, tr] = glassOnScreen(crts[i], cam, size); // glassCorners' order: x then y
+  const [bl, tl, br, tr] = glassOnScreen(crt, cam, size); // glassCorners' order: x then y
   return [tl, tr, bl, br];
 }
+
+/** The most any card may match plain glass, or the bench TV's switched-off glass, by `scoreOf`. */
+const PLAIN_GLASS_BEST = 0.3;
 
 /** The map from the glass's own (u, v) in 0..1 to window pixels, as nine numbers (a homography). */
 function homography(c: { x: number; y: number }[]) {
@@ -156,7 +160,7 @@ test("every TV shows its own title card from the overview", { tag: "@render" }, 
   await page.waitForTimeout(300); // let the drawn frame land
   const full = await page.screenshot({ path: "test-results/titlecard-overview-desktop.png" }); // for the PR's contact sheet
   for (const [i, s] of stations.entries()) {
-    const corners = glassCornersAt(i);
+    const corners = glassCornersAt(crts[i]);
     for (const c of corners) {
       expect(c.x, `${s.id}: glass inside the window`).toBeGreaterThan(0); expect(c.x).toBeLessThan(size.width);
       expect(c.y, `${s.id}: glass inside the window`).toBeGreaterThan(0); expect(c.y).toBeLessThan(size.height);
@@ -167,6 +171,15 @@ test("every TV shows its own title card from the overview", { tag: "@render" }, 
     rows.push(`${s.id}: own ${own.toFixed(2)}, best other ${Math.max(...others).toFixed(2)}`);
     expect(own, `${s.id}: its own card, not another's. ${rows[rows.length - 1]}`).toBeGreaterThan(Math.max(...others) + 0.15);
   }
+  // The bench TV has no station and no card: its glass is switched off, so it matches no card better than plain glass does.
+  const benchCorners = glassCornersAt(bench);
+  for (const c of benchCorners) {
+    expect(c.x, "bench: glass inside the window").toBeGreaterThan(0); expect(c.x).toBeLessThan(size.width);
+    expect(c.y, "bench: glass inside the window").toBeGreaterThan(0); expect(c.y).toBeLessThan(size.height);
+  }
+  const benchScores = scoreOf(want, await sampleGlass(page, full, homography(benchCorners)));
+  rows.push(`bench: best card ${Math.max(...benchScores).toFixed(2)}`);
+  expect(Math.max(...benchScores), `the bench TV carries no card. ${rows[rows.length - 1]}`).toBeLessThan(PLAIN_GLASS_BEST);
   test.info().annotations.push({ type: "card match", description: rows.join("; ") });
 });
 
@@ -182,5 +195,5 @@ test("the matching tells cards apart: each card is found as itself, and plain gl
     expect(scores[i], stations[i].id).toBeGreaterThan(0.9);
   }
   const plain = scoreOf(want, want.clear);
-  expect(Math.max(...plain), "plain glass matches no card").toBeLessThan(0.3);
+  expect(Math.max(...plain), "plain glass matches no card").toBeLessThan(PLAIN_GLASS_BEST);
 });

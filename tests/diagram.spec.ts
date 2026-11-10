@@ -64,7 +64,7 @@ test("phone: MediaSafe still shows its panel with the diagram not breaking the l
   await ctx.close();
 });
 
-// Ticket 54: Home lab, Order Tracker and Software factory get one too; Contact never does.
+// Ticket 54: Home lab and Software factory get one too; Contact never does.
 async function goToStation(page: Page, id: string) {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/");
@@ -76,7 +76,7 @@ async function goToStation(page: Page, id: string) {
   return panel;
 }
 
-for (const id of ["home-lab", "order-tracker", "software-factory"]) {
+for (const id of ["home-lab", "software-factory"]) {
   test(`desktop 1280x800: ${id} shows its diagram, drawn from its copy, inside the panel`, async ({ page }) => {
     test.setTimeout(90_000);
     const panel = await goToStation(page, id);

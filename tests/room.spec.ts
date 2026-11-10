@@ -77,7 +77,7 @@ for (const [name, size, bar] of [["desktop", { width: 1280, height: 800 }, 0], [
 // moving the pointer inside a hold doesn't move either.
 for (const [w, h] of [[1280, 800], [1920, 1080]]) {
   test(`desktop ${w}x${h}: text sits on the glass at every station and the pointer does not move it`, { tag: "@render" }, async ({ page }) => {
-    test.setTimeout(150_000); // six stations, each waits for the camera on software WebGL
+    test.setTimeout(150_000); // five stations, each waits for the camera on software WebGL
     await page.setViewportSize({ width: w, height: h });
     await openTour(page);
     for (const [k, id] of stationIds.entries()) {

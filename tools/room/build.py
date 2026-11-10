@@ -30,6 +30,10 @@ random.seed(23)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LAYOUT = json.load(open(os.path.join(HERE, "..", "..", "src", "room-layout.json")))
+# Every TV to place: the stations' (LAYOUT["crts"]) and the switched-off bench TV (LAYOUT["bench"]).
+# The bench TV goes where it always did in the bake order (after the third station), so a re-bake's
+# random draws (a sticky note's colour, a keyboard's tilt) fall where they did.
+BENCH_AND_STATION_TVS = LAYOUT["crts"][:3] + [LAYOUT["bench"]] + LAYOUT["crts"][3:]
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
@@ -408,7 +412,7 @@ def crt(spec):
     cable([back, f(0.1, -0.27, -0.55)], r=0.006)
     return f
 
-for spec in LAYOUT["crts"]:
+for spec in BENCH_AND_STATION_TVS:
     crt(spec)
 
 def mug(p, mat="mug"):
@@ -528,7 +532,7 @@ cable([rf(0.1, 0.95, -0.2), rf(0.12, 0.3, -0.24), rf(0.0, 0.01, -0.3), (0.6, 0.0
 cable([rf(0.12, 0.95, -0.2), rf(0.14, 0.3, -0.25), rf(0.02, 0.012, -0.32), (0.6, 0.012, -1.45), (-0.1, 0.012, -1.7)], r=0.006, mat="blue")
 cable([(-0.05, 0.02, -1.74), (-0.6, 0.01, -1.3), (-1.2, 0.01, -0.6), (-1.6, DESK_Y - 0.05, -0.4)], r=0.006, mat="black", sag=-0.02)
 
-# workbench (Order Tracker): oscilloscope, soldering station, multimeter, tools, a lamp
+# workbench (the bench TV's): oscilloscope, soldering station, multimeter, tools, a lamp
 osc = frame((1.62, BENCH_Y, 0.3), -90)
 box("grey", osc(0, 0.12, 0), (0.34, 0.24, 0.3), yaw=-90, bevel=0.01)
 box("scope", osc(-0.05, 0.13, 0.151), (0.15, 0.11, 0.004), yaw=-90, bevel=0)
@@ -656,7 +660,7 @@ def point(p, energy, color, radius=0.02):
     l.energy, l.color, l.shadow_soft_size = energy, color, radius
 
 GREEN = (0.35, 1.0, 0.5)
-for spec in LAYOUT["crts"]:
+for spec in BENCH_AND_STATION_TVS:
     f = frame(spec["screen"], spec["yaw"])
     area(f(0, 0, 0.012), spec["yaw"], (0.44, 0.34), 0.55, GREEN)
 point(nf(0, 0.12, 0.16), 0.22, (1.0, 0.42, 0.1), radius=0.06)
@@ -710,7 +714,7 @@ if args.preview:
     cam.data.clip_start = 0.02
     scene.render.resolution_x, scene.render.resolution_y = 640, 360
     from mathutils import Vector
-    stops = [("overview-16x9", LAYOUT["overview"]), ("overview-16x10", LAYOUT["overview"])] + [(c["id"], c) for c in LAYOUT["crts"]]
+    stops = [("overview-16x9", LAYOUT["overview"]), ("overview-16x10", LAYOUT["overview"])] + [(c["id"], c) for c in BENCH_AND_STATION_TVS]
     for name, s in stops:
         cam.data.angle_y = math.radians(s.get("fov", 55))
         scene.render.resolution_y = 400 if name.endswith("16x10") else 360

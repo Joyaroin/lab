@@ -11,6 +11,11 @@ The language of this project: its terms, what each one means, and what it doesn'
   the camera follows the visit. Right is `next()` and Left is `prev()` (at the overview Right goes to Work and Left
   does nothing; in a flight they act on the stop being flown to; a key with a modifier is ignored). Nothing scrolls:
   the wheel never moves the camera (ADR 0005, spec #170).
+- **Bench TV**: the switched-off TV on the workbench, once Order Tracker's. It has no station, so it is not in
+  `crts` (one entry per station, in tour order); it is `bench` in `src/crts.ts`, from the `bench` key of
+  `src/room-layout.json`, and `tools/room/build.py` still places it. `Phosphor.tsx` draws its glass dark over the
+  baked lit glass. It has no title card, bezel layer, hover glow or click of its own: a click on it is a click on the
+  room. The overview shows it dark, and it is not counted among the five stations.
 - **TV click**: at the overview only, a TV takes a click and flies the visitor to its station, and a hover glow shows which
   one (`clickable` in `src/clickable.ts`, `easeGlow` in `src/glow.ts`). At a station or in flight no TV is clickable and no
   glow shows. At a station, a click on the room goes back to the overview: any press on the room that is not on that
@@ -51,7 +56,7 @@ The language of this project: its terms, what each one means, and what it doesn'
 - **Maker's plate**: the small metal label on a bezel's bottom left, with a made-up model number such as
   "HALDEN HX-101". One per TV.
 - **Sticky note**: the small coloured note at a bezel's top left, with a few words of its own and a tilt
-  that differs on each TV.
+  that differs on each TV, pinned to its station by id (`noteStyleFor` in `src/notes.ts`).
 - **Diagram**: a station's line drawing on its glass. It redraws facts already in that station's copy
   and adds none, and never reads as a live status or result. Contact has none. Most are a left-to-right
   chain of steps joined by hops; Work's is its timeline, made of segments, with no steps or hops.
