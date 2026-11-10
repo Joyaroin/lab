@@ -36,7 +36,28 @@ const TWO_LINE_H = ONE_ROW_H + LINK_ROW_H; // about 126
 const THREE_LINE_H = TWO_LINE_H + LINK_ROW_H; // about 162
 const PHONE_TOP = 96;
 
+// The compact HUD, for a short landscape window: name and title (with the outside links beside them where they fit),
+// then the stops row. Lines are COMPACT_LINE_H tall (the name's 24 px, a link's 18.2 px and 8 px of padding),
+// COMPACT_GAP apart. `COMPACT_TOP_W` is the width of the first line at 14 px on the Mac (ui-monospace), measured in
+// Chromium as 604.66, rounded up: name 132.03 + 8 + title 235.25 + 8 + the outside links 221.38 (Résumé 66.86, LinkedIn 83.66,
+// GitHub 66.86, each with ↗ right after the word, no space, 4 px padding each side, 2 px between them).
+// `COMPACT_SLACK` is room left at COMPACT_MIN_W for a wider fallback font (CI's Linux font is about 1 px wider here, other
+// devices more): 619 - 604.66 = 14.34 px on the Mac. A space before each ↗ would add 12 px.
+// Narrower than COMPACT_MIN_W the outside links take a line of their own, so three short lines.
+export const COMPACT_LINE_H = 27, COMPACT_GAP = 4;
+export const COMPACT_TOP_W = 605, COMPACT_SLACK = 14;
+/** From this width a short landscape window's HUD is two lines; narrower, three. */
+export const COMPACT_MIN_W = COMPACT_TOP_W + COMPACT_SLACK + 2 * HUD_MARGIN; // 655
+const COMPACT_TWO_H = HUD_MARGIN + 2 * COMPACT_LINE_H + COMPACT_GAP; // 76
+const COMPACT_THREE_H = HUD_MARGIN + 3 * COMPACT_LINE_H + 2 * COMPACT_GAP; // 107
+
+/** The least height (px) the glass and the text panel are given. Below it they stay this tall, so `clearances`
+ *  keeps the panel at this size or more by choosing the compact HUD first. `fitPanel` and `band()` (src/stop.ts) read it. */
+export const MIN_PANEL_H = 120;
+
 type Win = { width: number; height: number };
+
+export type HudTier = "phone" | "oneRow" | "twoLine" | "threeLine" | "compactTwo" | "compactThree";
 
 /** A portrait window is narrower than it is tall: the same test the framing makes. */
 const isPortrait = (win: Win) => win.width < win.height;
@@ -48,30 +69,69 @@ export function deviceSize(win: Win): { width: number; height: number } {
 }
 
 // The line under the device (the stop's line, or the gap's sentence at the overview): a line is 18 px of 14.4 px type
-// (16 px of 12.8 px type on a portrait window, so the phone keeps room for the text panel), with 4 px of padding above
-// and below, 10 px each side, and never wider than the window less 1 rem. Its longest text sets how many lines it
-// wraps to: the saved gap's sentence is about 85 characters, so one line on a desktop and two or three on a narrow
-// window. A monospace character is taken as 0.602 of the type's size.
-const LINE_PAD = 8, LINE_SIDE = 20, LINE_MARGIN = 16;
-const LONGEST_LINE = Math.max(
-  fill(ui.gapSaved, { gap: fill(ui.gapBehindAtLeast, { n: 99, noun: ui.deploys }) }).length,
-  ...stations.map((s, i) => fill(ui.stopLine, { label: `${s.worldLine}: ${s.name}`, n: i + 1, total: stations.length }).length),
-);
-/** The type of the line under the device (px): its size and line height. */
-export const lineType = (win: Win) => (isPortrait(win) ? { font: 12.8, lineHeight: 16 } : { font: 14.4, lineHeight: 18 });
-/** The height of the line under the device at this window (px): the lines its longest text wraps to. */
-export function lineHeight(win: Win): number {
-  const { font, lineHeight: lh } = lineType(win);
-  const lines = Math.max(1, Math.ceil((LONGEST_LINE * 0.602 * font) / (win.width - LINE_MARGIN - LINE_SIDE)));
-  return lines * lh + LINE_PAD;
+// (16 px of 12.8 px type on a portrait window and on a compact-HUD window, which are short of room), with 4 px of padding
+// above and below and 10 px each side. How many lines it wraps to is worked out from its texts, a monospace character
+// taken as 0.602 of the type's size, wrapped at spaces. The longest is the saved gap's sentence with a two-digit count,
+// 81 characters (a saved gap is always complete, so it never carries "at least"; the live "at least" sentence is shorter).
+// The box is never wider than the window less 1 rem, or, in a compact-HUD window, less the HUD's side margins: there
+// the line may run wider than the device so it stays one line. At 12.8 px the 81 characters need 81 x 0.602 x 12.8 + 20
+// = 644 px of box, so a compact window is one line from 644 + 2 x HUD_MARGIN = 680 px wide; narrower it wraps to two
+// lines, and the text panel may be shorter than MIN_PANEL_H there (Adham's decision on #246).
+const LINE_PAD = 8, LINE_SIDE = 20, LINE_MARGIN = 16, CHAR_EM = 0.602;
+const LINE_TEXTS = [
+  fill(ui.gapSaved, { gap: fill(ui.gapBehind, { n: 99, noun: ui.deploys }) }),
+  fill(ui.gapBehindAtLeast, { n: 100, noun: ui.deploys }),
+  ...stations.map((s, i) => fill(ui.stopLine, { label: `${s.worldLine}: ${s.name}`, n: i + 1, total: stations.length })),
+];
+/** The lines a text wraps to when `chars` characters fit on a line (words are not split unless one is longer than a line). */
+function wrapLines(text: string, chars: number): number {
+  let lines = 1, used = 0;
+  for (const word of text.split(" ")) {
+    if (used > 0 && used + 1 + word.length > chars) { lines++; used = 0; }
+    used += (used > 0 ? 1 : 0) + word.length;
+  }
+  return lines;
 }
+const SMALL_LINE = { font: 12.8, lineHeight: 16 }, BIG_LINE = { font: 14.4, lineHeight: 18 };
+
+/** The line under the device at this window, for the HUD tier it is given: its type, the box's widest and its height (px). */
+function lineMetrics(win: Win, compact: boolean) {
+  const type = isPortrait(win) || compact ? SMALL_LINE : BIG_LINE;
+  const maxWidth = compact ? win.width - 2 * HUD_MARGIN : win.width - LINE_MARGIN;
+  const chars = Math.floor((maxWidth - LINE_SIDE) / (CHAR_EM * type.font));
+  const lines = Math.max(...LINE_TEXTS.map((t) => wrapLines(t, chars)));
+  return { ...type, maxWidth, height: lines * type.lineHeight + LINE_PAD };
+}
+
+const isCompact = (win: Win) => hudTier(win).startsWith("compact");
+/** The type of the line under the device (px): its size and line height. */
+export const lineType = (win: Win) => { const { font, lineHeight } = lineMetrics(win, isCompact(win)); return { font, lineHeight }; };
+/** The widest the line under the device's box may be (px). */
+export const lineMaxWidth = (win: Win) => lineMetrics(win, isCompact(win)).maxWidth;
+/** The height of the line under the device at this window (px): the lines its longest text wraps to. */
+export const lineHeight = (win: Win) => lineMetrics(win, isCompact(win)).height;
+
+/** Which HUD a window gets: a pure rule of its size. On landscape the tier by width (one row, two lines, three), unless that tier
+ *  would leave the panel under MIN_PANEL_H (a short window, such as a phone held sideways): then the compact HUD, two lines from
+ *  COMPACT_MIN_W wide, three under it. The test uses the line under the device as the full HUD would have it; the compact HUD's
+ *  own line is shorter or the same. */
+export function hudTier(win: Win): HudTier {
+  if (isPortrait(win)) return "phone";
+  const [tier, h] = win.width >= ONE_ROW_MIN_W ? ["oneRow", ONE_ROW_H] as const : win.width >= TWO_LINE_MIN_W ? ["twoLine", TWO_LINE_H] as const : ["threeLine", THREE_LINE_H] as const;
+  if (win.height >= h + MIN_PANEL_H + deviceSize(win).height + 16 + lineMetrics(win, false).height) return tier;
+  return win.width >= COMPACT_MIN_W ? "compactTwo" : "compactThree";
+}
+
+const TOP: Record<HudTier, number> = {
+  phone: PHONE_TOP, oneRow: ONE_ROW_H, twoLine: TWO_LINE_H, threeLine: THREE_LINE_H, compactTwo: COMPACT_TWO_H, compactThree: COMPACT_THREE_H,
+};
 
 /** The room the HUD takes at the top and the meter bar (with the phone menu, on portrait) at the bottom. */
 export function clearances(win: Win): { top: number; bottom: number } {
   const device = deviceSize(win);
   if (isPortrait(win)) return { top: PHONE_TOP, bottom: PHONE_MENU_H + 16 + device.height + lineHeight(win) };
   // the line under the device, and the 1 rem under that
-  return { top: win.width >= ONE_ROW_MIN_W ? ONE_ROW_H : win.width >= TWO_LINE_MIN_W ? TWO_LINE_H : THREE_LINE_H, bottom: device.height + 16 + lineHeight(win) };
+  return { top: TOP[hudTier(win)], bottom: device.height + 16 + lineHeight(win) };
 }
 
 export type Fit = { left: number; top: number; width: number; maxHeight: number };
@@ -84,7 +144,7 @@ export type Fit = { left: number; top: number; width: number; maxHeight: number 
 export function fitPanel(win: { width: number; height: number }, cx: number, cy: number, crtWidth: number, panelHeight: number): Fit {
   const { top: topClear, bottom: bottomClear } = clearances(win);
   const width = Math.min(Math.max(crtWidth, 352), win.width - 2 * SIDE, 640);
-  const room = Math.max(120, win.height - topClear - bottomClear);
+  const room = Math.max(MIN_PANEL_H, win.height - topClear - bottomClear);
   const maxHeight = Math.min(room, win.height - 2 * SIDE);
   const h = Math.min(panelHeight, maxHeight);
   const left = Math.min(Math.max(cx - width / 2, SIDE), win.width - width - SIDE);

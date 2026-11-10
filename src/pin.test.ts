@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { stations } from "./content";
 import {
-  BUTTON_PX, clearances, deviceSize, lineHeight, fitPanel, glassFontSize, HUD_GAP, HUD_MARGIN, LINK_ROW_H, LINK_ROW_W, NAME_BLOCK_H, NAME_BLOCK_W,
-  ONE_ROW_MIN_W, PHONE_MENU_H, TWO_LINE_MIN_W,
+  BUTTON_PX, clearances, COMPACT_GAP, COMPACT_LINE_H, COMPACT_MIN_W, COMPACT_SLACK, COMPACT_TOP_W, deviceSize, fitPanel, glassFontSize, HUD_GAP, HUD_MARGIN,
+  hudTier, lineHeight, lineMaxWidth, lineType, LINK_ROW_H, LINK_ROW_W, MIN_PANEL_H, NAME_BLOCK_H, NAME_BLOCK_W, ONE_ROW_MIN_W, PHONE_MENU_H, TWO_LINE_MIN_W,
 } from "./pin";
 
 // fitPanel only places text pinned beside the CRT, which only a portrait window does (src/framing).
@@ -92,12 +92,24 @@ describe("clearances", () => {
       expect(clearances(win).bottom).toBeCloseTo(deviceSize(win).height + 42, 6);
     }
   });
-  it("the line under the device is 26 px on one line and grows 18 px (16 px on portrait) for each line it wraps to", () => {
+  it("the line under the device is 26 px on one line and grows 18 px (16 px in the smaller type) for each line it wraps to", () => {
     expect(lineHeight({ width: 1440, height: 900 })).toBe(26);
     expect(lineHeight({ width: 1024, height: 768 })).toBe(26);
     expect(lineHeight({ width: 700, height: 500 }), "the longest sentence wraps to two lines at 700 px").toBe(44);
     expect(lineHeight({ width: 390, height: 844 }), "and on a phone, in smaller type, to two").toBe(40);
-    expect(lineHeight({ width: 360, height: 740 }), "or three on a narrow one").toBe(56);
+    expect(lineHeight({ width: 360, height: 740 }), "also at 360 on a phone, where the real longest text (81 characters) wraps to two").toBe(40);
+  });
+  it("on a short landscape window (the compact HUD) the line is 12.8 px type up to the HUD's side margins: one line from 681 px wide, two under that", () => {
+    for (const [width, height] of [[740, 360], [820, 360], [681, 360], [900, 400]]) {
+      const win = { width, height };
+      expect(hudTier(win), `${width}x${height}`).toMatch(/compact/);
+      expect(lineType(win), `${width}x${height}`).toEqual({ font: 12.8, lineHeight: 16 });
+      expect(lineMaxWidth(win), `${width}x${height}`).toBe(width - 2 * HUD_MARGIN);
+      expect(lineHeight(win), `${width}x${height} is one line`).toBe(24);
+    }
+    for (const [width, height] of [[680, 360], [667, 375], [560, 400]]) expect(lineHeight({ width, height }), `${width}x${height} wraps to two`).toBe(40);
+    expect(lineMaxWidth({ width: 1440, height: 900 }), "a full HUD's line stays within the window less 1 rem").toBe(1440 - 16);
+    expect(lineType({ width: 1440, height: 900 })).toEqual({ font: 14.4, lineHeight: 18 });
   });
   it("on portrait the bottom is the menu, 16, the device and the line", () => {
     const win = { width: 390, height: 844 };
@@ -133,6 +145,50 @@ describe("clearances", () => {
   it("TWO_LINE_MIN_W is worked out from the link row's box and both margins: under it the row wraps as two whole groups", () => {
     expect(TWO_LINE_MIN_W).toBe(LINK_ROW_W + 2 * HUD_MARGIN);
     expect(TWO_LINE_MIN_W).toBeLessThan(1024); // so 1024 x 768 keeps the two-line HUD
+  });
+  it("on a short landscape window the HUD is compact: two lines from COMPACT_MIN_W wide, three under it, with the top clearance they need", () => {
+    const two = HUD_MARGIN + 2 * COMPACT_LINE_H + COMPACT_GAP, three = HUD_MARGIN + 3 * COMPACT_LINE_H + 2 * COMPACT_GAP;
+    expect(two).toBeLessThanOrEqual(80); // about 78
+    expect(three).toBeLessThanOrEqual(110); // about 108
+    for (const [width, height] of [[667, 375], [740, 360], [COMPACT_MIN_W, 400]]) {
+      expect(hudTier({ width, height }), `${width}x${height}`).toBe("compactTwo");
+      expect(clearances({ width, height }).top, `${width}x${height}`).toBe(two);
+    }
+    for (const [width, height] of [[560, 400], [COMPACT_MIN_W - 1, 400], [500, 380]]) {
+      expect(hudTier({ width, height }), `${width}x${height}`).toBe("compactThree");
+      expect(clearances({ width, height }).top, `${width}x${height}`).toBe(three);
+    }
+  });
+  it("the compact HUD is picked when the width's tier would leave the panel under its floor, and not before", () => {
+    const tiers = [[1440, 900], [1280, 800], [1024, 768], [800, 600], [700, 500], [835, 470], [896, 414], [640, 480]];
+    for (const [width, height] of tiers) expect(hudTier({ width, height }), `${width}x${height}`).not.toMatch(/compact/);
+    // the limit for each width's tier: its top, the panel's floor and the bottom clearance
+    // and the line under the device as the full HUD has it: 44 px (two lines) at 700 wide, 26 px (one) at 1024 and 1440
+    for (const [width, top, line] of [[700, 162, 44], [1024, 126, 26], [1440, 90, 26]]) {
+      const limit = top + MIN_PANEL_H + deviceSize({ width, height: 300 }).height + 16 + line; // landscape at any height
+      expect(hudTier({ width, height: Math.ceil(limit) }), `${width} at ${limit}`).not.toMatch(/compact/);
+      expect(hudTier({ width, height: Math.ceil(limit) - 1 }), `${width} at ${limit - 1}`).toMatch(/compact/);
+    }
+    expect(hudTier({ width: 700, height: 500 })).toBe("threeLine");
+    expect(hudTier({ width: 390, height: 844 })).toBe("phone"); // a portrait window never goes compact
+  });
+  it("the compact tiers leave the panel at least its floor at the sizes they are for, and the glass above the device", () => {
+    for (const [width, height] of [[667, 375], [740, 360], [820, 360]]) {
+      const win = { width, height }, c = clearances(win);
+      expect(height - c.top - c.bottom, `${width}x${height}`).toBeGreaterThanOrEqual(MIN_PANEL_H);
+    }
+  });
+  it("the narrow, short window 560x400, where the line under the device wraps to two lines, leaves the panel under its floor by under 2 px", () => {
+    const c = clearances({ width: 560, height: 400 }), room = 400 - c.top - c.bottom;
+    expect(room).toBeLessThan(MIN_PANEL_H);
+    expect(room).toBeGreaterThan(MIN_PANEL_H - 2);
+  });
+  it("COMPACT_MIN_W is the width of the compact first line, its slack for wider fonts and both margins", () => {
+    expect(COMPACT_MIN_W).toBe(COMPACT_TOP_W + COMPACT_SLACK + 2 * HUD_MARGIN);
+    expect(COMPACT_MIN_W).toBe(655);
+    expect(COMPACT_SLACK).toBeGreaterThanOrEqual(12);
+    expect(COMPACT_MIN_W).toBeLessThanOrEqual(667); // a phone held sideways is two lines
+    expect(COMPACT_MIN_W).toBeGreaterThan(560);
   });
   it("the phone menu's height comes from the button, gap, padding and rows", () => {
     expect(BUTTON_PX).toBe(44);

@@ -80,7 +80,7 @@ The language of this project: its terms, what each one means, and what it doesn'
   next. It is a display in the room only: the meter bar's digits do not depend on whether it is in frame.
 - **Meter bar**: the bar under the room, drawn as the **device**: the meter layers put together (below) at the size
   `deviceSize(win)` in `src/pin.ts` gives (420 px wide at 1920 x 1080, 417.6 at 1440 x 900, 280 on a phone), with the
-  reading's digits as lit numerals over the tubes, the keys over their drawn keys, and the line under it (its height, which wraps on a narrow window, is `lineHeight(win)` in `src/pin.ts`, part of the bottom clearance). The line is the
+  reading's digits as lit numerals over the tubes, the keys over their drawn keys, and the line under it (its height is `lineHeight(win)` in `src/pin.ts`, part of the bottom clearance, and the bottom clearance's `hudTier` test uses it too). The line is 14.4 px type, 12.8 px on a portrait window and on a short landscape window (the compact HUD). On a compact window its box may run wider than the device, up to the HUD's side margins (`HUD_MARGIN`; `lineMaxWidth(win)`), so the longest text (the saved gap's sentence, 81 characters) is one line from 681 px wide; narrower, on a short window (560 x 400), it wraps to two and the text panel may stand under `MIN_PANEL_H` there, by about 2 px (Adham's decision on #246). Elsewhere the box is at most the window less 1 rem. The line is the
   gap's sentence at the overview and, at a station, `ui.stopLine` filled in ("World line 02: MediaSafe · 2 of 5"; the
   total is the number of stations in the content module). The bar itself takes no click: only the keys do. In a flight
   it shows the stop being flown to (keys, line and digits). What it shows is one pure rule, `barFor(where, framing)` in
@@ -116,13 +116,20 @@ The language of this project: its terms, what each one means, and what it doesn'
   stations, a divider, the outside links. Narrower, the row moves to its own line under the name block, and under
   `TWO_LINE_MIN_W` (the link row's box plus both margins, 836 px) it wraps as two whole groups (stations, then outside
   links), a third line; no row holds a single link, which holds down to about 540 px wide, the stations group and both
-  margins (narrower, the groups overflow rather than split). On a portrait window the
+  margins (narrower, the groups overflow rather than split). On a short landscape window (a phone held sideways) the HUD
+  goes **compact**: no availability line, 14 px text. From `COMPACT_MIN_W` (655 px wide) two lines: the name, the title and the
+  outside links, then Room and the stations; narrower, three: the name and title, the outside links, the stops. A window is
+  short when its width's tier would leave the panel under `MIN_PANEL_H` (120 px): `height < tier top + 120 + bottom clearance` (the bottom as the full HUD has it)
+  (`hudTier(win)` in `src/pin.ts`, a pure rule of the window): about 461 px under 739 wide (the line under the device wraps to two lines), 443 at 739 to 835, 407 at 836 to 965, about 445 at
+  1279. The compact tops are 76 px (two lines) and 107 px (three), from `COMPACT_LINE_H` and `COMPACT_GAP`; with them the glass and
+  the panel stay above the device down to about 355 px tall (two lines) and 402 px (three, where the line under the device is two lines), under which `MIN_PANEL_H` holds them
+  at 120 px and they reach the meter. On a portrait window the
   name block spans the top with the name, title and outside links (no availability line), and Room and the stations are a
   bottom menu, three to a row, in buttons at least 44 px tall; the meter bar rises above it. All HUD text is at least 14 px.
   The current stop's link differs in weight and background as well as in `aria-current`; during a flight none is marked. The
   name block fits `NAME_BLOCK_W`, the link row `LINK_ROW_W` x `LINK_ROW_H`, and the HUD is no taller than the top
-  clearance (`clearances(win).top`, all in `src/pin.ts`): three tiers on landscape, the one-row HUD's height (90 px), the
-  two-line HUD's (126 px) from `TWO_LINE_MIN_W`, and the three-line HUD's (162 px) under it, each worked out from the boxes. A hint line 8 px above the bottom clearance tells the visitor what to
+  clearance (`clearances(win).top`, all in `src/pin.ts`): on landscape the one-row HUD's height (90 px), the
+  two-line HUD's (126 px) from `TWO_LINE_MIN_W`, the three-line HUD's (162 px) under it, or the compact HUD's, each worked out from the boxes. A hint line 8 px above the bottom clearance tells the visitor what to
   click; it fades after the first landing at a station and stays gone.
 - **Phone stop**: a station's own camera stop, look point and text pin used on a portrait window instead of
   the pulled-back view, where that view would be mostly dark. Only MediaSafe and Software factory have one.
@@ -130,7 +137,7 @@ The language of this project: its terms, what each one means, and what it doesn'
   at least as wide as tall): each station's own square stop, worked out from the window; the text is laid
   over the glass; no mouse parallax at a station. **Portrait** (taller than wide): the pull-back, or the phone
   stop where a station has one; the text pinned beside the CRT; full parallax. Chosen from the current
-  window each time, so rotating or resizing switches it. In code: `framingFor(window)` in `src/framing`.
+  window each time, so rotating or resizing switches it. In code: `framingFor(window)` in `src/framing`. On a short landscape window the text panel and glass keep at least `MIN_PANEL_H` between the HUD and the meter bar, which the compact HUD tiers and the one-line text under the device make room for; the exception is a narrow, short window (under about 680 px wide) where that line wraps.
 - **Where**: where the visitor is, as a value: at a stop (0 is the overview, 1..n a station), or flying from one stop
   to another with `f`, the share of the flight done. `visit.where(now)` gives it; the framing and the text's
   strength take it.
@@ -190,7 +197,7 @@ get a folder; the rest are still flat files in `src/`.
 - **`src/framing/`**: the framing. `framingFor({ width, height })` picks Square or Portrait, and is called with
   the current window each time. The framing answers `cameraAt(where, launch)` (camera, look and field of view; a flying Where is `flightPose` from the launch pose to the stop),
   `textOnGlass(where, station)`, `parallaxStrength(where)` and `panelPoint(crt)`, each taking a **Where**; nothing else decides
-  the portrait split. The tour module (`src/tour.ts`) keeps `readingAt(where, gap)` and the mouse `parallax`; `panelStrength(where, station)` in `src/hold.ts` takes a Where. The room the HUD and the meter bar take is one pure rule of the window in `src/pin.ts` (`clearances`, with `deviceSize`); the camera's stop and the text panel both read it, and on a portrait window the panel takes all the free height. On a landscape window its top is one of three tiers by width (one row, two lines, and under `TWO_LINE_MIN_W` three lines, as the HUD entry says), so the stop and the panel clear the HUD at 800 px wide as at 1440.
+  the portrait split. The tour module (`src/tour.ts`) keeps `readingAt(where, gap)` and the mouse `parallax`; `panelStrength(where, station)` in `src/hold.ts` takes a Where. The room the HUD and the meter bar take is one pure rule of the window in `src/pin.ts` (`clearances`, with `deviceSize`); the camera's stop and the text panel both read it, and on a portrait window the panel takes all the free height. On a landscape window its top is one of five tiers (one row, two lines, and under `TWO_LINE_MIN_W` three lines, by width; or the compact two or three lines on a short window, by height as well, as the HUD entry says), so the stop and the panel clear the HUD at 800 px wide as at 1440 and at 667 x 375, and the glass is always above the device wherever the window is tall enough for `MIN_PANEL_H`.
 - **`src/content.ts`**: all copy in the app: station text, links, the bezel and timeline words, and `ui`, the
   rest of what visitors see or hear (HUD, meter aria labels, boot log, signal lost, the gap's sentence).
   Templates take `{name}` placeholders through `fill`. Components hold none of it; a test fails if a `ui`
@@ -203,8 +210,10 @@ get a folder; the rest are still flat files in `src/`.
   the first time at once with 0 s and then on each requested frame, until `step` returns true; it returns a function
   that stops it. Its clock and frame scheduler are `opts.now`, `opts.request` and `opts.cancel`, defaulting to
   `performance.now`, `requestAnimationFrame` and `cancelAnimationFrame`; `opts.onStart` gets the clock reading the loop
-  counts from. `useTear` (`src/TearView.tsx`) and `useShifted` (`src/Meter.tsx`) run on it. Its timing is tested in
+  counts from. `useTear` (`src/TearView.tsx`, through `playTear` in `src/tear-draw.ts`) and `useShifted` (`src/Meter.tsx`) run on it. Its timing is tested in
   `src/frames.test.ts` with a fake clock and a fake frame scheduler.
 - **`src/tear.ts`** and **`tests/lib/snap.ts`**: the flash count takes the snap back from `snapBackMs` in
   `src/tear.ts` (where the slip reaches 0), and the browser specs watch for it with `tests/lib/snap.ts`
-  (changed by ddf9420), not for the filter coming off.
+  (changed by ddf9420), not for the filter coming off. `playTear` (`src/tear-draw.ts`) writes displacement scale 0
+  and edge 0 on its last step, before it takes the filter off, so a frame that steps from slip > 0 straight to done
+  still leaves the snap back on record; `src/tear-draw.test.ts` tests it with a fake clock.

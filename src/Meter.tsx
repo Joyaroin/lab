@@ -8,7 +8,7 @@ import { deviceLit, deviceOpacity, watchPowerOn } from "./meter-power";
 import { deviceLayers, type Placed } from "./meter-device";
 import { DEVICE as SIZE, TUBES, LAYERS } from "./meter-layers";
 import { meterUrl, preloadMeterImages, useMeterImages } from "./meter-images";
-import { deviceSize, lineType } from "./pin";
+import { deviceSize, lineMaxWidth, lineType } from "./pin";
 import { useWin } from "./useWin";
 
 /** The digits the bar shows: the reading, except for a moment while a shift scrambles them. Frames
@@ -106,7 +106,7 @@ export function Meter({ reading, label, keys, live, pending = false, shift, powe
             );
           })}
         </div>
-        {line({ ...deviceLine, fontSize: type.font, lineHeight: `${type.lineHeight}px` })}
+        {line({ ...deviceLine, fontSize: type.font, lineHeight: `${type.lineHeight}px`, maxWidth: lineMaxWidth(win) })}
       </div>
     );
   }
@@ -181,7 +181,7 @@ const deviceBar: CSSProperties = {
   display: "flex", flexDirection: "column", alignItems: "center",
 };
 const deviceLine: CSSProperties = {
-  boxSizing: "border-box", padding: "4px 10px", maxWidth: "calc(100vw - 1rem)", background: "rgba(5,8,10,0.72)", borderRadius: 6,
+  boxSizing: "border-box", padding: "4px 10px", background: "rgba(5,8,10,0.72)", borderRadius: 6,
 };
 const keyRow: CSSProperties = { display: "flex", justifyContent: "center", gap: "0.5rem", marginTop: "0.35rem" };
 const key: CSSProperties = {
