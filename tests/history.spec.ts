@@ -13,24 +13,29 @@ test("clicking Work makes the address #work; back is the overview, forward is Wo
   await clickLink(page, 1);
   await landedAt(page, 1);
   expect(at(page)).toBe("#work");
+  await expect(page).toHaveTitle("Work · Adham Sedik");
   await page.goBack();
   await landedAt(page, 0);
   expect(at(page)).toBe("");
+  await expect(page).toHaveTitle("Adham Sedik · Lab");
   await page.goForward();
   await landedAt(page, 1);
   expect(at(page)).toBe("#work");
+  await expect(page).toHaveTitle("Work · Adham Sedik");
 });
 
 test("opening /#work lands on Work with its text showing and the camera still; back goes to the overview", async ({ page }) => {
   await page.goto("/#work");
   await expect(page.getByLabel("Boot log")).toBeHidden();
   await landedAt(page, 1);
+  await expect(page).toHaveTitle("Work · Adham Sedik");
   await expect(panelOf(page, "work")).toBeVisible();
   const a = await readCamera(page);
   await page.waitForTimeout(500);
   expect(await readCamera(page), "no flight").toEqual(a);
   await page.goBack();
   await landedAt(page, 0);
+  await expect(page).toHaveTitle("Adham Sedik · Lab");
   expect(new URL(page.url()).pathname).toBe("/");
   expect(at(page)).toBe("");
   await expect(panelOf(page, "work")).toBeHidden();

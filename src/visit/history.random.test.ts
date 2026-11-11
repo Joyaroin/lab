@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createVisit, FADE_MS, FLIGHT_MS } from "./visit";
 import { linkHistory, type HistoryHost } from "./history";
 import { STATION_COUNT } from "../hold";
-import { hashForStop, stopForHash } from "./route";
+import { hashForStop, stopForHash, titleForStop } from "./route";
 
 /** The visit and history modules over a fake clock and a fake history stack, driven by presses. */
 type Op =
@@ -15,6 +15,7 @@ function rig(reduced: boolean, startHash = "") {
   let i = 0;
   let clock = 0;
   let pop: () => void = () => {};
+  const doc = { title: "Adham Sedik · Lab" } as Document; // the page starts on its page title
   // Opening a direct link: the page starts on that entry.
   if (startHash) stack[0] = startHash;
   const host: HistoryHost = {
@@ -23,6 +24,7 @@ function rig(reduced: boolean, startHash = "") {
       replaceState: (_s, _t, url) => { stack[i] = String(url); },
     },
     location: { get hash() { return stack[i] === "./" ? "" : stack[i]; } } as Location,
+    document: doc,
     addEventListener: (_t, l) => { pop = l; },
     removeEventListener: () => {},
   };
@@ -32,7 +34,7 @@ function rig(reduced: boolean, startHash = "") {
   visit.subscribe((e) => { if (e.type === "move" && e.from.kind === "at" && e.from.stop !== e.to) stops.push(clock); });
   const urlStop = () => stopForHash(stack[i] === "./" ? "" : stack[i]);
   return {
-    visit, stack, stops, urlStop, index: () => i,
+    visit, stack, stops, urlStop, title: () => doc.title, index: () => i,
     advance(ms: number) { clock += ms; visit.where(clock); },
     press(op: Op) {
       if (op[0] === "go") visit.go(op[1]);
@@ -57,6 +59,7 @@ function check(steps: Step[], reduced: boolean, startHash = ""): string | null {
   if (at !== asked) return `visitor ${at}, the last press asked for ${asked}`;
   if (at !== r.visit.target()) return `visitor ${at} vs target ${r.visit.target()}`;
   if (r.urlStop() !== at) return `URL shows ${r.urlStop()} (${r.stack[r.index()]}), visitor at ${at}`;
+  if (r.title() !== titleForStop(at)) return `title "${r.title()}", visitor at ${at}`;
   if (r.stack[0] !== "./" && !startHash) return `entry 0 is ${r.stack[0]}`;
   // Back from here reaches the overview without leaving the site, whatever happened.
   let guard = 0;

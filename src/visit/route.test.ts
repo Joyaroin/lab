@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { stations } from "../content";
-import { hashForStop, stopForHash } from "./route";
+import { identity, stations } from "../content";
+import { hashForStop, stopForHash, titleForStop } from "./route";
 
 describe("route", () => {
   it("a station's hash is its stop, and back", () => {
@@ -18,5 +18,12 @@ describe("route", () => {
   });
   it("the overview has no hash", () => {
     expect(hashForStop(0)).toBe("");
+  });
+  it("a station's tab title names the station and the visitor; the overview's is the page title", () => {
+    expect(titleForStop(1)).toBe("Work · Adham Sedik");
+    expect(titleForStop(3)).toBe("Home lab · Adham Sedik");
+    expect(titleForStop(0)).toBe(identity.pageTitle);
+    expect(titleForStop(0)).toBe("Adham Sedik · Lab");
+    stations.forEach((s, i) => expect(titleForStop(i + 1)).toBe(`${s.name} · ${identity.name}`));
   });
 });

@@ -87,12 +87,15 @@ export const ui = {
   nextStation: "Next station",
   startTour: "Start the tour",
   stopLine: "{label} · {n} of {total}",
+  /** the tab title at a station */
+  stationTitle: "{station} · {name}",
 };
 /** The placeholders each template must keep. */
 const PLACEHOLDERS: Record<string, string[]> = {
   meterReading: ["digits"], gapBehind: ["n", "noun"], gapBehindAtLeast: ["n", "noun"],
   gapBehindShort: ["n", "noun"], gapBehindAtLeastShort: ["n", "noun"],
   gapSaved: ["gap"], stopLine: ["label", "n", "total"], logDone: ["step"], logPending: ["step"], signalLostReason: ["reason"],
+  stationTitle: ["station", "name"],
 };
 export const fill = (template: string, values: Record<string, string | number>) =>
   template.replace(/\{(\w+)\}/g, (m, k) => (k in values ? String(values[k]) : m));
@@ -205,7 +208,7 @@ export const content: Content = {
       body: [
         "I plan a feature with an orchestrator agent, which cuts it into small tickets. Builder agents write each ticket test-first on my Mac and open a pull request.",
         "Every PR runs full CI on my own runner. Then a fresh reviewer agent decides whether it merges by itself, needs me, or goes back for a rebuild.",
-        "This site has 90+ merged pull requests since 5 November 2026. Production moves only when I promote it.",
+        "This site has 100+ merged pull requests since 5 November 2026. Production moves only when I promote it.",
       ],
       diagram: {
         description: "I plan, agents build each ticket and open a PR, a reviewer agent decides, and it merges.",
