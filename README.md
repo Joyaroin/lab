@@ -50,3 +50,7 @@ and writes the layers to `src/assets/meter/`. Run it on the Mac, through `heavy`
 grain uses a fixed seed, so rendering again at the same commit writes the same files. `src/meter-layers.ts` lists
 the layers with their places and sizes on the 840 px wide device. The key words come from `src/content.ts`, so a
 change to one means rendering again. The images are committed (ADR-0006), and CI never runs it.
+
+## Building the résumé
+
+`make resume` builds `public/resume.pdf` from `resume/resume.tex` with [tectonic](https://tectonic-typesetting.github.io/). Run it on the Mac: the first run downloads a TeX bundle, so it needs the network. The PDF is committed, and CI never runs it. The résumé must stay one page: check with `pdfinfo public/resume.pdf`, which shows `Pages: 1`. If the text spills, tighten spacing (margins, gaps between sections) before changing words. The source holds no phone number, and `src/resume.test.ts` checks that.

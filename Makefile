@@ -1,5 +1,5 @@
 # CI runs these.
-.PHONY: room meter setup frontend backend integration browser browser-light facts
+.PHONY: room meter resume setup frontend backend integration browser browser-light facts
 room:
 	blender -b -P tools/room/build.py -- --out src/assets/room.glb
 	blender -b -P tools/room/resize.py -- src/assets/room.glb --size 2048
@@ -30,3 +30,8 @@ endif
 # The browser recipe without the timing and heavy-rendering tests. CI runs the full suite.
 browser-light:
 	$(MAKE) browser PW_ARGS='--grep-invert "@timing|@render" $(PW_ARGS)'
+# Builds public/resume.pdf from resume/resume.tex with tectonic. Run on the Mac; the first run downloads a TeX bundle, so it needs the network. CI does not run it.
+resume:
+	cd resume && tectonic resume.tex --outdir .
+	cp -f resume/resume.pdf public/resume.pdf
+	rm -f resume/resume.pdf

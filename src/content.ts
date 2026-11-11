@@ -238,7 +238,7 @@ export const { identity, links, stations } = content;
 // A run of digits and separators holding 10 or more digits: 613-555-0142, (613) 555 0142,
 // +1 613 555 0142, 6135550142. Years like "2024-2025" have only 8 digits and pass.
 const PHONE_RUN = /\+?\d[\d\s().-]{8,}\d/g;
-const hasPhoneNumber = (s: string) =>
+export const hasPhoneNumber = (s: string) =>
   (s.match(PHONE_RUN) ?? []).some((run) => run.replace(/\D/g, "").length >= 10);
 
 const IPV4 = /(?<![\d.])(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?![\d.]*\d)/g;
