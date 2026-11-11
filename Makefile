@@ -1,5 +1,5 @@
 # CI runs these.
-.PHONY: room meter resume og-image setup frontend backend integration browser browser-light facts
+.PHONY: room meter resume og-image favicon setup frontend backend integration browser browser-light facts
 room:
 	blender -b -P tools/room/build.py -- --out src/assets/room.glb
 	blender -b -P tools/room/resize.py -- src/assets/room.glb --size 2048
@@ -38,3 +38,6 @@ resume:
 # Takes public/og-image.png, the link preview image, with a local browser that has WebGL. Run on purpose, through heavy, on the Mac. CI does not run it.
 og-image:
 	node tools/og-image.mjs
+# Makes public/favicon.png and public/apple-touch-icon.png from the meter's committed images. Run on purpose, through heavy, on the Mac. Run it again after make meter. CI does not run it.
+favicon:
+	node tools/favicon.mjs

@@ -19,7 +19,9 @@ function walk(dir) {
 
 export function checkBudget(dir, budgets = BUDGETS) {
   const html = join(dir, "index.html");
-  const refs = [...readFileSync(html, "utf8").matchAll(/(?:src|href)="\/([^"]+)"/g)]
+  // Icons don't hold up the first paint, so rel="icon" and rel="apple-touch-icon" links aren't counted.
+  const page = readFileSync(html, "utf8").replace(/<link\b[^>]*\brel="(?:icon|apple-touch-icon)"[^>]*>/g, "");
+  const refs = [...page.matchAll(/(?:src|href)="\/([^"]+)"/g)]
     .map((m) => join(dir, m[1]))
     .filter((p) => existsSync(p));
   const first = [html, ...refs].reduce((n, f) => n + gz(f), 0);

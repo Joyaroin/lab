@@ -36,6 +36,19 @@ describe("checkBudget", () => {
   });
 });
 
+describe("icon links", () => {
+  it("do not count toward the first screen", () => {
+    const head = '<link rel="icon" type="image/png" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">';
+    const dir = site({ "index.html": head + html("a.js"), "assets/a.js": "x", "favicon.png": randomBytes(5000), "apple-touch-icon.png": randomBytes(5000) });
+    const r = checkBudget(dir, { firstScreen: 1000, total: 100000 });
+    expect(r.ok).toBe(true);
+  });
+  it("leave other links counted", () => {
+    const dir = site({ "index.html": '<link rel="stylesheet" href="/a.css">' + html("a.js"), "assets/a.js": "x", "a.css": randomBytes(5000) });
+    expect(checkBudget(dir, { firstScreen: 1000, total: 100000 }).ok).toBe(false);
+  });
+});
+
 describe("the budgets themselves", () => {
   // Written out, so a change to the limits (which the spec says to ask about first) fails here.
   it("are about 100 KB for the first screen and 15 MB for the whole site, in gzip bytes", async () => {
