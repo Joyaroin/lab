@@ -1,5 +1,5 @@
 # CI runs these.
-.PHONY: room meter resume setup frontend backend integration browser browser-light facts
+.PHONY: room meter resume og-image setup frontend backend integration browser browser-light facts
 room:
 	blender -b -P tools/room/build.py -- --out src/assets/room.glb
 	blender -b -P tools/room/resize.py -- src/assets/room.glb --size 2048
@@ -35,3 +35,6 @@ resume:
 	cd resume && tectonic resume.tex --outdir .
 	cp -f resume/resume.pdf public/resume.pdf
 	rm -f resume/resume.pdf
+# Takes public/og-image.png, the link preview image, with a local browser that has WebGL. Run on purpose, through heavy, on the Mac. CI does not run it.
+og-image:
+	node tools/og-image.mjs
