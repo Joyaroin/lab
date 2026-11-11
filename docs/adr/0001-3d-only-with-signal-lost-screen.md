@@ -7,3 +7,6 @@ asking him.
 
 Three things limit the damage and are not optional: text on the screens is real HTML, the HUD always
 reaches the résumé and contact links, and the signal lost screen appears when 3D can't start.
+
+The page's HTML carries the station text before boot, for search engines and link previews. It is
+hidden and replaced at boot, and it is not a fallback site: the rule above stands.

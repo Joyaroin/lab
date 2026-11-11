@@ -24,6 +24,10 @@ try {
   const script = html.match(/src="(\/assets\/[^"]+\.js)"/)?.[1];
   assert.ok(script, "index.html references a script");
   assert.equal((await fetch(base + script)).status, 200);
+  // The build writes the head tags and the stations' text into the page, so they are there before any script runs.
+  assert.match(html, /<meta name="description" content="Adham Sedik, Software &amp; Platform Engineer\./);
+  assert.match(html, /<link rel="canonical" href="https:\/\/lab\.mediasafe\.space\/"/);
+  assert.match(html, /<h2>[^<]+<\/h2>/, "index.html carries a station's heading");
   console.log("integration ok");
 } finally {
   server.close();

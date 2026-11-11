@@ -20,8 +20,22 @@ const hud = (page: Page) => page.getByRole("navigation", { name: "HUD" });
 test("name and title are in the HTML before the script runs", async ({ page }) => {
   await page.route("**/assets/*.js", (r) => r.abort());
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Adham Sedik" })).toBeVisible();
-  await expect(page.getByText("Software & Platform Engineer")).toBeVisible();
+  await expect(page.getByRole("heading", { name: identity.name, exact: true })).toBeVisible();
+  await expect(page.getByText(identity.title, { exact: true })).toBeVisible();
+  // The stations' text is in the DOM, in a 1x1 px box (not display:none, which crawlers may skip).
+  await expect(page.getByRole("heading", { name: stations[0].heading, exact: true })).toBeAttached();
+  const block = page.locator("#root > div");
+  const box = await block.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { w: r.width, h: r.height };
+  });
+  expect(box.w).toBeLessThanOrEqual(1);
+  expect(box.h).toBeLessThanOrEqual(1);
+  // Tab never lands on a link in the block.
+  for (let i = 0; i < 5; i++) {
+    await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => !!document.activeElement?.closest("#root > div"))).toBe(false);
+  }
 });
 
 test("room starts and boot screen goes away", async ({ page }) => {

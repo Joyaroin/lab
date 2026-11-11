@@ -220,8 +220,10 @@ get a folder; the rest are still flat files in `src/`.
 - **`src/content.ts`**: all copy in the app: station text, links, the bezel and timeline words, and `ui`, the
   rest of what visitors see or hear (HUD, meter aria labels, boot log, signal lost, the gap's sentence).
   Templates take `{name}` placeholders through `fill`. Components hold none of it; a test fails if a `ui`
-  word turns up quoted in other `src` code. `validateContent` covers every key. Only the name, title and page
-  title are also in `index.html`, so they show before the script runs; a test checks they match. Failure
+  word turns up quoted in other `src` code. `validateContent` covers every key. The build writes the page from it
+  (`src/page-html.ts`, applied by a Vite plugin in dev and build): the head tags, and in `#root` the name and title
+  (visible) and every station's text (visually hidden), so they are in the HTML before the script runs and the
+  boot replaces them. Nothing is hand-kept in `index.html`. Failure
   codes such as `no-webgl` and the other identifiers stay in code: they are ids, not copy.
 - The tour view (`TourView.tsx`) reports the visit to the shift and the HUD, and renders. The HUD (`Hud.tsx`) has the links: stations fly, Room goes back. The meter bar (`Meter.tsx`) has the keys, and the arrow keys are heard in `TourView.tsx`. The room (`Room.tsx`, and the overlays `DeskMeter.tsx`, `Phosphor.tsx`, `Bezels.tsx`, `Rain.tsx`, `TvTargets.tsx`, `RoomClick.tsx`, with `draw.ts` for what they share) draws the
   scene and the desk meter. `card.ts` draws the phosphor screen and title card on each glass, and `glass.ts` projects a glass to window pixels. `theme.css`, imported by `src/main.tsx`, is the focus ring and the boot progress bar's colours. The nixie module (`nixie.ts`) is the meter's digits and power-on; `meter-power.ts` is how lit the bar's device is through it.

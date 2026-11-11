@@ -3,26 +3,19 @@ import { readFileSync } from "node:fs";
 import { identity } from "./content";
 import { readdirSync } from "node:fs";
 
-// index.html keeps the name, title and page title so they show before any script runs.
-const html = readFileSync("index.html", "utf8");
-const escaped = (s: string) => s.replace(/&/g, "&amp;");
-describe("index.html matches content", () => {
-  const root = html.slice(html.indexOf('<div id="root">'), html.indexOf("<script"));
-  it("shows the name in the heading", () => {
-    expect(root).toContain(`>${escaped(identity.name)}</h1>`);
-  });
-  it("shows the title under it", () => {
-    expect(root).toContain(`>${escaped(identity.title)}</p>`);
-  });
-  it("has the page title", () => {
-    expect(html).toContain(`<title>${escaped(identity.pageTitle)}</title>`);
-  });
-});
-
 import { validateContent, content, pageSwitch, ui, fill, type Diagram, type Station } from "./content";
 import { WORK_COPY, WORK_LEADS } from "../tests/fixtures/work-copy";
 
 const good = () => structuredClone(content);
+
+describe("the page's description and preview alt text", () => {
+  it("are the approved words", () => {
+    expect(identity.description).toBe(
+      "Adham Sedik, Software & Platform Engineer. Tour a 3D home lab: my work, MediaSafe, my home Kubernetes cluster and the AI software factory that built this site.");
+    expect(identity.description).toHaveLength(159);
+    expect(identity.imageAlt).toBe("The lab at night: five lit monitors and a nixie meter on a desk, with Adham Sedik's name");
+  });
+});
 
 describe("validateContent", () => {
   it("accepts the shipped content", () => {
@@ -49,6 +42,14 @@ describe("validateContent", () => {
       const c = good();
       c.stations[0].links = [{ label: "x", href: "" }];
       expect(validateContent(c).join("\n")).toContain("stations[0].links[0].href");
+    });
+    it("rejects a missing description and preview alt text", () => {
+      const c = good();
+      c.identity.description = "";
+      c.identity.imageAlt = " ";
+      const problems = validateContent(c).join("\n");
+      expect(problems).toContain("identity.description");
+      expect(problems).toContain("identity.imageAlt");
     });
     it("rejects missing identity", () => {
       const c = good();

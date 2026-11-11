@@ -1,12 +1,10 @@
 // All copy in the app: visible text, aria labels, boot log lines, the signal lost screen and the
 // gap's sentence, plus links. Change copy here and nowhere else: no component or 3D code holds copy.
-// Only the name, title and page title are also written into index.html (see below).
+// The build writes the page's head tags and the pre-boot markup from this module (src/page-html.ts);
+// nothing is hand-kept in index.html.
 // `validateContent` runs in the tests (and so in `make frontend`); it blocks phone numbers and
 // private or tailnet addresses. Internal employer names are NOT caught here: Adham's review of
 // any content PR catches those.
-//
-// The name, title and page title are also written into index.html so they show before any script
-// runs: keep the two in step (a test checks this).
 
 export type Link = { label: string; href: string };
 export type Station = {
@@ -99,7 +97,7 @@ const PLACEHOLDERS: Record<string, string[]> = {
 export const fill = (template: string, values: Record<string, string | number>) =>
   template.replace(/\{(\w+)\}/g, (m, k) => (k in values ? String(values[k]) : m));
 export type Content = {
-  identity: { name: string; title: string; pageTitle: string; availability: string };
+  identity: { name: string; title: string; pageTitle: string; availability: string; description: string; imageAlt: string };
   links: Link[];
   stations: Station[];
   pageSwitch: typeof pageSwitch;
@@ -133,6 +131,11 @@ export const content: Content = {
     title: "Software & Platform Engineer",
     pageTitle: "Adham Sedik · Lab",
     availability: "Graduating Dec 2027. Open to co-op and full-time.",
+    /** the meta description, and the link preview's text */
+    description:
+      "Adham Sedik, Software & Platform Engineer. Tour a 3D home lab: my work, MediaSafe, my home Kubernetes cluster and the AI software factory that built this site.",
+    /** the preview image's alt text */
+    imageAlt: "The lab at night: five lit monitors and a nixie meter on a desk, with Adham Sedik's name",
   },
 
   links: [
@@ -301,6 +304,8 @@ export function validateContent(c: Content): string[] {
   text("identity.title", c.identity?.title);
   text("identity.pageTitle", c.identity?.pageTitle);
   text("identity.availability", c.identity?.availability);
+  text("identity.description", c.identity?.description);
+  text("identity.imageAlt", c.identity?.imageAlt);
   linkList("links", c.links);
   if (!Array.isArray(c.stations) || c.stations.length === 0) problems.push("stations: missing");
   (c.stations ?? []).forEach((s, i) => {
