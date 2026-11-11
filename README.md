@@ -60,3 +60,7 @@ change to one means rendering again. The images are committed (ADR-0006), and CI
 ## Building the résumé
 
 `make resume` builds `public/resume.pdf` from `resume/resume.tex` with [tectonic](https://tectonic-typesetting.github.io/). Run it on the Mac: the first run downloads a TeX bundle, so it needs the network. The PDF is committed, and CI never runs it. The résumé must stay one page: check with `pdfinfo public/resume.pdf`, which shows `Pages: 1`. If the text spills, tighten spacing (margins, gaps between sections) before changing words. The source holds no phone number, and `src/resume.test.ts` checks that.
+
+## Taking the preview image
+
+`make og-image` writes `public/og-image.png`, the picture a shared link shows (1200×630). Run it on the Mac, through `heavy`: `heavy make og-image`. It builds the site, serves it with `npm run preview`, opens it in Playwright's Chromium at a 1200×630 window with device scale factor 2, waits for the boot screen to go, the camera to be still at the overview and the desk meter's reading to settle, hides the HUD's link row and the meter bar for the shot only, and scales the shot to 1200×630 in a browser canvas. The desk meter stays in the shot and shows whatever gap it read. The PNG is committed, and CI never runs it. `src/page-image-tags.test.ts` checks the file's size matches the head's `og:image:width` and `og:image:height`. If the room changes, run it again and look at the image.
