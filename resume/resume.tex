@@ -1,0 +1,166 @@
+% Adham Sedik's resume. Template: Jake Gutierrez, based on https://github.com/sb2nov/resume (MIT).
+% Build: make resume (tectonic), which writes public/resume.pdf.
+
+\documentclass[letterpaper,10pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+% ATS glyph mapping: pdfTeX-only. Guarded so the file also builds under XeTeX/tectonic.
+\ifdefined\pdfgentounicode
+  \input{glyphtounicode}
+\fi
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.6in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-.6in}
+\addtolength{\textheight}{1.35in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+\ifdefined\pdfgentounicode
+  \pdfgentounicode=1
+\fi
+
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubSubheading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \textit{\small#1} & \textit{\small #2} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & #2 \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}[leftmargin=0.15in]}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-4pt}}
+
+%-------------------------------------------
+\begin{document}
+
+%----------HEADING----------
+\begin{center}
+    \textbf{\Huge \scshape Adham Sedik} \\ \vspace{2pt}
+    \href{mailto:adhamsedik@cmail.carleton.ca}{\underline{adhamsedik@cmail.carleton.ca}} $|$
+    \href{https://www.linkedin.com/in/adham-sedik-971a57184/}{\underline{linkedin.com/in/adham-sedik-971a57184}} $|$
+    \href{https://github.com/Joyaroin}{\underline{github.com/Joyaroin}} $|$
+    Ottawa, Canada
+\end{center}
+
+%-----------EDUCATION-----------
+\section{Education}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {Carleton University}{Ottawa, Canada}
+      {Bachelor of Computer Science (Honours), Software Engineering Stream}{Sep 2022 -- Dec 2027 (Expected)}
+  \resumeSubHeadingListEnd
+
+%-----------TECHNICAL SKILLS-----------
+\section{Technical Skills}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+     \textbf{Languages}{: Python, C\#, TypeScript, JavaScript, Java, C++, C, Bash, HCL} \\
+     \textbf{Backend \& Frontend}{: .NET 8 (ASP.NET Core), Node.js, Express, GraphQL, REST APIs; React 19, Next.js, Vite, TanStack Query} \\
+     \textbf{Cloud \& DevOps}{: AWS (EKS, EC2, ECR, Lambda, IAM, VPC, S3, CloudWatch), Docker, Kubernetes, Helm, Argo CD, Kustomize, Terraform, GitHub Actions, Harness, Grafana} \\
+     \textbf{AI \& LLMs}{: Claude API, Claude Agent SDK, OpenAI API, MCP servers, multi-agent orchestration, structured output schemas} \\
+     \textbf{Databases, Testing \& Tools}{: PostgreSQL, DynamoDB, Redis; unit, integration and property-based testing, Playwright; Git, Jira}
+    }}
+ \end{itemize}
+
+%-----------EXPERIENCE-----------
+\section{Experience}
+  \resumeSubHeadingListStart
+
+    \resumeSubheading
+      {Solace}{Ottawa, Canada}
+      {Software Developer Co-op -- Platform Engineering}{Sep 2026 -- Dec 2026}
+      \resumeItemListStart
+        \resumeItem{Shipped a ``disabled'' state for offboarded products end to end (UI, API, data model, scripts) in an internal React/Python security dashboard; disabling one stops its scans and new Jira tickets, and a nightly GitHub Actions sweep closes those already filed, \textbf{ending 30--60 minutes of hand cleanup per offboarding}.}
+        \resumeItem{Made the EC2 proxies behind CI/CD builds \textbf{self-healing}: CloudWatch alarms defined in Terraform reboot an out-of-memory instance while a Lambda posts its status to Slack, turning a failure that struck a few times a month and sat unnoticed for hours into an \textbf{unattended recovery}, since proven on an actual outage.}
+        \resumeItem{Provisioned an S3 artifact store in Terraform (bucket, IAM policy, versioning and lifecycle rules) and the build step that publishes a customer-facing product UI to it; now in use, it replaces fetching the latest bundle through CloudFront with \textbf{pinned releases that can be rolled back}.}
+        \resumeItem{Wrote a Python reconcile check that fails, with a report, any pull request where a pipeline drifts from its Harness template, and has \textbf{blocked one such change before merge}; also added a job testing the CI scripts and refactored workflows into reusable actions.}
+      \resumeItemListEnd
+
+    \resumeSubheading
+      {Barracuda Networks}{Ottawa, Canada}
+      {Software Engineer Co-op -- BarracudaONE Platform}{Sep 2025 -- Aug 2026}
+      \resumeItemListStart
+        \resumeItem{Delivered C\# REST endpoints and .NET service-layer features, plus the React/TypeScript UI on top of them, over \textbf{some 60 tickets}, each covered by mock-based unit tests and gated behind a feature flag for safe rollout.}
+        \resumeItem{Built a GitHub Actions workflow that reads the commit currently deployed to production and opens the hotfix branch in the right service repo, removing a manual lookup that risked branching from the wrong state; maintained in one place, it serves \textbf{18 service repos}, saving a self-timed \textbf{5--10 minutes per ticket}.}
+        \resumeItem{Engineered a test-scenario generator on the Claude API and a Jira MCP server, designing the structured JSON output schema and prompts that turn story subtasks into test cases; \textbf{adopted by all 15 developers}, it cut test-note authoring time \textbf{roughly 40\%}, measured before and after on real stories.}
+        \resumeItem{Authored the Terraform for \textbf{production AWS infrastructure} spanning VPC, ALB, IAM, ECR and External Secrets, and set up a Grafana dashboard with threshold-based alerts on SaaS metrics, used day to day by the whole team.}
+        \resumeItem{Raised governance across the service fleet: brought \textbf{FOSSA open-source license scanning} into the CI pipeline and a standard pull-request template to \textbf{every repo}, and audited three backends against agreed coding conventions.}
+      \resumeItemListEnd
+
+  \resumeSubHeadingListEnd
+
+%-----------PROJECTS-----------
+\section{Projects}
+    \resumeSubHeadingListStart
+
+      \resumeProjectHeading
+        {\textbf{\href{https://lab.mediasafe.space}{\underline{Software factory}}} $|$ \emph{Claude Code, Forgejo Actions, Bash, Playwright, k3s, Argo CD}}{\emph{2026 -- Present}}
+        \resumeItemListStart
+          \resumeItem{Built a self-hosted pipeline where AI agents build, review and merge my code: an orchestrator cuts each spec into small tickets, builder agents write each one test-first in its own git worktree, and a fresh reviewer agent decides whether it merges, needs me, or goes back; it has merged 100+ pull requests into lab.mediasafe.space since November 2026.}
+          \resumeItem{Made unattended merges safe: the merge rules live in a script that refuses unless the latest review passed, every CI job on my own GPU runner is green and nothing changed since the review; merges deploy to staging through Argo CD, and only I promote to production.}
+        \resumeItemListEnd
+
+      \resumeProjectHeading
+        {\textbf{\href{https://github.com/Joyaroin/MediaSafe}{\underline{MediaSafe}}} $|$ \emph{Terraform, Kubernetes (k3s), Argo CD, Helm, Vault, GitHub Actions, Next.js, PostgreSQL}}{\emph{2026 -- Present}}
+        \resumeItemListStart
+          \resumeItem{Provisioned the VM, firewall, DNS and object storage with Terraform (remote state with locking, credentials injected at run time and never written to disk), and run k3s on it with \textbf{every in-cluster change made through Git}: Argo CD app-of-apps with ordered sync waves, Traefik on the Kubernetes Gateway API, cert-manager TLS and default-deny NetworkPolicies.}
+          \resumeItem{Built the delivery pipeline: each merge pushes an image to GHCR and commits its tag to the GitOps repo; Argo CD runs \textbf{database migrations as a pre-rollout Job}, then a \textbf{zero-downtime rolling update}, and prod is promoted with the exact image staging ran. Secrets live in \textbf{Vault} (least-privilege Kubernetes auth) via External Secrets, snapshotted nightly with a tested restore.}
+          \resumeItem{Developed the full-stack app, \textbf{live at \href{https://mediasafe.space}{mediasafe.space}}: Next.js 16 and React over Postgres (Neon, Drizzle), Google sign-in, a shared Valkey cache and a nightly TMDB sync, with a custom ESLint rule so failed reads never render as empty.}
+        \resumeItemListEnd
+
+    \resumeSubHeadingListEnd
+
+%-------------------------------------------
+\end{document}
