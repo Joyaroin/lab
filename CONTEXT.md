@@ -196,8 +196,8 @@ get a folder; the rest are still flat files in `src/`.
   gives it one function to ask for a frame (`setWake`). The module owns the power-on timer, the power-on hold,
   the tear-over wake-up, the leaving rule, the page-turn limit and the
   shift's lengths (`SHIFT_SECONDS`). No shift starts until the desk meter reports its power-on, which it
-  does on the first frame it draws once the room is ready (`src/App.tsx:53` sets `meter.on`,
-  `src/DeskMeter.tsx:76` reports), so a room that never draws a frame plays no shift. `src/nixie.ts`
+  does on the first frame it draws once the room is ready (`src/App.tsx` sets `meter.on`,
+  `src/DeskMeter.tsx` reports), so a room that never draws a frame plays no shift. `src/nixie.ts`
   re-exports `SHIFT_SECONDS` for the browser specs. `shift.hold` is the station the visitor is at (0 at the overview or in flight). The room
   asks it one question per station per frame, `shift.textState(station, nowMs)` (the shift knows where the visitor is): `held`,
   `resolving` or `showing`. Asking changes nothing; the module's state changes when it learns something

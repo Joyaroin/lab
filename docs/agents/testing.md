@@ -1,6 +1,6 @@
 # Testing facts
 
-Checked against the code on 2026-11-10, at 0cdc4d7: each line confirmed against the code there, and `make facts` run.
+Checked against the code on 2026-11-10, at 9e73ff7: each line confirmed against the code there, and `make facts` run.
 
 ## Kinds of test
 | Kind | How to select it | Where it runs |
