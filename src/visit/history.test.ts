@@ -12,6 +12,8 @@ function setup(hash = "") {
       replaceState: (_s, _t, url) => void calls.push(`replace ${url}`),
     },
     location: { hash },
+    // A setter, so the order of the title and the history calls shows in `calls`.
+    document: { set title(t: string) { calls.push(`title ${t}`); } } as Document,
     addEventListener: (_t, l) => { pop = l; },
     removeEventListener: () => { pop = () => {}; },
   };
@@ -25,25 +27,25 @@ describe("linkHistory", () => {
     const { visit, calls } = setup();
     visit.go(1);
     visit.back();
-    expect(calls).toEqual(["push #work", "push ./"]);
+    expect(calls).toEqual(["push #work", "title Work · Adham Sedik", "push ./", "title Adham Sedik · Lab"]);
   });
   it("next and a re-target each push", () => {
     const { visit, calls } = setup();
     visit.next();
     visit.go(3);
-    expect(calls).toEqual(["push #work", "push #home-lab"]);
+    expect(calls).toEqual(["push #work", "title Work · Adham Sedik", "push #home-lab", "title Home lab · Adham Sedik"]);
   });
-  it("a popstate moves the visit and pushes nothing", () => {
+  it("a popstate moves the visit, pushes nothing and sets the title", () => {
     const { visit, calls, popstate } = setup();
     popstate("#mediasafe");
     expect(visit.target()).toBe(2);
     popstate("");
     expect(visit.target()).toBe(0);
-    expect(calls).toEqual([]);
+    expect(calls).toEqual(["title MediaSafe · Adham Sedik", "title Adham Sedik · Lab"]);
   });
   it("a direct link lands there, with an overview entry under it, and no flight", () => {
     const { visit, calls } = setup("#work");
-    expect(calls).toEqual(["replace ./", "push #work"]);
+    expect(calls).toEqual(["replace ./", "push #work", "title Work · Adham Sedik"]);
     expect(visit.where(0)).toEqual({ kind: "at", stop: 1 });
   });
   it("an unknown hash opens the overview and touches no history", () => {
@@ -64,12 +66,14 @@ describe("linkHistory", () => {
       let i = 0;
       let pop: () => void = () => {};
       let clock = 0;
+      const doc = { title: "" } as Document;
       const host: HistoryHost = {
         history: {
           pushState: (_s, _t, url) => { stack.splice(i + 1, stack.length, String(url)); i++; },
           replaceState: (_s, _t, url) => { stack[i] = String(url); },
         },
         location: { get hash() { return stack[i] === "./" ? "" : stack[i]; } } as Location,
+        document: doc,
         addEventListener: (_t, l) => { pop = l; },
         removeEventListener: () => {},
       };
@@ -79,6 +83,7 @@ describe("linkHistory", () => {
         visit, stack, at: (ms: number) => { clock = ms; visit.where(ms); },
         back: () => { i--; pop(); },
         url: () => stack[i],
+        title: () => doc.title,
         index: () => i,
       };
     }
@@ -93,7 +98,9 @@ describe("linkHistory", () => {
       s.at(400);
       expect(s.visit.target()).toBe(1);
       expect(s.url()).toBe("#work");
+      expect(s.title()).toBe("Work · Adham Sedik");
       s.back();
+      expect(s.title()).toBe("Adham Sedik · Lab");
       expect(s.url()).toBe("./");
       expect(s.index()).toBe(0);
     });

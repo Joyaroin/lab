@@ -58,6 +58,8 @@ The language of this project: its terms, what each one means, and what it doesn'
   pushes an entry for its stop, a Back or Forward press moves the visit, and wherever the visitor lands that the URL
   doesn't show (a press that waited, or one dropped), an entry is pushed to correct it. Opening a direct link
   (`/#work`) lands there with no flight and no shift, with an overview entry under it so Back goes to the overview.
+  The tab title follows the same stop (`titleForStop` in `src/visit/route.ts`): "Work · Adham Sedik" at a station,
+  the page title at the overview, set after each history call so every entry keeps its own title.
 - **World line**: a station's themed label, such as "World line 03". A label only: the copy beside it
   stays plain.
 - **Title card**: the big label on the glass of a TV you aren't at: its station's world line over its

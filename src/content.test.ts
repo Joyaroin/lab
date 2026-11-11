@@ -443,9 +443,9 @@ describe("no copy outside the content module", () => {
 });
 
 describe("the pull request count", () => {
-  it("says 90+ in Software factory's last bullet, and nothing says 76", () => {
+  it("says 100+ in Software factory's last bullet, and nothing says 76", () => {
     const factory = content.stations.find((s) => s.id === "software-factory")!;
-    expect(factory.body.at(-1)).toContain("This site has 90+ merged pull requests since 5 November 2026.");
+    expect(factory.body.at(-1)).toContain("This site has 100+ merged pull requests since 5 November 2026.");
     expect(JSON.stringify(content)).not.toMatch(/\b76\b/);
   });
 });
