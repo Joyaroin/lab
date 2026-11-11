@@ -1,10 +1,19 @@
 # Lab
 
-A 3D late-night home lab that hiring teams tour to learn what Adham does. The room is the site: you
-open on an overview and click a monitor, or a HUD link, to fly to its station, and a nixie-tube meter on the desk shows how many
-MediaSafe staging deploys have landed since the last promotion to prod. It shows that gap only at the
-overview; each station has its own fixed reading. It is static files served by
-nginx, with no server code.
+A 3D late-night home lab where Adham Sedik shows his work. The room is the site: you open on an overview of a
+desk and five lit monitors, click a monitor (or a link at the top) to fly to its station, and read what he has built there.
+A nixie-tube meter on the desk counts how many MediaSafe staging deploys have landed since the last promotion to
+production. It shows that live count only at the overview; each station has its own fixed reading. The site is static
+files served by nginx, with no server code.
+
+Live: https://lab.mediasafe.space
+
+## How it was built
+
+An AI software factory built this site. Adham plans a feature with an orchestrator agent, which cuts it into small
+tickets. Builder agents write each ticket test-first and open a pull request, full CI runs on every one, and a
+fresh reviewer agent decides whether it merges by itself, needs him, or goes back for a rebuild. Adham promotes to
+production by hand. The "Software factory" station in the room tells the story, so it is not repeated here.
 
 ## Run it
 
@@ -15,13 +24,10 @@ npm ci
 npm run dev
 ```
 
-`npm test` runs the unit tests. `npm run build` saves the live gap, type-checks, makes the production
-build and checks the size budget. `make frontend` runs both, after `npm ci` and a type check. The room's
-3D model is committed, so you don't need Blender unless you rebuild it (below).
-
-## Live demo
-
-https://lab.mediasafe.space
+`npm test` runs the unit tests. `npm run build` saves today's live gap, type-checks, makes the production build and
+checks the size budget. `make frontend` runs `npm ci`, the type check, `npm test` and `npm run build`, in that order.
+`make facts` checks that the paths, commands and tags the docs name exist. The room's 3D model is committed, so you
+don't need Blender unless you rebuild it (below).
 
 ## Rebuilding the room
 
@@ -36,8 +42,8 @@ has no denoiser. The output is committed (ADR-0004), so re-bake on purpose.
 Where each CRT sits is in `src/room-layout.json`, which the script and the site both read. The file
 also holds the overview and the pulled-back portrait (phone) views. The desktop stops are
 not in it: `src/stop.ts` works them out from each CRT's place and the window. To check composition
-without baking, run `blender -b -P tools/room/build.py -- --preview /tmp/shots` to render every camera
-view in the layout, the overview at 16:9 and 16:10 included (the desktop stops are not among them). For a quick
+without baking, run `blender -b -P tools/room/build.py -- --preview /tmp/shots` to render a camera
+view of each TV (the five stations and the bench TV) and of the overview at 16:9 and 16:10 (the desktop stops are not among them). For a quick
 test bake, pass `--size 1024 --light-size 512 --samples 64` after `--`. Draco mesh compression isn't
 used, because this Blender build lacks the library.
 
