@@ -110,15 +110,16 @@ test("a full tear starts and ends", async ({ page }) => {
   expect(len).toBeLessThan(8_000); // the poll's own limit
 });
 
-// Hopping between stations, tear after tear, swept over how long each stay is (timed from the landing). A landing is a flight
+// Hopping between stations, tear after tear, with no stay (timed from the landing). A landing is a flight
 // (FLIGHT_MS, 900 ms) after the last one's stay, and a full tear's changes fall at 0, 200 and 340 ms, so a
 // stay of under about 100 ms puts a fourth change into one real second: [200, 1200) then holds 200, 340, and the
 // second tear's start and re-cut. Without the flash limit those short stays break
 // it; the limit (its window is 1100 ms) holds back the landings under about 200 ms of stay. So the short stays are the cases
-// that fail when the limiter is loosened; the longer ones show it lets tears through when they fit.
+// that fail when the limiter is loosened, so only the shortest is run here. Longer stays, and that the limiter lets a tear
+// through once it fits, are pinned with a fake clock in src/shift/shift.test.ts ("limiting flashes").
 // "cold" hops through every station, so each arrival is a first visit and plays the full tear (3 changes: on, re-cut, snap back).
 // "warm" hops between two stations that have already played out, so each arrival is a return and plays the short flick
-// (2 changes), so the warm cases check that back-to-back returns stay within the limit too (the shortest warm stay fails
+// (2 changes), so the warm case checks that back-to-back returns stay within the limit too (the shortest warm stay fails
 // as well when the limiter is loosened to 4: ticket 220's one break run).
 // Each hop is a HUD click, and each stay is timed from the landing: the flights are on top of the stay.
 const hop = (page: Page, stops: number[], every: number) => page.evaluate(async ([hrefs, every]) => {
@@ -129,7 +130,7 @@ const hop = (page: Page, stops: number[], every: number) => page.evaluate(async 
     await new Promise((r) => setTimeout(r, every));
   }
 }, [stops.map(hudHref), every] as const);
-for (const [kind, stays] of [["cold", [0, 40, 150, 450]], ["warm", [0, 150, 450]]] as const) {
+for (const [kind, stays] of [["cold", [0]], ["warm", [0]]] as const) {
   for (const stay of stays) {
     test(`hopping ${kind === "cold" ? "between stations" : "back and forth between two visited stations"} every ${stay} ms never puts more than 3 sudden changes in a real second`, { tag: "@timing" }, async ({ page }) => {
       await boot(page);
@@ -171,8 +172,9 @@ test("a return plays the short flick: it starts and ends", { tag: "@timing" }, a
 });
 
 // The limit of 3 counts a Work page turn too: it flicks the Work TV only, so its changes are the panel's filter going on
-// and its snap back. Turning the page every `every` ms, never more than 3 changes in a real second.
-for (const every of [400, 700]) {
+// and its snap back. Turning the page every `every` ms, never more than 3 changes in a real second. The 0.7 s pace, where
+// the snap back's late frame mattered, is tests/work-pages.spec.ts's; its boundary is pinned in src/shift/shift.test.ts.
+for (const every of [400]) {
   test(`turning the Work page every ${every} ms never puts more than 3 sudden changes in a real second`, { tag: "@timing" }, async ({ page }) => {
     await page.addInitScript(defineSnapWatcher);
     await page.goto("/");

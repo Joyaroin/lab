@@ -227,8 +227,9 @@ test("clicking quickly back and forth ends on the right page and still flicks", 
 });
 
 // The limit is on real changes: measured from when the filter goes on and when the snap back is visible (the displacement
-// scale reaching 0, not the filter coming off, #124), with no shrunk window.
-for (const every of [700, 715, 730]) {
+// scale reaching 0, not the filter coming off, #124), with no shrunk window. 0.7 s is the pace that put 4 real changes in a
+// second before the frame allowance; the window's edges are pinned with a fake clock in src/shift/shift.test.ts.
+for (const every of [700]) {
   test(`clicking every ${every} ms never puts more than 3 sudden changes in a real second`, { tag: "@timing" }, async ({ page }) => {
     test.setTimeout(60_000);
     await openWorkWatched(page);

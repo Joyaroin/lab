@@ -7,8 +7,9 @@ const origin = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   // Where TEST_PORT is set (agent sessions on the Mac) one worker, so one session can't take the CPU from the others.
-  // CI, and a Mac without TEST_PORT, keep Playwright's default.
-  workers: process.env.TEST_PORT ? 1 : undefined,
+  // CI: 3, because the runner draws WebGL on its CPUs and runs up to 3 jobs at once; Playwright's default (half the
+  // CPUs, 6) overloaded it and timing specs missed frames. A Mac without TEST_PORT keeps the default.
+  workers: process.env.TEST_PORT ? 1 : process.env.CI ? 3 : undefined,
   testDir: "tests",
   testMatch: "*.spec.ts",
   webServer: {
