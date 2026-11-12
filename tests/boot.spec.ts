@@ -469,6 +469,9 @@ for (const [name, size] of Object.entries(bigSizes)) {
       const panel = page.locator(`[data-screen="${id}"]`);
       await expect(panel).toHaveCSS("opacity", "1");
       await page.waitForTimeout(400); // let the pin settle
+      // The first landing fades the "Click a monitor" hint, which sits over the panel's lower edge at 1280x800.
+      // It's the HUD, not the 3D layer, so wait until it's gone: on a slow runner it can still be fading here.
+      await expect(page.locator("[data-hint]")).toHaveCount(0);
       // No card: no border, no own background colour or shadow.
       const style = await panel.evaluate((e) => { const s = getComputedStyle(e); return { border: s.borderTopWidth, radius: s.borderTopLeftRadius, bg: s.backgroundColor, shadow: s.boxShadow }; });
       expect(style, id).toEqual({ border: "0px", radius: "0px", bg: "rgba(0, 0, 0, 0)", shadow: "none" });
