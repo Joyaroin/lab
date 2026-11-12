@@ -202,14 +202,19 @@ for (const [width, height] of [[1280, 800], [390, 844]]) {
       expect(other.weight, `link ${i} weight`).not.toBe(here.weight);
       expect(other.background, `link ${i} background`).not.toBe(here.background);
     }
-    // The flight: read right after the click, before the landing (0.9 s or more away), with no wait.
+    // The flight: every link read in one go right after the click, before the landing (0.9 s or more away), with no
+    // wait. One read, not one per link: on a slow CPU runner, reading link by link outlasted the flight.
+    const links = await Promise.all(Array.from({ length: stations.length + 1 }, (_, i) => hudLink(page, i).elementHandle()));
     await clickLink(page, 3);
-    await expect(hud(page).locator("[aria-current]")).toHaveCount(0);
-    for (let i = 0; i <= stations.length; i++) {
-      const l = await look(i);
+    const flight = await page.evaluate((els) => els.map((el) => {
+      const s = getComputedStyle(el!);
+      return { weight: s.fontWeight, background: s.backgroundColor, current: el!.getAttribute("aria-current") };
+    }), links);
+    flight.forEach((l, i) => {
+      expect(l.current, `flight: link ${i} aria-current`).toBeNull();
       expect(l.weight, `flight: link ${i} weight`).not.toBe(here.weight);
       expect(l.background, `flight: link ${i} background`).not.toBe(here.background);
-    }
+    });
     await landedAt(page, 3);
     const at = await look(3);
     expect(at.weight).toBe(here.weight);

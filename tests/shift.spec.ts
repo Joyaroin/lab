@@ -168,7 +168,9 @@ test("a first visit tears the view for about 0.4 s, and the text resolves as it 
   console.log(`snap-back-ms full ${snap.toFixed(0)} (design ${SNAP_DESIGN_FULL}; filter off ${len.toFixed(0)}; slowest frame ${w.slowestFrame.toFixed(0)})`);
   expect(w.starts).toHaveLength(1); // the tear started
   expect(w.snaps).toHaveLength(1);
-  expect(w.snaps[0], "it snapped back before it came off").toBeLessThan(w.ends[0]);
+  // Not after it came off. One slow frame can hold both (the snap is due at 0.85 of the length, the end at 1), and then
+  // the two observers record the same time.
+  expect(w.snaps[0], "it snapped back no later than it came off").toBeLessThanOrEqual(w.ends[0]);
   expect(len, "it came off within 3 s of starting").toBeLessThan(3_000);
   expect(w.shown!, "the text showed after the snap back").toBeGreaterThan(w.snaps[0]);
   expect(w.shown!).toBeLessThan(lateBy(SHIFT_SECONDS.full * 1000 + SNAP_BACK_MS, w)); // see lateBy
