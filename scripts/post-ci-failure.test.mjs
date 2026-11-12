@@ -371,8 +371,35 @@ describe("ci.yml", () => {
   const yml = readFileSync(new URL("../.forgejo/workflows/ci.yml", import.meta.url), "utf8");
   it("every post step has continue-on-error: true", () => {
     const posts = yml.split(/\n      - /).filter((b) => b.includes("post-ci-failure.mjs"));
-    expect(posts).toHaveLength(7);
+    expect(posts).toHaveLength(6);
     for (const p of posts) expect(p).toMatch(/continue-on-error: true/);
+  });
+  it("has no full browser suite: release.yml runs it", () => {
+    expect(yml).not.toMatch(/^  browser:/m);
+    expect(yml).not.toContain("make browser");
+  });
+});
+
+describe("release.yml", () => {
+  const yml = readFileSync(new URL("../.forgejo/workflows/release.yml", import.meta.url), "utf8");
+  const job = (name) => yml.slice(yml.indexOf(`\n  ${name}:\n`) + 1).split(/\n  (?=[a-z-]+:\n)/)[0];
+  it("moves staging only after the image, the full browser suite and the screenshots pass", () => {
+    expect(job("staging")).toMatch(/^    needs: \[image, browser, screenshots\]$/m);
+  });
+  it("runs the full suite and every shot", () => {
+    expect(job("browser")).toContain('make browser PW_ARGS="--reporter=list,json"');
+    expect(job("screenshots")).toContain("npx playwright test -c playwright.screenshots.config.ts");
+  });
+  it("every post step has continue-on-error: true and masks the token", () => {
+    const posts = yml.split(/\n      - /).filter((b) => b.includes("post-ci-failure.mjs"));
+    expect(posts).toHaveLength(2);
+    for (const p of posts) {
+      expect(p).toMatch(/continue-on-error: true/);
+      expect(p).toMatch(/MASK_ENV: TOKEN/);
+    }
+  });
+  it("can be run by hand, to try again after a flaky failure", () => {
+    expect(yml).toMatch(/^  workflow_dispatch:/m);
   });
 });
 

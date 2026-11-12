@@ -6,9 +6,9 @@ Checked against the code on 2026-11-10, at 9e73ff7: each line confirmed against 
 | Kind | How to select it | Where it runs |
 |---|---|---|
 | Unit | `npm test` | Builder and CI |
-| Light browser | `make browser-light PW_ARGS=<spec>` for the specs it touched. `make browser-light` alone only for a change to shared code, through `heavy` | Builder and CI |
-| Timing | `@timing` | CI only. In the session only to measure or break-check, through `heavy`, 1 worker. Exact durations are unit tests that pass the time in or fake the clock (`src/frames.test.ts`, `src/tear.test.ts`, `src/nixie.test.ts`, `src/meter-power.test.ts`, `src/shift/shift.test.ts`); browser timing specs check that a play happened, its order, and the safe side of a limit |
-| Heavy rendering | `@render` | CI only |
+| Light browser | `make browser-light PW_ARGS=<spec>` for the specs it touched. `make browser-light` alone only for a change to shared code, through `heavy` | Builder, and release before staging |
+| Timing | `@timing` | Release only, before staging. In the session only to measure or break-check, through `heavy`, 1 worker. Exact durations are unit tests that pass the time in or fake the clock (`src/frames.test.ts`, `src/tear.test.ts`, `src/nixie.test.ts`, `src/meter-power.test.ts`, `src/shift/shift.test.ts`); browser timing specs check that a play happened, its order, and the safe side of a limit |
+| Heavy rendering | `@render` | Release only, before staging |
 
 ## Commands
 - `make frontend`: `npm ci`, the typecheck, `npm test` and the build
@@ -21,16 +21,23 @@ Checked against the code on 2026-11-10, at 9e73ff7: each line confirmed against 
 - `make favicon`: makes `public/favicon.png` (48×48) and `public/apple-touch-icon.png` (180×180) from the meter's committed images in a local browser. Run on purpose, on the Mac, through `heavy`, and again after `make meter`. CI does not run it. `src/page-icon-tags.test.ts` checks each file's PNG header size and the head's icon links; `scripts/check-budget.test.mjs` checks the icon links don't count toward the first screen
 - `make facts`: every path, command and tag the docs name exists
 - A flash limit spec counts the tear's visible snap back (the displacement map's scale reaching 0, `tests/lib/snap.ts`), never the filter coming off. `src/tear-draw.test.ts` checks the view leaves scale 0 on its last frame, whatever the frame rate, and on its stop path (a tear cut short)
-- `tests/shift.spec.ts` records the snap back's measured time as a `snap-back-ms` test annotation and a log line, for CI's browser job report
+- `tests/shift.spec.ts` records the snap back's measured time as a `snap-back-ms` test annotation and a log line, for the release browser job's report
 - A browser spec can't import `src/meter-layers.ts` (Playwright's loader refuses JSON modules); `tests/device.spec.ts` reads `src/assets/meter/layers.json` itself
 - `tests/boot.spec.ts`'s `slowModel` helper serves the room model from a local server and waits on CDP `Network.dataReceived` for each chunk. That server must answer only `/room.glb`: on the Mac a stray `GET /` sometimes reaches it, and taking it for the model sent later chunks to a dead response, so the wait timed out (a chunk behind, or at 0) in whole-file runs only. The slow-load test needs the whole file to show it: `heavy make browser-light PW_ARGS="tests/boot.spec.ts --repeat-each=5"`
 - One spec in the session: `heavy npx playwright test tests/<spec> --workers=1`
 
 ## What CI runs
-CI runs on every branch except `staging` and `production`, including `main` after each merge. Nothing waits for the run on `main`. With no open PR, the posting steps log that there is nothing to post and pass, except on `main`: there each failure report is added as a new comment on the standing "CI failures on main" issue (created or reopened if needed).
+CI runs on every branch except `staging` and `production`, including `main` after each merge. It has no full browser suite: a PR is checked by unit tests, the builder's light browser specs and the screenshots, and the full suite runs in `release.yml` before staging moves. Nothing waits for the run on `main`. With no open PR, the posting steps log that there is nothing to post and pass, except on `main`: there each failure report is added as a new comment on the standing "CI failures on main" issue (created or reopened if needed).
 - `frontend`, `backend`, `integration`: the make targets of the same name
-- `browser`: the full suite, tags included, on 3 workers (`playwright.config.ts`). The runner has no GPU, so WebGL draws on Mesa's llvmpipe under Xvfb (a third of SwiftShader's CPU); `tests/webgl.spec.ts` fails it if Chromium falls back to SwiftShader
 - `screenshots`: the overview plus every station, at desktop and phone size, posted to the PR
 - `secret-scan`: gitleaks over the full history
 - `facts`: `make facts`
-- Also on `main`, `release.yml` builds the image and moves `staging`. `promote.yml` moves `production`, run by Adham
+
+## What release runs
+`release.yml` runs on each merge to `main`, or by hand on `main` to try again after a flaky failure (Forgejo can't re-run one job). Staging moves only when `image`, `browser` and `screenshots` all pass, so a commit the browser suite failed never reaches staging. Each failure is a comment on the "CI failures on main" issue, and `main` stays red until a fix or a revert merges.
+- `image`: builds and pushes the image
+- `browser`: the full suite, tags included, on 3 workers (`playwright.config.ts`). The runner has no GPU, so WebGL draws on Mesa's llvmpipe under Xvfb (a third of SwiftShader's CPU); `tests/webgl.spec.ts` fails it if Chromium falls back to SwiftShader
+- `screenshots`: the same shots as on the PR, posted nowhere; a shot that can't be taken stops the deploy
+- `staging`: moves the `staging` branch to the commit
+
+`promote.yml` moves `production`, run by Adham.
