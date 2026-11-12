@@ -1,12 +1,12 @@
 # Testing facts
 
-Checked against the code on 2026-11-10, at 9e73ff7: each line confirmed against the code there, and `make facts` run.
+Checked against the code on 2026-11-10, at 9e73ff7: each line confirmed against the code there, and `make facts` run. The table's "Where it runs" column and the CI and release sections were checked again on 2026-11-12, when the full suite moved to the release.
 
 ## Kinds of test
 | Kind | How to select it | Where it runs |
 |---|---|---|
 | Unit | `npm test` | Builder and CI |
-| Light browser | `make browser-light PW_ARGS=<spec>` for the specs it touched. `make browser-light` alone only for a change to shared code, through `heavy` | Builder, and release before staging |
+| Light browser | `make browser-light PW_ARGS=<spec>` for the specs it touched. `make browser-light` alone only for a change to shared code, through `heavy` | Builder. The release runs them as part of the full suite |
 | Timing | `@timing` | Release only, before staging. In the session only to measure or break-check, through `heavy`, 1 worker. Exact durations are unit tests that pass the time in or fake the clock (`src/frames.test.ts`, `src/tear.test.ts`, `src/nixie.test.ts`, `src/meter-power.test.ts`, `src/shift/shift.test.ts`); browser timing specs check that a play happened, its order, and the safe side of a limit |
 | Heavy rendering | `@render` | Release only, before staging |
 
@@ -27,7 +27,7 @@ Checked against the code on 2026-11-10, at 9e73ff7: each line confirmed against 
 - One spec in the session: `heavy npx playwright test tests/<spec> --workers=1`
 
 ## What CI runs
-CI runs on every branch except `staging` and `production`, including `main` after each merge. It has no full browser suite: a PR is checked by unit tests, the builder's light browser specs and the screenshots, and the full suite runs in `release.yml` before staging moves. Nothing waits for the run on `main`. With no open PR, the posting steps log that there is nothing to post and pass, except on `main`: there each failure report is added as a new comment on the standing "CI failures on main" issue (created or reopened if needed).
+CI runs on every branch except `staging` and `production`, including `main` after each merge. It runs no browser specs except the screenshots. The builder runs the light browser specs it touched in its own session, and the full suite runs in `release.yml` before staging moves. Nothing waits for the run on `main`. With no open PR, the posting steps log that there is nothing to post and pass, except on `main`: there each failure report is added as a new comment on the standing "CI failures on main" issue (created or reopened if needed).
 - `frontend`, `backend`, `integration`: the make targets of the same name
 - `screenshots`: the overview plus every station, at desktop and phone size, posted to the PR
 - `secret-scan`: gitleaks over the full history

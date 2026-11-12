@@ -27,7 +27,7 @@ ifdef CI
 	npx playwright install --with-deps chromium
 endif
 	npx playwright test $(PW_ARGS)
-# The browser recipe without the timing and heavy-rendering tests. CI runs the full suite.
+# The browser recipe without the timing and heavy-rendering tests. release.yml runs the full suite before staging.
 browser-light:
 	$(MAKE) browser PW_ARGS='--grep-invert "@timing|@render" $(PW_ARGS)'
 # Builds public/resume.pdf from resume/resume.tex with tectonic. Run on the Mac; the first run downloads a TeX bundle, so it needs the network. CI does not run it.

@@ -11,8 +11,8 @@ Live: https://lab.mediasafe.space
 ## How it was built
 
 An AI software factory built this site. Adham plans a feature with an orchestrator agent, which cuts it into small
-tickets. Builder agents write each ticket test-first and open a pull request, full CI runs on every one, and a
-fresh reviewer agent decides whether it merges by itself, needs him, or goes back for a rebuild. Adham promotes to
+tickets. Builder agents write each ticket test-first and open a pull request, CI runs the unit and integration tests on every one, a
+fresh reviewer agent decides whether it merges by itself, needs him, or goes back for a rebuild, and the full browser suite runs before each deploy to staging. Adham promotes to
 production by hand. The "Software factory" station in the room tells the story, so it is not repeated here.
 
 ## Run it

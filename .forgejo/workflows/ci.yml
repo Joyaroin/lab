@@ -158,7 +158,7 @@ jobs:
       cancel-in-progress: true
     env:
       # WebGL draws on Mesa's llvmpipe under Xvfb, not SwiftShader: measured on the runner, a third of the CPU at the same
-      # frame rate, so up to 3 jobs fit. 4 render threads per browser (2 halved the frame rate). Same as the browser job.
+      # frame rate, so up to 3 jobs fit. 4 render threads per browser (2 halved the frame rate). Same as release.yml's browser job.
       LAB_WEBGL: llvmpipe
       LIBGL_ALWAYS_SOFTWARE: "1"
       LP_NUM_THREADS: "4"
