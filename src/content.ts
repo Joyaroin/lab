@@ -189,13 +189,13 @@ export const content: Content = {
       heading: "Home lab and Proxmox",
       lead: "I run my own Kubernetes cluster at home, and this site runs on it.",
       body: [
-        "Two Proxmox hosts run a two-node k3s cluster, with production and staging on separate nodes.",
+        "A Proxmox host runs a single-node k3s cluster, with production and staging in separate namespaces.",
         "No ports are open at home: all traffic comes in through a Cloudflare Tunnel.",
-        "My Git server and CI runners live here too, with the runner firewalled off from the rest of the network.",
+        "My Git server and CI runner live here too, with the runner firewalled off from the rest of the network.",
       ],
       diagram: {
-        description: "All traffic comes in through a Cloudflare Tunnel. Two Proxmox hosts run a two-node k3s cluster.",
-        steps: ["Cloudflare Tunnel", "Proxmox hosts", "k3s cluster"],
+        description: "All traffic comes in through a Cloudflare Tunnel. A Proxmox host runs a single-node k3s cluster.",
+        steps: ["Cloudflare Tunnel", "Proxmox host", "k3s cluster"],
         hops: ["traffic", "run"],
       },
       links: [SITE_SOURCE],
@@ -207,7 +207,7 @@ export const content: Content = {
       lead: "My AI software factory: I plan, and agents build, review and merge. It built this site.",
       body: [
         "I plan a feature with an orchestrator agent, which cuts it into small tickets. Builder agents write each ticket test-first on my Mac and open a pull request.",
-        "Every PR runs full CI on my own runner. Then a fresh reviewer agent decides whether it merges by itself, needs me, or goes back for a rebuild.",
+        "Every PR runs CI on my own runner. Then a fresh reviewer agent decides whether it merges by itself, needs me, or goes back for a rebuild.",
         "This site has 100+ merged pull requests since 5 November 2026. Production moves only when I promote it.",
       ],
       diagram: {
