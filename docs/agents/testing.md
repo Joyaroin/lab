@@ -34,10 +34,9 @@ CI runs on every branch except `staging` and `production`, including `main` afte
 - `facts`: `make facts`
 
 ## What release runs
-`release.yml` runs on each merge to `main`, or by hand on `main` to try again after a flaky failure (Forgejo can't re-run one job). Staging moves only when `image`, `browser` and `screenshots` all pass, so a commit the browser suite failed never reaches staging. Each failure is a comment on the "CI failures on main" issue, and `main` stays red until a fix or a revert merges.
+`release.yml` runs on each merge to `main`, or by hand on `main` to try again after a flaky failure (Forgejo can't re-run one job). Staging moves only when `image` and `browser` both pass, so a commit the browser suite failed never reaches staging. Each failure is a comment on the "CI failures on main" issue, and `main` stays red until a fix or a revert merges.
 - `image`: builds and pushes the image
 - `browser`: the full suite, tags included, on 3 workers (`playwright.config.ts`). The runner has no GPU, so WebGL draws on Mesa's llvmpipe under Xvfb (a third of SwiftShader's CPU); `tests/webgl.spec.ts` fails it if Chromium falls back to SwiftShader
-- `screenshots`: the same shots as on the PR, posted nowhere; a shot that can't be taken stops the deploy
 - `staging`: moves the `staging` branch to the commit
 
 `promote.yml` moves `production`, run by Adham.

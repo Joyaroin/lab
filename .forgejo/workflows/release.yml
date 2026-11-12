@@ -1,6 +1,7 @@
-# A merge to main builds the image, runs the full browser suite and takes the screenshots, then deploys to
-# staging: the staging job writes the tag into deploy/values-staging.yaml on the staging branch, the way promote
-# does for production. Staging moves only when all three pass, so it never gets a commit the browser suite failed.
+# A merge to main builds the image and runs the full browser suite, then deploys to staging: the staging job
+# writes the tag into deploy/values-staging.yaml on the staging branch, the way promote does for production.
+# Staging moves only when both pass, so it never gets a commit the browser suite failed. The screenshots run on
+# every PR (ci.yml), not here, so they don't share the runner with the suite.
 # Nothing here pushes to main, so a deploy adds no commit there and every merge to main runs this.
 # Run it by hand on main to try again after a flaky failure: Forgejo can't re-run one job.
 name: release
@@ -83,57 +84,8 @@ jobs:
           SHA: ${{ github.sha }}
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/post-ci-failure.mjs
-  # Takes every station at desktop and phone size, as ci.yml's screenshots job does on a PR, but posts nothing:
-  # a shot that can't be taken stops the deploy.
-  screenshots:
-    runs-on: docker
-    env:
-      # Same renderer as the browser job.
-      LAB_WEBGL: llvmpipe
-      LIBGL_ALWAYS_SOFTWARE: "1"
-      LP_NUM_THREADS: "4"
-    steps:
-      - name: Record start time
-        id: start
-        run: date +%s > "${{ runner.temp }}/start"
-      - uses: actions/checkout@v4
-        id: checkout
-        with:
-          persist-credentials: false
-      - name: Install Mesa and Xvfb
-        id: drivers
-        run: |
-          set -o pipefail
-          { apt-get update && apt-get install -y --no-install-recommends libgl1-mesa-dri libegl-mesa0 libgbm1 xvfb xauth; } 2>&1 | tee "${{ runner.temp }}/out.log" || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
-      - name: Take the screenshots
-        id: run
-        env:
-          SHOTS_DIR: ${{ runner.temp }}/shots
-        run: |
-          set -o pipefail
-          { npm ci && npx playwright install --with-deps chromium && xvfb-run -a -s "-screen 0 1920x1080x24" npx playwright test -c playwright.screenshots.config.ts --reporter=list; } 2>&1 | tee "${{ runner.temp }}/out.log" || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
-      # Forgejo has no job-log API, so post the failure. On main that is a comment on the standing
-      # "CI failures on main" issue. Best effort: it never changes the job result, and a failed post is only logged.
-      - name: Post the failure
-        if: failure()
-        continue-on-error: true
-        env:
-          JOB: screenshots
-          STEPS: start=${{ steps.start.outcome }} checkout=${{ steps.checkout.outcome }} drivers=${{ steps.drivers.outcome }} run=${{ steps.run.outcome }}
-          RUN_STEP: run
-          CMD: npx playwright test -c playwright.screenshots.config.ts
-          OUT_FILE: ${{ runner.temp }}/out.log
-          EXIT_FILE: ${{ runner.temp }}/exit
-          START_FILE: ${{ runner.temp }}/start
-          MASK_ENV: TOKEN
-          SERVER_URL: ${{ github.server_url }}
-          REPOSITORY: ${{ github.repository }}
-          BRANCH: ${{ github.ref_name }}
-          SHA: ${{ github.sha }}
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/post-ci-failure.mjs
   staging:
-    needs: [image, browser, screenshots]
+    needs: [image, browser]
     runs-on: docker
     # One staging push at a time. The tip-of-main check below is what stops an older run winning.
     concurrency:

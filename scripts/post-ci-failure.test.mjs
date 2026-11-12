@@ -383,16 +383,17 @@ describe("ci.yml", () => {
 describe("release.yml", () => {
   const yml = readFileSync(new URL("../.forgejo/workflows/release.yml", import.meta.url), "utf8");
   const job = (name) => yml.slice(yml.indexOf(`\n  ${name}:\n`) + 1).split(/\n  (?=[a-z-]+:\n)/)[0];
-  it("moves staging only after the image, the full browser suite and the screenshots pass", () => {
-    expect(job("staging")).toMatch(/^    needs: \[image, browser, screenshots\]$/m);
+  it("moves staging only after the image and the full browser suite pass", () => {
+    expect(job("staging")).toMatch(/^    needs: \[image, browser\]$/m);
   });
-  it("runs the full suite and every shot", () => {
+  it("runs the full suite, and no screenshots: every PR takes them", () => {
     expect(job("browser")).toContain('make browser PW_ARGS="--reporter=list,json"');
-    expect(job("screenshots")).toContain("npx playwright test -c playwright.screenshots.config.ts");
+    expect(yml).not.toMatch(/^  screenshots:/m);
+    expect(yml).not.toContain("playwright.screenshots.config.ts");
   });
   it("every post step has continue-on-error: true and masks the token", () => {
     const posts = yml.split(/\n      - /).filter((b) => b.includes("post-ci-failure.mjs"));
-    expect(posts).toHaveLength(2);
+    expect(posts).toHaveLength(1);
     for (const p of posts) {
       expect(p).toMatch(/continue-on-error: true/);
       expect(p).toMatch(/MASK_ENV: TOKEN/);

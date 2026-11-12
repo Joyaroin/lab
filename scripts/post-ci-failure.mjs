@@ -1,8 +1,8 @@
 // Posts (or updates, on a later push) why a CI job failed, on the open PR for this branch.
 // On main, which has no PR, each failure is a new comment on the standing "CI failures on main" issue.
 // Forgejo has no job-log API, so this is how workers and reviewers see why a job failed.
-// Used by the frontend, facts, backend, integration, screenshots and secret-scan jobs in ci.yml, and the browser and
-// screenshots jobs in release.yml. Configured by env, see cli() below.
+// Used by the frontend, facts, backend, integration, screenshots and secret-scan jobs in ci.yml, and the browser job
+// in release.yml. Configured by env, see cli() below.
 import { existsSync, readFileSync } from "node:fs";
 import { loadavg } from "node:os";
 import { fileURLToPath } from "node:url";
