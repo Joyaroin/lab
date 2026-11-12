@@ -150,6 +150,12 @@ jobs:
     env:
       # The Makefile installs the browser only when CI is set, so don't leave it to the runner.
       CI: "true"
+      # WebGL draws on Mesa's llvmpipe under Xvfb, not SwiftShader: measured on the runner, a third of the CPU at the same
+      # frame rate, so up to 3 jobs fit. 4 render threads per browser (2 halved the frame rate). tests/webgl.spec.ts fails
+      # the job if Chromium falls back to SwiftShader, which it does without a display.
+      LAB_WEBGL: llvmpipe
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      LP_NUM_THREADS: "4"
     steps:
       - name: Record start time
         id: start
@@ -158,13 +164,19 @@ jobs:
         id: checkout
         with:
           persist-credentials: false
+      # CI only: Mesa's llvmpipe and the virtual display it draws through.
+      - name: Install Mesa and Xvfb
+        id: drivers
+        run: |
+          set -o pipefail
+          { apt-get update && apt-get install -y --no-install-recommends libgl1-mesa-dri libegl-mesa0 libgbm1 xvfb xauth; } 2>&1 | tee "${{ runner.temp }}/out.log" || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
       - name: Run make browser PW_ARGS="--reporter=list,json"
         id: run
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: ${{ runner.temp }}/playwright.json
         run: |
           set -o pipefail
-          make browser PW_ARGS="--reporter=list,json" 2>&1 | tee "${{ runner.temp }}/out.log" || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
+          xvfb-run -a -s "-screen 0 1920x1080x24" make browser PW_ARGS="--reporter=list,json" 2>&1 | tee "${{ runner.temp }}/out.log" || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
       # Forgejo has no job-log API, so put the failure on the PR. Best effort: it never changes
       # the job result, and a failed post is only logged.
       - name: Post the failure on the PR
@@ -172,9 +184,9 @@ jobs:
         continue-on-error: true
         env:
           JOB: browser
-          STEPS: start=${{ steps.start.outcome }} checkout=${{ steps.checkout.outcome }} run=${{ steps.run.outcome }}
+          STEPS: start=${{ steps.start.outcome }} checkout=${{ steps.checkout.outcome }} drivers=${{ steps.drivers.outcome }} run=${{ steps.run.outcome }}
           RUN_STEP: run
-          CMD: make browser PW_ARGS="--reporter=list,json"
+          CMD: xvfb-run make browser PW_ARGS="--reporter=list,json"
           OUT_FILE: ${{ runner.temp }}/out.log
           EXIT_FILE: ${{ runner.temp }}/exit
           START_FILE: ${{ runner.temp }}/start
@@ -195,6 +207,12 @@ jobs:
     concurrency:
       group: screenshots-${{ github.ref }}
       cancel-in-progress: true
+    env:
+      # WebGL draws on Mesa's llvmpipe under Xvfb, not SwiftShader: measured on the runner, a third of the CPU at the same
+      # frame rate, so up to 3 jobs fit. 4 render threads per browser (2 halved the frame rate). Same as the browser job.
+      LAB_WEBGL: llvmpipe
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      LP_NUM_THREADS: "4"
     steps:
       - name: Record start time
         id: start
@@ -211,6 +229,13 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/post-screenshots.mjs find
+      # CI only: Mesa's llvmpipe and the virtual display it draws through.
+      - name: Install Mesa and Xvfb
+        id: drivers
+        if: steps.pr.outputs.pr != ''
+        run: |
+          set -o pipefail
+          { apt-get update && apt-get install -y --no-install-recommends libgl1-mesa-dri libegl-mesa0 libgbm1 xvfb xauth; } 2>&1 | tee "${{ runner.temp }}/out.log" || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
       - name: Take the screenshots
         id: run
         if: steps.pr.outputs.pr != ''
@@ -218,7 +243,7 @@ jobs:
           SHOTS_DIR: ${{ runner.temp }}/shots
         run: |
           set -o pipefail
-          { npm ci && npx playwright install --with-deps chromium && npx playwright test -c playwright.screenshots.config.ts --reporter=list; } 2>&1 | tee "${{ runner.temp }}/out.log" || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
+          { npm ci && npx playwright install --with-deps chromium && xvfb-run -a -s "-screen 0 1920x1080x24" npx playwright test -c playwright.screenshots.config.ts --reporter=list; } 2>&1 | tee "${{ runner.temp }}/out.log" || { c=$?; echo "$c" > "${{ runner.temp }}/exit"; exit "$c"; }
       - name: Attach them to the PR
         id: post
         if: steps.pr.outputs.pr != ''
@@ -238,7 +263,7 @@ jobs:
         continue-on-error: true
         env:
           JOB: screenshots
-          STEPS: start=${{ steps.start.outcome }} checkout=${{ steps.checkout.outcome }} pr=${{ steps.pr.outcome }} run=${{ steps.run.outcome }} post=${{ steps.post.outcome }}
+          STEPS: start=${{ steps.start.outcome }} checkout=${{ steps.checkout.outcome }} pr=${{ steps.pr.outcome }} drivers=${{ steps.drivers.outcome }} run=${{ steps.run.outcome }} post=${{ steps.post.outcome }}
           RUN_STEP: run
           CMD: npx playwright test -c playwright.screenshots.config.ts
           OUT_FILE: ${{ runner.temp }}/out.log

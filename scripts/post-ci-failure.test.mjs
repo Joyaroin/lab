@@ -384,7 +384,7 @@ describe("ci.yml screenshots job", () => {
     expect(job.match(/TOKEN: (.*)/g)?.every((l) => l.endsWith("${{ secrets.GITHUB_TOKEN }}"))).toBe(true);
   });
   it("skips the browser steps when there is no open PR", () => {
-    for (const id of ["run", "post"]) {
+    for (const id of ["drivers", "run", "post"]) {
       const step = job.slice(job.indexOf(`id: ${id}`)).split("\n      - ")[0];
       expect(step, id).toContain("if: steps.pr.outputs.pr != ''");
     }
